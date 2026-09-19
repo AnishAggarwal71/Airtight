@@ -1,0 +1,282 @@
+import type { Template } from './shared'
+import { beats, fullName } from './shared'
+import { addMinutes, hhmm } from '../rng'
+
+/**
+ * Homicide — the anchor crime type. Long timelines, a relationship with the
+ * victim that gives every question a second layer, and pathology evidence that
+ * is almost always hedged in the report and therefore arguable.
+ */
+
+const stairwell: Template = {
+  id: 'homicide-stairwell',
+  crime: 'homicide',
+  title: 'The Service Stairwell',
+  build: (r, detective) => {
+    const victim = fullName(r)
+    const suspect = fullName(r)
+    const neighbour = fullName(r)
+    const rider = fullName(r)
+    const start = hhmm(22, r.int(40, 55))
+    const end = addMinutes(start, r.int(35, 50))
+    const debt = r.pick([9000, 12500, 14000, 18000, 21000])
+    const wifiDrop = addMinutes(start, r.int(24, 32))
+    const fobExit = addMinutes(start, r.int(28, 36))
+    const relationship = r.pick([
+      'your brother-in-law',
+      'your sister’s husband',
+      'your cousin',
+      'your closest friend of nineteen years',
+    ])
+    const block = r.pick([
+      'Wraysbury Mill, a converted flour mill on the canal',
+      'Ashcroft Wharf, a converted warehouse block',
+      'the Ordnance Building, six floors of converted offices',
+    ])
+
+    return {
+      suspect: { name: suspect, occupation: r.pick(['site foreman', 'locksmith', 'delivery driver', 'physiotherapist']) },
+      victim: { name: victim, relationship },
+      location: `${block} — found at the foot of the service stairwell`,
+      window: { start, end },
+      truth: beats(
+        ['t1', start, `You let yourself into ${victim}'s flat on the fourth floor. The argument about the money started almost immediately.`],
+        ['t2', addMinutes(start, 6), `He told you he had no intention of paying and that you should take him to court. You picked up a wine bottle from the counter.`],
+        ['t3', addMinutes(start, 9), `You struck him twice. The second blow killed him.`],
+        ['t4', addMinutes(start, 20), `You dragged him to the service stairwell and arranged him at the bottom of the flight to look like a fall.`],
+        ['t5', wifiDrop, `You went back into the flat to collect the bottle. Your phone was still on the building wifi.`],
+        ['t6', fobExit, `You left through the bin store on the ground floor and put the bottle and your jacket in the canal.`],
+      ),
+      evidence: [
+        {
+          id: 'e1', type: 'digital', anchor: true, baseWeight: 55,
+          linkedBeats: ['t6'],
+          claim: `Your entry fob opened the bin store door at ${fobExit}. You don't have a bin in that store — your flat uses the front chute.`,
+          vulnerability: `The log records the fob, not the person holding it. Fobs in that block are routinely lent out — to contractors, to family, to the man who does the gutters. Nobody signs for them.`,
+        },
+        {
+          id: 'e2', type: 'witness', anchor: true, baseWeight: 45,
+          linkedBeats: ['t1', 't2'],
+          claim: `${neighbour} in the flat below reports raised voices from ${victim}'s flat at roughly ${addMinutes(start, 5)} — two men, one of them shouting.`,
+          vulnerability: `She is seventy-eight, takes her hearing aids out before bed, and has twice complained to the management company about noise she attributed to the wrong flat. The stairwell carries sound between three floors.`,
+        },
+        {
+          id: 'e3', type: 'physical', anchor: true, baseWeight: 60,
+          linkedBeats: ['t3', 't4'],
+          claim: `The pathologist says the head injury is inconsistent with a fall down that stairwell. The angle is wrong.`,
+          vulnerability: `The report says "less consistent with," not impossible — it's a hedged opinion, not a finding. ${victim} also fell in that same stairwell two months ago and was treated for a head injury then.`,
+        },
+        {
+          id: 'e4', type: 'digital', baseWeight: 70,
+          linkedBeats: ['t5'],
+          claim: `Your phone was connected to the building wifi until ${wifiDrop}.`,
+          vulnerability: `The router covers the whole east side of the building including the car park and the towpath. Staying connected proves proximity, not presence in the flat.`,
+        },
+        {
+          id: 'e5', type: 'physical', baseWeight: 50,
+          linkedBeats: ['t4'],
+          claim: `There is a fresh scuff on the stairwell wall, four steps above the landing, matching the sole of ${victim}'s shoe. Consistent with being dragged downward.`,
+          vulnerability: `It's an unpainted breeze-block stairwell used by every contractor in the building. There are eleven other scuffs on that wall and nobody dated any of them.`,
+        },
+        {
+          id: 'e6', type: 'circumstantial', baseWeight: 40,
+          linkedBeats: ['t1'],
+          claim: `${victim} owed you £${debt.toLocaleString()} and had missed the last three repayment dates.`,
+          vulnerability: `A debt is a reason to want him alive and earning. Dead, you're an unsecured creditor at the back of a queue — you lose the money entirely.`,
+        },
+        {
+          id: 'e7', type: 'physical', baseWeight: 55,
+          linkedBeats: ['t2', 't5'],
+          claim: `There's a gap in the wine rack in his kitchen. Eleven bottles, twelve slots, and no bottle anywhere in the flat or the bins.`,
+          vulnerability: `He drank. A missing bottle from a wine rack is the least remarkable thing in a dead man's kitchen.`,
+        },
+        {
+          id: 'e8', type: 'witness', baseWeight: 35,
+          linkedBeats: ['t6'],
+          claim: `${rider}, a delivery rider waiting outside, saw a man in a dark jacket come out of the bin store exit and walk toward the canal.`,
+          vulnerability: `He was looking at his phone, it was dark, and he describes the jacket but not the face. He initially told the first officer it might have been a woman.`,
+        },
+      ],
+      witnesses: [
+        { id: 'w1', name: neighbour, relationship: 'neighbour, flat below', claim: `Heard two men arguing at around ${addMinutes(start, 5)}.`, accurate: true },
+        { id: 'w2', name: rider, relationship: 'delivery rider', claim: `Saw a figure in a dark jacket leave via the bin store and head for the canal.`, accurate: false, flaw: 'Gave a contradictory first account and never saw a face.' },
+      ],
+      fatalFact: `You were still inside that building at ${wifiDrop} — roughly twenty minutes after the time the suspect will almost certainly claim they left.`,
+      opener: `Let's start somewhere easy. Your fob opened the bin store door at ${fobExit}. Talk me through why you were in the bin store.`,
+    }
+  },
+}
+
+const boat: Template = {
+  id: 'homicide-reservoir',
+  crime: 'homicide',
+  title: 'The Reservoir',
+  build: (r, detective) => {
+    const victim = fullName(r)
+    const suspect = fullName(r)
+    const marinaHand = fullName(r)
+    const start = hhmm(r.int(16, 18), r.int(0, 55))
+    const gap = r.int(34, 52)
+    const callTime = addMinutes(start, gap)
+    const end = addMinutes(callTime, 20)
+    const payout = r.pick([180000, 240000, 310000, 425000])
+    const water = r.pick(['Fenwick Reservoir', 'Ladysmere Water', 'the Culland Reservoir'])
+    const business = r.pick(['a plant hire firm', 'a two-van refrigeration business', 'a timber yard', 'a scaffolding company'])
+
+    return {
+      suspect: { name: suspect, occupation: 'co-owner of ' + business },
+      victim: { name: victim, relationship: `your business partner of eleven years` },
+      location: `${water} — recovered from open water, 200m from the north jetty`,
+      window: { start, end },
+      truth: beats(
+        ['t1', start, `You cut the engine mid-water and told him you knew he'd been talking to buyers behind your back.`],
+        ['t2', addMinutes(start, 4), `He admitted it. He said he'd already signed heads of terms.`],
+        ['t3', addMinutes(start, 7), `You swung the spare oar. He went over the gunwale on the starboard side.`],
+        ['t4', addMinutes(start, 9), `He surfaced once. You did not throw the ring. You watched.`],
+        ['t5', callTime, `After ${gap} minutes you called it in and said he'd slipped reaching for a line.`],
+      ),
+      evidence: [
+        {
+          id: 'e1', type: 'digital', anchor: true, baseWeight: 65,
+          linkedBeats: ['t1', 't5'],
+          claim: `The boat's GPS logger shows the engine cut at ${start} and the hull stationary for ${gap} minutes before your emergency call.`,
+          vulnerability: `The logger records the hull, not the people. A man overboard in cold water — you're throwing lines, you're circling, you're not reaching for a phone. Panic is slow and it doesn't move the boat.`,
+        },
+        {
+          id: 'e2', type: 'physical', anchor: true, baseWeight: 50,
+          linkedBeats: ['t3'],
+          claim: `${victim}'s lifejacket was recovered still clipped into the locker. Yours was on.`,
+          vulnerability: `He never wore one. Ask anyone at that marina. Eleven years on that water and the man treated a lifejacket as an insult.`,
+        },
+        {
+          id: 'e3', type: 'financial', anchor: true, baseWeight: 45,
+          linkedBeats: ['t2'],
+          claim: `Your partnership agreement has a cross-option clause. His death pays you out at roughly £${payout.toLocaleString()} and hands you the whole business.`,
+          vulnerability: `That clause is boilerplate — every two-man partnership in the country has one, and the insurer wrote it, not you. It also pays out to his estate if you go first.`,
+        },
+        {
+          id: 'e4', type: 'physical', baseWeight: 60,
+          linkedBeats: ['t3'],
+          claim: `There's bruising to ${victim}'s right forearm, patterned, consistent with a strike from a shaft-like object.`,
+          vulnerability: `He worked a timber yard. He had bruises on his forearms every week of his working life, and the pathologist can't date this one to the hour.`,
+        },
+        {
+          id: 'e5', type: 'physical', baseWeight: 55,
+          linkedBeats: ['t3'],
+          claim: `The spare oar has a fresh chip in the blade and a scrape of paint missing at the shaft.`,
+          vulnerability: `You'd been using it to push off the jetty all season because the bow thruster's been out since March. The marina has the repair docket.`,
+        },
+        {
+          id: 'e6', type: 'digital', baseWeight: 70,
+          linkedBeats: ['t1'],
+          claim: `Two days before, you searched for the maximum depth of ${water} and how long a body takes to surface in cold water.`,
+          vulnerability: `You'd been arguing about whether to buy a heavier mooring. Half the searches on a boat owner's phone look sinister in a transcript and mundane on the water.`,
+        },
+        {
+          id: 'e7', type: 'digital', baseWeight: 50,
+          linkedBeats: ['t2'],
+          claim: `${victim} emailed a commercial solicitor the morning he died about "structuring an exit."`,
+          vulnerability: `You never saw that email. It was sent to his personal account and he hadn't told you.`,
+        },
+        {
+          id: 'e8', type: 'witness', baseWeight: 40,
+          linkedBeats: ['t5'],
+          claim: `${marinaHand} at the marina says you carried two bags down to the boat that afternoon and came back with one.`,
+          vulnerability: `One of them was a coolbag that stayed on board — it's still in the forward locker, and the recovery team photographed it there.`,
+        },
+      ],
+      witnesses: [
+        { id: 'w1', name: marinaHand, relationship: 'marina hand', claim: `Saw you take two bags out and return with one.`, accurate: false, flaw: 'The second bag is still on the boat and was photographed there.' },
+      ],
+      fatalFact: `${gap} minutes of a stationary hull between the engine cutting and the call. That gap is the case.`,
+      opener: `Your boat's logger says the engine stopped at ${start}. You called us at ${callTime}. I want you to account for those ${gap} minutes, and I'd like you to take your time over it.`,
+    }
+  },
+}
+
+const restaurant: Template = {
+  id: 'homicide-restaurant',
+  crime: 'homicide',
+  title: 'After Close',
+  build: (r, detective) => {
+    const victim = fullName(r)
+    const suspect = fullName(r)
+    const chef = fullName(r)
+    const start = hhmm(0, r.int(45, 59))
+    const carLeaves = addMinutes(start, r.int(40, 60))
+    const end = addMinutes(carLeaves, 15)
+    const skim = r.pick([22000, 31000, 44000, 58000])
+    const place = r.pick(['Brasserie Ombra', 'The Salt House', 'Ferran & Co.', 'Little Marne'])
+
+    return {
+      suspect: { name: suspect, occupation: 'restaurateur' },
+      victim: { name: victim, relationship: 'your co-owner' },
+      location: `${place} — found in the kitchen after close`,
+      window: { start, end },
+      truth: beats(
+        ['t1', start, `He showed you the reconciliation he'd run against the supplier invoices. He knew.`],
+        ['t2', addMinutes(start, 8), `He said he was calling the accountant in the morning and then the police.`],
+        ['t3', addMinutes(start, 11), `You hit him with a pan from the rail. You did not stop at once.`],
+        ['t4', addMinutes(start, 25), `You emptied the till, broke the front window from the inside, and mopped the kitchen floor.`],
+        ['t5', carLeaves, `You drove out of the yard.`],
+      ),
+      evidence: [
+        {
+          id: 'e1', type: 'physical', anchor: true, baseWeight: 70,
+          linkedBeats: ['t4'],
+          claim: `The front window was broken from the inside. The glass is on the pavement.`,
+          vulnerability: `Toughened glass throws both ways when it goes, and the first responders walked through it twice before anyone photographed it.`,
+        },
+        {
+          id: 'e2', type: 'circumstantial', anchor: true, baseWeight: 60,
+          linkedBeats: ['t4'],
+          claim: `The till was emptied. The safe, four feet away with considerably more in it, wasn't touched. Two people knew that code.`,
+          vulnerability: `The code had been the same for three years and was written on the underside of the shelf above it. Every member of staff who'd ever cashed up knew where to look.`,
+        },
+        {
+          id: 'e3', type: 'digital', anchor: true, baseWeight: 55,
+          linkedBeats: ['t5'],
+          claim: `The yard camera has your car in its usual space until ${carLeaves}.`,
+          vulnerability: `You closed most nights and you routinely stayed late doing the books. The camera also caught you leaving after one in the morning on eleven other nights this year.`,
+        },
+        {
+          id: 'e4', type: 'physical', baseWeight: 75,
+          linkedBeats: ['t4'],
+          claim: `The kitchen floor was mopped after close. The water in the mop bucket tested positive for blood.`,
+          vulnerability: `It's a kitchen. Blood in a kitchen bucket at a restaurant that butchers its own meat is not, on its own, an accusation.`,
+        },
+        {
+          id: 'e5', type: 'digital', baseWeight: 65,
+          linkedBeats: ['t2'],
+          claim: `There's an unsent draft on ${victim}'s phone to the accountant. It names you.`,
+          vulnerability: `Unsent. He drafted things and deleted them constantly — there are forty unsent messages on that phone, including two to you calling the whole partnership off.`,
+        },
+        {
+          id: 'e6', type: 'physical', baseWeight: 60,
+          linkedBeats: ['t4'],
+          claim: `Your fingerprints are on the inside of the broken window frame.`,
+          vulnerability: `You own the building. Your prints are on every surface in it, and that window sticks — you've been shouldering it shut since the winter.`,
+        },
+        {
+          id: 'e7', type: 'financial', baseWeight: 50,
+          linkedBeats: ['t1'],
+          claim: `Roughly £${skim.toLocaleString()} of supplier invoices over eighteen months don't match anything that was delivered.`,
+          vulnerability: `Your supplier invoices are a disgrace and always have been. Sloppy books are evidence of sloppy books.`,
+        },
+        {
+          id: 'e8', type: 'witness', baseWeight: 35,
+          linkedBeats: ['t4'],
+          claim: `${chef}, who lives above the shop next door, heard the shutter go at around ${addMinutes(start, 30)}.`,
+          vulnerability: `She heard a shutter, not your shutter. There are four businesses on that row and three of them have roller shutters.`,
+        },
+      ],
+      witnesses: [
+        { id: 'w1', name: chef, relationship: 'neighbour above the adjacent shop', claim: `Heard a roller shutter around ${addMinutes(start, 30)}.`, accurate: false, flaw: 'Four businesses on the row have shutters; she assumed it was yours.' },
+      ],
+      fatalFact: `That window went out from the inside, which means the burglary was staged, which means whoever did this was already in the building.`,
+      opener: `Before we get to your evening, I want to deal with the window. It was broken from the inside. Do you want to tell me how a burglar manages that?`,
+    }
+  },
+}
+
+export const homicideTemplates: Template[] = [stairwell, boat, restaurant]

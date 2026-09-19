@@ -1,0 +1,8 @@
+node_modules/
+.npmrc
+.env.local
+dist/
+.DS_Store
+.certs/
+package-lock.json
+.claude/settings.local.json
