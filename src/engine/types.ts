@@ -68,6 +68,16 @@ export type CaseFile = {
   fatalFact: string
   detective: { name: string; rank: string }
   opener: string
+  /** What you did, in plain language, zero forensic detail. See Briefing. */
+  briefing?: Briefing
+}
+
+/** What the player is told before turn 1 — see templates/shared.ts. */
+export type Briefing = {
+  name: string
+  age: number
+  occupation: string
+  what: string
 }
 
 /** Everything the client is allowed to know at the start of a session. */
@@ -80,6 +90,7 @@ export type PublicCase = {
   window: { start: string; end: string }
   detective: { name: string; rank: string }
   opener: string
+  briefing?: Briefing
   evidence: { id: string; type: EvidenceType; claim: string }[]
 }
 
@@ -105,6 +116,8 @@ export type Claim = {
   id: string       // "c1", "c2", ... sequential
   text: string     // normalised assertion (1–2 sentences)
   turn: number
+  /** False for opinions/feelings — only checkable claims count as contradiction surface. */
+  checkable: boolean
 }
 
 /** Accumulated token usage across all model calls in a session. */
@@ -115,39 +128,48 @@ export type TokenUsage = {
   cacheReadTokens: number
 }
 
-export type Ending = 'CHARGED' | 'RELEASED' | 'HELD_48_HOURS'
+/** Suspicion is the only meter. Charged if it crosses the threshold; released otherwise. */
+export type Ending = 'CHARGED' | 'RELEASED'
+
+/** Which of the three behavioural phases a turn falls into — drives the detective's approach. */
+export type Phase = 'early' | 'mid' | 'late'
 
 /**
- * The adjudicator's structured response — matches PRD §5.4 exactly.
+ * The adjudicator's structured response.
  *
- * All judgment scales are 0–3 integers. Small discrete scales are dramatically
- * more stable across calls than 1–10 or 1–100. The detective's spoken response
- * is a string field inside this structure — the invariant is "no prose parsing,"
- * not "no prose."
+ * The model labels what happened in the player's answer; every number that
+ * follows from it lives in score.ts. "No prose parsing" means detectiveResponse
+ * is read as dialogue, never scraped for meaning.
  */
 export type Adjudication = {
   /** Claims the adjudicator extracted from the player's answer. */
-  newClaims: { id: string; text: string }[]
-  /** Contradictions detected against prior claims or evidence. */
+  newClaims: { id: string; text: string; checkable: boolean }[]
+  /** Contradictions against the player's own earlier claims — both halves quoted for fairness. */
   contradictions: {
-    against: string                       // claim id ("c3") or evidence id ("e2")
-    kind: 'claim' | 'evidence'
+    againstClaimId: string
+    quotedEarlier: string
+    quotedNow: string
     severity: 'minor' | 'major'
-    note: string                          // brief explanation for breakdown
   }[]
-  /** Evidence the player addressed, with explanation quality. */
-  explains: { evidenceId: string; quality: 0 | 1 | 2 | 3 }[]
-  /** How evasive the answer was. 0 = direct, 3 = silence/refusal. */
-  evasion: 0 | 1 | 2 | 3
-  /** How plausible the answer was. 0 = implausible, 3 = compelling. */
-  plausibility: 0 | 1 | 2 | 3
+  /** True if the player changed their account after being pressed on it. */
+  revisesEarlier: boolean
+  /** What kind of answer this was, for the free-pass and pattern rules in score.ts. */
+  responseStance:
+    | 'explains'
+    | 'flat_denial'
+    | 'dont_remember'
+    | 'decline_to_speculate'
+    | 'volunteers_detail'
+    | 'normal'
+  /** True if the player offered a specific, testable detail that doesn't hold up. */
+  specificityFailure: boolean
+  /** Set only when the detective actually raised a held-back evidence item this turn. */
+  evidencePlayed: { evidenceId: string; quality: 0 | 1 | 2 | 3 } | null
   /** True if the player attempted prompt injection. */
   injectionAttempt: boolean
-  /** Model suggests which latent evidence to surface (on major contradiction). */
-  evidenceToReveal: string | null
   /** If bluff was authorised and used, the fabricated evidence. */
   bluff: { evidenceId: string; text: string } | null
-  /** The detective's next spoken line — game dialogue. */
+  /** The detective's next spoken line — tone-only feedback, no numbers. */
   detectiveResponse: string
 }
 
@@ -159,19 +181,19 @@ export type GameSession = {
   seed: string
   crime: CrimeType
   turn: number
-  maxTurns: number                        // 12 normally; 15 if Suspicion >= 90
+  maxTurns: number
   caseFile: CaseFile
   claims: Claim[]
-  evidence: Evidence[]                    // mutable copy — weights change during play
-  caseStrength: number
+  evidence: Evidence[]                    // mutable copy — state/weight change during play
   suspicion: number
-  contradictionPenalty: number            // running total, adds to Case Strength
-  caseStrengthHistory: number[]           // per-turn snapshots for breakdown
   suspicionHistory: number[]
   bluffTurn: number | null                // decided at start from seeded RNG
   bluffUsed: boolean
   bluffDetail: { evidenceId: string; text: string } | null
-  extended: boolean                       // true once Suspicion >= 90 triggers +3 rounds
+  /** Each flat_denial/dont_remember/decline_to_speculate stance is free once. */
+  usedFreeDenial: boolean
+  usedFreeDontRemember: boolean
+  usedFreeDecline: boolean
   ending: Ending | null
   endTurn: number | null
   usage: TokenUsage                       // accumulated across all turns
@@ -183,14 +205,7 @@ export type TurnDetail = {
   turn: number
   playerAnswer: string
   adjudication: Adjudication
-  caseStrengthBefore: number
-  caseStrengthAfter: number
   suspicionBefore: number
   suspicionAfter: number
   evidenceRevealed: string[]
-  evidenceWeightChanges: Array<{
-    evidenceId: string
-    oldWeight: number
-    newWeight: number
-  }>
 }

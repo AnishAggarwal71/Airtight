@@ -9,8 +9,9 @@
  *      desynchronises mid-session and the evals mean nothing.
  *   2. LEAK-SAFETY — toPublicCase() is a security boundary. If a vulnerability
  *      or a truth beat reaches the browser, the game is solved in devtools.
- *   3. TEMPLATE INTEGRITY — every template must produce well-formed evidence,
- *      unique ids, and at least one anchor.
+ *   3. TEMPLATE INTEGRITY — every template must produce well-formed evidence
+ *      with unique ids, all starting latent (nothing is revealed at game
+ *      start — the player doesn't know what the police have).
  */
 
 import { generate, toPublicCase } from '../engine/generate'
@@ -98,9 +99,9 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
         fail(`${f.templateId} has only ${f.evidence.length} evidence items`)
         sound = false
       }
-      const revealed = f.evidence.filter((e) => e.state === 'revealed').length
-      if (revealed < 3 || revealed > 4) {
-        fail(`${f.templateId} reveals ${revealed} items at start (want 3–4)`)
+      const revealed = f.evidence.filter((e) => e.state !== 'latent').length
+      if (revealed !== 0) {
+        fail(`${f.templateId} reveals ${revealed} items at start (want 0 — nothing is shown until the detective raises it)`)
         sound = false
       }
       for (const e of f.evidence) {

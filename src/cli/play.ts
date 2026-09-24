@@ -5,8 +5,8 @@
  *   npm run play                          # random seed, crime picker
  *   npm run play -- mallard-7719 arson    # specific case
  *
- * Twelve rounds (or fifteen if Suspicion >= 90). Three endings. Zero UI until M3
- * — tuning against a CLI is several times faster than tuning through a browser.
+ * 10-14 rounds. Two endings. No meter is ever shown during play — the only
+ * feedback is the detective's tone. Suspicion is revealed once, at the end.
  */
 
 import dotenv from 'dotenv'
@@ -15,8 +15,7 @@ dotenv.config()                        // fallback to .env if present
 import * as readline from 'node:readline'
 import { randomSeed } from '../engine/rng'
 import { createSession, playTurn } from '../engine/session'
-import { SCORING_CONFIG } from '../engine/score'
-import type { CrimeType, GameSession, Ending, Evidence, TurnDetail } from '../engine/types'
+import type { CrimeType, GameSession, Ending, TurnDetail } from '../engine/types'
 import { CRIME_LABELS, CRIME_BLURBS } from '../engine/types'
 
 // ─── ANSI helpers (same pattern as inspect.ts) ───────────────────────────────
@@ -39,7 +38,7 @@ const CRIMES: CrimeType[] = ['homicide', 'arson', 'embezzlement']
 
 // ─── Rendering helpers ───────────────────────────────────────────────────────
 
-/** Render a meter bar with colour thresholds. */
+/** Render a meter bar with colour thresholds — used only in the post-game breakdown. */
 function meterBar(value: number, label: string, warnAt: number, dangerAt: number): string {
   const filled = Math.round((value / 100) * BAR_WIDTH)
   const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
@@ -51,45 +50,25 @@ function meterBar(value: number, label: string, warnAt: number, dangerAt: number
   return `  ${padded}[${coloured}]  ${String(value).padStart(3)}/100`
 }
 
-/** Render the turn header, meters, and evidence table. */
-function renderTurnDisplay(
-  session: GameSession,
-  detectiveResponse: string,
-  newlyRevealed: Set<string>,
-): void {
+/**
+ * Render the turn header and the detective's line. No meters, no evidence
+ * table — the player knows what they did, not what the police have, and
+ * feedback is tone only. Evidence surfaces inside detectiveResponse itself.
+ */
+function renderTurnDisplay(session: GameSession, detectiveResponse: string): void {
   const divider = '═'.repeat(56)
-  const thinDivider = '─'.repeat(56)
   console.log()
   console.log(` ${divider}`)
   console.log(`  ${C.bold('AIRTIGHT')}          Turn ${session.turn} of ${session.maxTurns}        ${C.dim(session.seed)}`)
-  console.log(` ${thinDivider}`)
+  console.log(` ${divider}`)
 
-  // Meters: CS is bad when high, Suspicion is bad when high
-  console.log(meterBar(session.caseStrength, 'Case Strength', 50, 80))
-  console.log(meterBar(session.suspicion, 'Suspicion', 60, 90))
-  console.log(` ${thinDivider}`)
-
-  // Evidence table — only revealed/explained items
-  const visible = session.evidence.filter((e) => e.state !== 'latent')
-  if (visible.length > 0) {
-    console.log()
-    console.log(`  ${C.bold('EVIDENCE ON THE TABLE:')}`)
-    for (const e of visible) {
-      const tag = newlyRevealed.has(e.id) ? C.red('NEW') + ' — ' : ''
-      const stateTag = e.state === 'explained' ? C.green(' [explained]') : ''
-      console.log(`  ${C.dim(`[${e.id}]`)} ${tag}${e.claim}${stateTag}`)
-    }
-  }
-
-  // Detective's response
-  console.log()
   const det = session.caseFile.detective
   console.log(`  ${C.bold(`${det.rank} ${det.name}`)}:`)
   console.log(`  ${C.cyan('"' + detectiveResponse + '"')}`)
   console.log()
 }
 
-/** Render the ending banner. */
+/** Render the ending banner. Only two outcomes — winning should be rare. */
 function renderEnding(ending: Ending, session: GameSession): void {
   const divider = '═'.repeat(56)
   console.log()
@@ -102,13 +81,8 @@ function renderEnding(ending: Ending, session: GameSession): void {
       break
     case 'RELEASED':
       console.log(`  ${C.green(C.bold('RELEASED'))}`)
-      console.log(`  You survived ${session.turn} rounds. The detective couldn't`)
-      console.log(`  build a chargeable case. You walk.`)
-      break
-    case 'HELD_48_HOURS':
-      console.log(`  ${C.yellow(C.bold('HELD FOR 48 HOURS'))}`)
-      console.log(`  Not enough to charge, too much to release. You'll be back`)
-      console.log(`  in this room in two days.`)
+      console.log(`  You survived ${session.turn} rounds. Insufficient evidence.`)
+      console.log(`  You're free to go.`)
       break
   }
 
@@ -123,67 +97,58 @@ function renderBreakdown(session: GameSession): void {
   console.log(`  ${C.bold('POST-GAME BREAKDOWN')}`)
   console.log(` ${divider}`)
 
-  // 1. Final meters
-  console.log(`  Case Strength: ${session.caseStrength}/100   Suspicion: ${session.suspicion}/100`)
+  // 1. Final meter — the only time it's ever shown
+  console.log(meterBar(session.suspicion, 'Suspicion', 50, 75))
   console.log(`  Turns played: ${session.turn}/${session.maxTurns}`)
-  if (session.extended) {
-    console.log(`  ${C.yellow('Interrogation extended +3 rounds (Suspicion hit 90)')}`)
-  }
   console.log()
 
-  // 2. Turning point — largest CS jump
+  // 2. Turning point — largest Suspicion jump
   if (session.turnDetails.length > 0) {
     let turningPoint: TurnDetail | null = null
     let maxDelta = 0
     for (const td of session.turnDetails) {
-      const delta = Math.abs(td.caseStrengthAfter - td.caseStrengthBefore)
+      const delta = Math.abs(td.suspicionAfter - td.suspicionBefore)
       if (delta > maxDelta) {
         maxDelta = delta
         turningPoint = td
       }
     }
     if (turningPoint && maxDelta > 0) {
-      const direction = turningPoint.caseStrengthAfter > turningPoint.caseStrengthBefore
+      const direction = turningPoint.suspicionAfter > turningPoint.suspicionBefore
         ? C.red(`+${maxDelta}`)
         : C.green(`-${maxDelta}`)
       console.log(`  ${C.bold('THE MOMENT IT TURNED')}`)
-      console.log(`  Turn ${turningPoint.turn}: Case Strength ${direction} (${turningPoint.caseStrengthBefore} → ${turningPoint.caseStrengthAfter})`)
+      console.log(`  Turn ${turningPoint.turn}: Suspicion ${direction} (${turningPoint.suspicionBefore} → ${turningPoint.suspicionAfter})`)
       console.log(`  You said: ${C.dim('"' + turningPoint.playerAnswer.slice(0, 120) + '"')}`)
       console.log()
     }
   }
 
   // 3. Meter trajectory (ASCII sparkline)
-  if (session.caseStrengthHistory.length > 0) {
-    console.log(`  ${C.bold('METER TRAJECTORY')}`)
-    console.log(`  CS:  ${sparkline(session.caseStrengthHistory)}`)
-    console.log(`  Sus: ${sparkline(session.suspicionHistory)}`)
+  if (session.suspicionHistory.length > 0) {
+    console.log(`  ${C.bold('SUSPICION OVER TIME')}`)
+    console.log(`  ${sparkline(session.suspicionHistory)}`)
     console.log()
   }
 
-  // 4. Evidence table
+  // 4. Evidence breakdown — what was ever played, and what never came up
   console.log(`  ${C.bold('EVIDENCE BREAKDOWN')}`)
   for (const e of session.evidence) {
-    const original = session.caseFile.evidence.find((ce) => ce.id === e.id)!
-    const delta = e.weight - original.baseWeight
-    const deltaStr = delta === 0
-      ? C.dim(' ±0')
-      : delta > 0 ? C.red(`+${delta}`) : C.green(`${delta}`)
-    const stateTag = e.state === 'latent' ? C.dim('[never revealed]') : `[${e.state}]`
-    console.log(`  ${C.dim(e.id)} ${stateTag} ${original.baseWeight} → ${e.weight} (${deltaStr})`)
-    console.log(`    ${C.dim(e.claim.slice(0, 80))}`)
-    console.log(`    ${C.yellow('vulnerability:')} ${C.dim(e.vulnerability.slice(0, 100))}`)
-    console.log()
+    const stateTag = e.state === 'latent' ? C.dim('[never raised]') : `[${e.state}]`
+    console.log(`  ${C.dim(e.id)} ${stateTag} ${e.claim.slice(0, 90)}`)
+    if (e.state !== 'latent') {
+      console.log(`    ${C.yellow('vulnerability:')} ${C.dim(e.vulnerability.slice(0, 100))}`)
+    }
   }
+  console.log()
 
   // 5. Annotated claim ledger
   if (session.claims.length > 0) {
     console.log(`  ${C.bold('CLAIM LEDGER')}`)
     for (const claim of session.claims) {
-      // Check if this claim was involved in a contradiction
       const contradictions = session.turnDetails
         .flatMap((td) => td.adjudication.contradictions)
-        .filter((c) => c.against === claim.id)
+        .filter((c) => c.againstClaimId === claim.id)
       const tags: string[] = []
       for (const c of contradictions) {
         tags.push(c.severity === 'major' ? C.red('[MAJOR CONTRADICTION]') : C.yellow('[minor contradiction]'))
@@ -206,14 +171,14 @@ function renderBreakdown(session: GameSession): void {
 
   // 7. Vulnerabilities never found
   const missed = session.evidence.filter((e) => {
-    const bestExplanation = Math.max(
+    const bestQuality = Math.max(
       0,
       ...session.turnDetails
-        .flatMap((td) => td.adjudication.explains)
-        .filter((ex) => ex.evidenceId === e.id)
-        .map((ex) => ex.quality),
+        .map((td) => td.adjudication.evidencePlayed)
+        .filter((ep) => ep && ep.evidenceId === e.id)
+        .map((ep) => ep!.quality),
     )
-    return e.state !== 'latent' && bestExplanation < 2
+    return e.state !== 'latent' && bestQuality < 2
   })
   if (missed.length > 0) {
     console.log(`  ${C.bold('WHAT YOU MISSED')}`)
@@ -236,6 +201,9 @@ function sparkline(values: number[]): string {
 
 function renderCostSummary(session: GameSession): void {
   const u = session.usage
+  // Rates below are the old Gemini 2.0 Flash pricing, kept as a rough
+  // placeholder after the model swap to 3.5 Flash Lite — re-check against
+  // the current rate card before trusting these dollar figures.
   const inputCost = (u.inputTokens * 1.0) / 1_000_000
   const outputCost = (u.outputTokens * 5.0) / 1_000_000
   const cacheCost = (u.cacheCreationTokens * 1.25) / 1_000_000
@@ -244,7 +212,7 @@ function renderCostSummary(session: GameSession): void {
 
   const divider = '─'.repeat(56)
   console.log(` ${divider}`)
-  console.log(`  ${C.bold('COST SUMMARY')} ${C.dim('(Gemini 2.0 Flash)')}`)
+  console.log(`  ${C.bold('COST SUMMARY')} ${C.dim('(Gemini 3.5 Flash Lite — rates approximate)')}`)
   console.log(`  Input tokens:       ${String(u.inputTokens).padStart(8)}    $${inputCost.toFixed(4)}`)
   console.log(`  Output tokens:      ${String(u.outputTokens).padStart(8)}    $${outputCost.toFixed(4)}`)
   console.log(`  Cache creation:     ${String(u.cacheCreationTokens).padStart(8)}    $${cacheCost.toFixed(4)}`)
@@ -304,9 +272,13 @@ async function main(): Promise<void> {
 
   const rl = createPrompt()
 
-  // Parse CLI args
+  // Parse CLI args: [seed] [crime] [templateId]
+  // templateId forces a specific scenario (e.g. "homicide-stairwell") while
+  // still varying names/times/amounts from the seed — useful for beta-testing
+  // one rewritten template against many playthroughs.
   const args = process.argv.slice(2)
   const seed = args[0] ?? randomSeed()
+  const templateId = args[2]
   let crime: CrimeType
 
   if (args[1] && CRIMES.includes(args[1] as CrimeType)) {
@@ -319,27 +291,38 @@ async function main(): Promise<void> {
   }
 
   // Initialise session
-  const session = createSession(seed, crime)
-  const det = session.caseFile.detective
+  let session: ReturnType<typeof createSession>
+  try {
+    session = createSession(seed, crime, undefined, templateId)
+  } catch (err) {
+    console.error(C.red(`\n  ${(err as Error).message}\n`))
+    process.exit(1)
+  }
 
   // Intro
   console.log()
   console.log(`  ${C.bold('AIRTIGHT')} ${C.dim(`${seed} · ${CRIME_LABELS[crime]}`)}`)
   console.log()
-  console.log(`  You are ${C.bold(session.caseFile.suspect.name)}, ${session.caseFile.suspect.occupation}.`)
-  console.log(`  You did it. Now talk your way out.`)
+
+  const briefing = session.caseFile.briefing
+  if (briefing) {
+    console.log(`  You're ${C.bold(briefing.name)}, ${briefing.age}, ${briefing.occupation}.`)
+    console.log()
+    console.log(`  ${briefing.what}`)
+  } else {
+    console.log(`  You are ${C.bold(session.caseFile.suspect.name)}, ${session.caseFile.suspect.occupation}.`)
+    console.log(`  You did it. Now talk your way out.`)
+  }
   console.log()
-  console.log(`  ${C.dim('Type your answers. /quit to exit. /status to re-display meters.')}`)
+  console.log(`  ${C.dim('Type your answers. /quit to exit.')}`)
   console.log(`  ${C.dim(`Max ${MAX_ANSWER_LENGTH} characters per answer.`)}`)
 
   // Game loop
   let lastDetectiveResponse = session.caseFile.opener
-  const newlyRevealed = new Set<string>()
 
   while (!session.ending && session.turn < session.maxTurns) {
     // Render current state
-    renderTurnDisplay(session, lastDetectiveResponse, newlyRevealed)
-    newlyRevealed.clear()
+    renderTurnDisplay(session, lastDetectiveResponse)
 
     // Get player input
     let answer = ''
@@ -349,15 +332,13 @@ async function main(): Promise<void> {
 
       if (trimmed === '/quit') {
         console.log(C.dim('\n  Ending session early.\n'))
-        session.ending = session.turn > 0 ? 'HELD_48_HOURS' : null
         rl.close()
         if (session.turnDetails.length > 0) renderBreakdown(session)
         process.exit(0)
       }
 
       if (trimmed === '/status') {
-        console.log(meterBar(session.caseStrength, 'Case Strength', 50, 80))
-        console.log(meterBar(session.suspicion, 'Suspicion', 60, 90))
+        console.log(C.dim('  (You can\'t see what they\'re writing down.)'))
         continue
       }
 
@@ -379,23 +360,12 @@ async function main(): Promise<void> {
     console.log(C.dim('\n  Thinking...\n'))
     const result = await playTurn(session, answer)
 
-    // Track newly revealed evidence
-    for (const id of result.evidenceRevealed) {
-      newlyRevealed.add(id)
-    }
-
-    // Extension notice
-    if (result.justExtended) {
-      console.log(C.red(C.bold('  ── The interrogation has been extended. ──')))
-      console.log(C.red(`  Suspicion hit 90. ${SCORING_CONFIG.extensionRounds} more rounds.`))
-    }
-
     // Store the detective's response for next turn's display
     lastDetectiveResponse = result.detectiveResponse
 
     // Check ending
     if (result.ending) {
-      renderTurnDisplay(session, lastDetectiveResponse, newlyRevealed)
+      renderTurnDisplay(session, lastDetectiveResponse)
       renderEnding(result.ending, session)
       break
     }
@@ -403,12 +373,9 @@ async function main(): Promise<void> {
 
   // If we ran out of turns without a mid-game ending, check now
   if (!session.ending && session.turn >= session.maxTurns) {
-    const ending = session.caseStrength < SCORING_CONFIG.releasedCeiling
-      ? 'RELEASED' as const
-      : 'HELD_48_HOURS' as const
-    session.ending = ending
+    session.ending = 'RELEASED'
     session.endTurn = session.turn
-    renderEnding(ending, session)
+    renderEnding('RELEASED', session)
   }
 
   // Post-game breakdown
@@ -420,6 +387,13 @@ async function main(): Promise<void> {
 // ─── Run ─────────────────────────────────────────────────────────────────────
 
 main().catch((err) => {
+  // A closed stdin (Ctrl+D, or piped input reaching EOF) surfaces as this
+  // readline error — it's not a game bug, just an ended input stream, so
+  // exit quietly instead of dumping a stack trace.
+  if ((err as { code?: string })?.code === 'ERR_USE_AFTER_CLOSE') {
+    console.log(C.dim('\n  Input closed — ending session.\n'))
+    process.exit(0)
+  }
   console.error(C.red('\n  Fatal error:'), err)
   process.exit(1)
 })

@@ -7,7 +7,8 @@
     "verify": "tsx src/cli/verify.ts",
     "case": "tsx src/cli/inspect.ts",
     "case:public": "tsx src/cli/inspect.ts --public",
-    "play": "tsx src/cli/play.ts"
+    "play": "tsx src/cli/play.ts",
+    "play:stairwell": "node scripts/play-stairwell.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.58",

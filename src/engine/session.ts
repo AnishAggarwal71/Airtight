@@ -10,7 +10,7 @@ import { generate } from './generate'
 import { Rng } from './rng'
 import { adjudicate, type AdjudicateInput } from './adjudicate'
 import { addClaims } from './ledger'
-import { scoreTurn, computeCaseStrength, SCORING_CONFIG, type ScoringConfig } from './score'
+import { scoreTurn, getPhase, pickEvidenceToPlay, SCORING_CONFIG, type ScoringConfig } from './score'
 import type {
   CrimeType,
   GameSession,
@@ -30,8 +30,9 @@ export function createSession(
   seed: string,
   crime: CrimeType,
   config: ScoringConfig = SCORING_CONFIG,
+  templateId?: string,
 ): GameSession {
-  const caseFile = generate({ seed, crime })
+  const caseFile = generate({ seed, crime, templateId })
 
   // Bluff scheduling — separate RNG so it doesn't affect case generation
   const bluffRng = new Rng(`${seed}::bluff`)
@@ -43,9 +44,6 @@ export function createSession(
   // Deep-copy evidence so we can mutate weights without touching the CaseFile
   const evidence = caseFile.evidence.map((e) => ({ ...e }))
 
-  const contradictionPenalty = 0
-  const caseStrength = computeCaseStrength(evidence, contradictionPenalty, config)
-
   return {
     seed,
     crime,
@@ -54,15 +52,14 @@ export function createSession(
     caseFile,
     claims: [],
     evidence,
-    caseStrength,
-    suspicion: 0,
-    contradictionPenalty,
-    caseStrengthHistory: [],
+    suspicion: config.initialSuspicion,
     suspicionHistory: [],
     bluffTurn,
     bluffUsed: false,
     bluffDetail: null,
-    extended: false,
+    usedFreeDenial: false,
+    usedFreeDontRemember: false,
+    usedFreeDecline: false,
     ending: null,
     endTurn: null,
     usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
@@ -88,19 +85,17 @@ export type PlayTurnResult = {
   ending: Ending | null
   /** IDs of evidence newly revealed this turn. */
   evidenceRevealed: string[]
-  /** True if the interrogation was just extended +3 rounds. */
-  justExtended: boolean
 }
 
 /**
  * Orchestrate one turn of the game. Mutates the session in place.
  *
- * 1. Advance turn counter
- * 2. Call adjudicator
- * 3. Update claim ledger
- * 4. Score the turn
- * 5. Apply results to session state
- * 6. Check Suspicion extension
+ * 1. Advance turn counter, compute phase
+ * 2. Offer the detective a held-back item to play, if any
+ * 3. Call adjudicator
+ * 4. Update claim ledger
+ * 5. Score the turn
+ * 6. Apply results to session state
  * 7. Check ending
  * 8. Record turn detail for breakdown
  */
@@ -111,18 +106,19 @@ export async function playTurn(
 ): Promise<PlayTurnResult> {
   session.turn++
 
-  const csBefore = session.caseStrength
   const susBefore = session.suspicion
+  const phase = getPhase(session.turn, config)
+  const evidenceHint = pickEvidenceToPlay(session.evidence, phase)
 
   // Build adjudicator input
-  const revealedEvidence = session.evidence.filter((e) => e.state !== 'latent')
   const input: AdjudicateInput = {
     caseFile: session.caseFile,
     turn: session.turn,
     maxTurns: session.maxTurns,
+    phase,
     playerAnswer,
     claims: session.claims,
-    revealedEvidence,
+    evidenceHint,
     bluffAuthorized: isBluffAuthorized(session),
   }
 
@@ -145,9 +141,10 @@ export async function playTurn(
   const result = scoreTurn(adjudication, session, config)
 
   // Apply scoring results to session
-  session.caseStrength = result.newCaseStrength
   session.suspicion = result.newSuspicion
-  session.contradictionPenalty = result.newContradictionPenalty
+  if (result.freePassesUsed.denial) session.usedFreeDenial = true
+  if (result.freePassesUsed.dontRemember) session.usedFreeDontRemember = true
+  if (result.freePassesUsed.decline) session.usedFreeDecline = true
 
   // Apply evidence mutations (weight changes, state transitions, revelations)
   for (const change of result.evidenceWeightChanges) {
@@ -163,19 +160,7 @@ export async function playTurn(
     if (ev) ev.state = 'revealed'
   }
 
-  // Check Suspicion extension (PRD §5.7: Suspicion >= 90 → +3 rounds)
-  let justExtended = false
-  if (
-    !session.extended &&
-    session.suspicion >= config.suspicionExtensionThreshold
-  ) {
-    session.maxTurns = config.baseTurns + config.extensionRounds
-    session.extended = true
-    justExtended = true
-  }
-
   // Record history
-  session.caseStrengthHistory.push(session.caseStrength)
   session.suspicionHistory.push(session.suspicion)
 
   // Check ending
@@ -190,12 +175,9 @@ export async function playTurn(
     turn: session.turn,
     playerAnswer,
     adjudication,
-    caseStrengthBefore: csBefore,
-    caseStrengthAfter: session.caseStrength,
     suspicionBefore: susBefore,
     suspicionAfter: session.suspicion,
     evidenceRevealed: result.evidenceRevealed,
-    evidenceWeightChanges: result.evidenceWeightChanges,
   }
   session.turnDetails.push(detail)
 
@@ -203,7 +185,6 @@ export async function playTurn(
     detectiveResponse: adjudication.detectiveResponse,
     ending,
     evidenceRevealed: result.evidenceRevealed,
-    justExtended,
   }
 }
 

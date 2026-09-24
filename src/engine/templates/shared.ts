@@ -14,12 +14,27 @@ import type { CrimeType, Evidence, TimelineBeat, Witness } from '../types'
 export type DetectiveIdentity = { name: string; rank: string }
 
 /**
- * Evidence as authored by a template. `anchor` marks evidence that always
- * starts revealed (the reason the suspect is in the room) — generate() strips
- * it before returning the real Evidence and derives `weight`/`state` instead.
+ * Evidence as authored by a template. `anchor` is retired — generate() no
+ * longer reveals anything at game start (the player doesn't know what the
+ * police have). Kept only so untouched templates still type-check; new
+ * templates should not set it. `baseWeight` is now purely an ordinal the
+ * engine uses to decide which held-back item is worth playing late-game.
  */
 export type TemplateEvidence = Omit<Evidence, 'weight' | 'state'> & {
   anchor?: boolean
+}
+
+/**
+ * What the player is told before turn 1 — what they did, in their own frame,
+ * with zero forensic detail. This replaces a prepared story: the player
+ * invents their account live from this alone.
+ */
+export type Briefing = {
+  name: string
+  age: number
+  occupation: string
+  /** Who, what, how, why — plainly, under 120 words. No timestamps, no evidence. */
+  what: string
 }
 
 export type TemplateBuild = {
@@ -32,6 +47,8 @@ export type TemplateBuild = {
   witnesses: Witness[]
   fatalFact: string
   opener: string
+  /** Optional during migration — templates without one fall back to opener-only. */
+  briefing?: Briefing
 }
 
 export type Template = {
@@ -65,6 +82,30 @@ const LAST_NAMES = [
 /** A random "First Last" name, distinct enough across a small cast that collisions are rare. */
 export function fullName(r: Rng): string {
   return `${r.pick(FIRST_NAMES)} ${r.pick(LAST_NAMES)}`
+}
+
+const MALE_FIRST_NAMES = [
+  'Michael', 'David', 'James', 'Daniel', 'Robert', 'Andrew', 'Mark', 'Paul',
+  'Christopher', 'Simon', 'Thomas', 'Richard', 'Adam', 'Peter', 'Stephen',
+  'Neil', 'Craig', 'Ian', 'Gary', 'Kevin',
+] as const
+
+const FEMALE_FIRST_NAMES = [
+  'Sarah', 'Emma', 'Olivia', 'Sophie', 'Chloe', 'Hannah', 'Rebecca', 'Laura',
+  'Charlotte', 'Amelia', 'Grace', 'Lucy', 'Megan', 'Katie', 'Jessica', 'Zoe',
+  'Natalie', 'Rachel', 'Louise', 'Amy',
+] as const
+
+/**
+ * A random name paired with a matching pronoun, so hardcoded he/his or she/her
+ * text in a template's truth beats and evidence claims never disagrees with
+ * the name it's describing. Independent of `fullName()` — existing templates
+ * keep using bare `fullName()` untouched.
+ */
+export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
+  const isMale = r.chance(0.5)
+  const first = r.pick(isMale ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES)
+  return { name: `${first} ${r.pick(LAST_NAMES)}`, pronoun: isMale ? 'he' : 'she' }
 }
 
 /** Detective identities — one is drawn per case and stays fixed for the session. */

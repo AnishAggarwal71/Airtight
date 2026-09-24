@@ -20,41 +20,36 @@ import { DETECTIVE_NAMES } from './templates/shared'
 export type GenerateOptions = {
   seed: string
   crime: CrimeType
+  /** Force a specific template (e.g. for beta-testing one scenario against varied seeds). Omit for the normal random pick. */
+  templateId?: string
 }
 
-export function generate({ seed, crime }: GenerateOptions): CaseFile {
+export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile {
   const r = new Rng(`${seed}::${crime}`)
 
   const pool = TEMPLATES[crime]
   if (!pool?.length) throw new Error(`No templates for crime type: ${crime}`)
 
-  const template = r.pick(pool)
+  const eligible = templateId ? pool.filter((t) => t.id === templateId) : pool
+  if (templateId && eligible.length === 0) {
+    throw new Error(`Unknown template "${templateId}" for crime ${crime}`)
+  }
+
+  const template = r.pick(eligible)
   const detective = r.pick(DETECTIVE_NAMES)
   const built = template.build(r, detective)
 
-  // Anchors always start revealed — they're the reason you're in the room.
-  // One or two more open at random so the same template doesn't always present
-  // the same face, then everything else stays latent and surfaces when the
-  // player contradicts themselves.
-  const anchors = built.evidence.filter((e) => e.anchor)
-  const rest = built.evidence.filter((e) => !e.anchor)
-  const extraRevealed = new Set(
-    r.sample(rest, r.int(0, 1)).map((e) => e.id),
-  )
-
+  // Nothing starts revealed. The player knows what they did, not what the
+  // police have — every item surfaces only when the detective plays it
+  // during the interrogation (see score.ts's pickEvidenceToPlay).
   const evidence: Evidence[] = built.evidence.map((e) => {
     const { anchor, ...rest } = e
-    const revealed = Boolean(anchor) || extraRevealed.has(e.id)
     return {
       ...rest,
       weight: e.baseWeight,
-      state: revealed ? 'revealed' : 'latent',
+      state: 'latent',
     }
   })
-
-  if (anchors.length === 0) {
-    throw new Error(`Template ${template.id} has no anchor evidence`)
-  }
 
   return {
     seed,
@@ -70,6 +65,7 @@ export function generate({ seed, crime }: GenerateOptions): CaseFile {
     fatalFact: built.fatalFact,
     detective: { name: detective.name, rank: detective.rank },
     opener: built.opener,
+    briefing: built.briefing,
   }
 }
 
@@ -91,6 +87,7 @@ export function toPublicCase(file: CaseFile): PublicCase {
     window: file.window,
     detective: file.detective,
     opener: file.opener,
+    briefing: file.briefing,
     evidence: file.evidence
       .filter((e) => e.state !== 'latent')
       .map((e) => ({ id: e.id, type: e.type, claim: e.claim })),

@@ -22,13 +22,14 @@ import type { Claim } from './types'
 export function addClaims(
   existing: Claim[],
   turn: number,
-  newClaims: { id: string; text: string }[],
+  newClaims: { id: string; text: string; checkable: boolean }[],
 ): Claim[] {
   let nextIndex = existing.length + 1
   const additions: Claim[] = newClaims.map((c) => ({
     id: `c${nextIndex++}`,
     text: c.text,
     turn,
+    checkable: c.checkable,
   }))
   return [...existing, ...additions]
 }
@@ -45,6 +46,6 @@ export function addClaims(
 export function serializeLedger(claims: Claim[]): string {
   if (claims.length === 0) return 'No prior claims.'
   return claims
-    .map((c) => `${c.id} (turn ${c.turn}): "${c.text}"`)
+    .map((c) => `${c.id} (turn ${c.turn})${c.checkable ? '' : ' [opinion, not checkable]'}: "${c.text}"`)
     .join('\n')
 }

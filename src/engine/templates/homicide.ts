@@ -1,5 +1,5 @@
 import type { Template } from './shared'
-import { beats, fullName } from './shared'
+import { beats, fullName, namedPerson } from './shared'
 import { addMinutes, hhmm } from '../rng'
 
 /**
@@ -8,26 +8,37 @@ import { addMinutes, hhmm } from '../rng'
  * is almost always hedged in the report and therefore arguable.
  */
 
+/** he/she → the full pronoun set, so a template never disagrees with a generated name. */
+function pronouns(p: 'he' | 'she') {
+  return p === 'he'
+    ? { subj: 'he', obj: 'him', poss: 'his', Subj: 'He' }
+    : { subj: 'she', obj: 'her', poss: 'her', Subj: 'She' }
+}
+
 const stairwell: Template = {
   id: 'homicide-stairwell',
   crime: 'homicide',
   title: 'The Service Stairwell',
   build: (r, detective) => {
-    const victim = fullName(r)
+    const victim = namedPerson(r)
+    const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
-    const neighbour = fullName(r)
-    const rider = fullName(r)
+    const neighbour = namedPerson(r)
+    const np = pronouns(neighbour.pronoun)
+    const rider = namedPerson(r)
+    const rp = pronouns(rider.pronoun)
     const start = hhmm(22, r.int(40, 55))
     const end = addMinutes(start, r.int(35, 50))
     const debt = r.pick([9000, 12500, 14000, 18000, 21000])
     const wifiDrop = addMinutes(start, r.int(24, 32))
-    const fobExit = addMinutes(start, r.int(28, 36))
+    const keyCardExit = addMinutes(start, r.int(28, 36))
     const relationship = r.pick([
       'your brother-in-law',
       'your sister’s husband',
       'your cousin',
       'your closest friend of nineteen years',
     ])
+    const suspectOccupation = r.pick(['site foreman', 'locksmith', 'delivery driver', 'physiotherapist'])
     const block = r.pick([
       'Wraysbury Mill, a converted flour mill on the canal',
       'Ashcroft Wharf, a converted warehouse block',
@@ -35,74 +46,77 @@ const stairwell: Template = {
     ])
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['site foreman', 'locksmith', 'delivery driver', 'physiotherapist']) },
-      victim: { name: victim, relationship },
+      suspect: { name: suspect, occupation: suspectOccupation },
+      victim: { name: victim.name, relationship },
       location: `${block} — found at the foot of the service stairwell`,
       window: { start, end },
+      briefing: {
+        name: suspect,
+        age: r.int(27, 52),
+        occupation: suspectOccupation,
+        what: `${victim.name} is ${relationship}, and ${vp.subj} owed you £${debt.toLocaleString()} ${vp.subj}'d stopped even pretending to pay back. Last night you went over to sort it out for good. It turned into a shouting match, and then it turned into something you can't undo. By the time you left, ${vp.subj} wasn't going to be paying anyone back anything. You went home and spent the rest of the night trying to make it look like an ordinary Tuesday.`,
+      },
       truth: beats(
-        ['t1', start, `You let yourself into ${victim}'s flat on the fourth floor. The argument about the money started almost immediately.`],
-        ['t2', addMinutes(start, 6), `He told you he had no intention of paying and that you should take him to court. You picked up a wine bottle from the counter.`],
-        ['t3', addMinutes(start, 9), `You struck him twice. The second blow killed him.`],
-        ['t4', addMinutes(start, 20), `You dragged him to the service stairwell and arranged him at the bottom of the flight to look like a fall.`],
+        ['t1', start, `You let yourself into ${victim.name}'s flat on the fourth floor. The argument about the money started almost immediately.`],
+        ['t2', addMinutes(start, 6), `${vp.Subj} told you ${vp.subj} had no intention of paying and that you should take ${vp.obj} to court. You picked up a wine bottle from the counter.`],
+        ['t3', addMinutes(start, 9), `You struck ${vp.obj} twice. The second blow killed ${vp.obj}.`],
+        ['t4', addMinutes(start, 20), `You dragged ${vp.obj} to the service stairwell and arranged the body at the bottom of the flight to look like a fall.`],
         ['t5', wifiDrop, `You went back into the flat to collect the bottle. Your phone was still on the building wifi.`],
-        ['t6', fobExit, `You left through the bin store on the ground floor and put the bottle and your jacket in the canal.`],
+        ['t6', keyCardExit, `You left through the bin store on the ground floor and put the bottle and your jacket in the canal.`],
       ),
       evidence: [
         {
-          id: 'e1', type: 'digital', anchor: true, baseWeight: 55,
+          id: 'e1', type: 'digital', baseWeight: 55,
           linkedBeats: ['t6'],
-          claim: `Your entry fob opened the bin store door at ${fobExit}. You don't have a bin in that store — your flat uses the front chute.`,
-          vulnerability: `The log records the fob, not the person holding it. Fobs in that block are routinely lent out — to contractors, to family, to the man who does the gutters. Nobody signs for them.`,
+          claim: `Your key card opened the bin store door at ${keyCardExit}.`,
+          vulnerability: `The log records the card, not the person holding it. Cards in that block get lent out all the time — to contractors, to family, to whoever does the gutters. Nobody signs for them.`,
         },
         {
-          id: 'e2', type: 'witness', anchor: true, baseWeight: 45,
+          id: 'e2', type: 'witness', baseWeight: 45,
           linkedBeats: ['t1', 't2'],
-          claim: `${neighbour} in the flat below reports raised voices from ${victim}'s flat at roughly ${addMinutes(start, 5)} — two men, one of them shouting.`,
-          vulnerability: `She is seventy-eight, takes her hearing aids out before bed, and has twice complained to the management company about noise she attributed to the wrong flat. The stairwell carries sound between three floors.`,
+          claim: `${neighbour.name}, in the flat below, heard raised voices from ${victim.name}'s flat that night — two people, one of them shouting.`,
+          vulnerability: `${np.Subj} is seventy-eight, takes ${np.poss} hearing aids out before bed, and has twice complained to the management company about noise ${np.subj} attributed to the wrong flat. Sound carries oddly between those floors.`,
         },
         {
-          id: 'e3', type: 'physical', anchor: true, baseWeight: 60,
+          id: 'e3', type: 'physical', baseWeight: 60,
           linkedBeats: ['t3', 't4'],
-          claim: `The pathologist says the head injury is inconsistent with a fall down that stairwell. The angle is wrong.`,
-          vulnerability: `The report says "less consistent with," not impossible — it's a hedged opinion, not a finding. ${victim} also fell in that same stairwell two months ago and was treated for a head injury then.`,
+          claim: `The pathologist thinks the head injury doesn't quite fit a fall down that stairwell — the angle looks wrong.`,
+          vulnerability: `The report says "less consistent with," not impossible — that's a hedged opinion, not a finding. ${victim.name} also fell in that same stairwell two months ago and was treated for a head injury then.`,
         },
         {
           id: 'e4', type: 'digital', baseWeight: 70,
           linkedBeats: ['t5'],
-          claim: `Your phone was connected to the building wifi until ${wifiDrop}.`,
-          vulnerability: `The router covers the whole east side of the building including the car park and the towpath. Staying connected proves proximity, not presence in the flat.`,
+          claim: `Your phone stayed connected to the building wifi until ${wifiDrop}.`,
+          vulnerability: `The router covers the whole east side of the building, including the car park and the towpath. Staying connected shows you were nearby, not that you were in the flat.`,
         },
         {
           id: 'e5', type: 'physical', baseWeight: 50,
           linkedBeats: ['t4'],
-          claim: `There is a fresh scuff on the stairwell wall, four steps above the landing, matching the sole of ${victim}'s shoe. Consistent with being dragged downward.`,
-          vulnerability: `It's an unpainted breeze-block stairwell used by every contractor in the building. There are eleven other scuffs on that wall and nobody dated any of them.`,
+          claim: `There's a fresh scuff on the stairwell wall a few steps above the landing.`,
+          vulnerability: `It's a bare breeze-block stairwell that every contractor in the building uses. There are a dozen other scuffs on that wall and nobody dated any of them.`,
         },
         {
           id: 'e6', type: 'circumstantial', baseWeight: 40,
           linkedBeats: ['t1'],
-          claim: `${victim} owed you £${debt.toLocaleString()} and had missed the last three repayment dates.`,
-          vulnerability: `A debt is a reason to want him alive and earning. Dead, you're an unsecured creditor at the back of a queue — you lose the money entirely.`,
+          claim: `${victim.name} owed you £${debt.toLocaleString()} and had missed the last three repayment dates.`,
+          vulnerability: `A debt is a reason to want someone alive and earning. Dead, you're just an unsecured creditor at the back of a queue — you lose the money entirely.`,
         },
         {
           id: 'e7', type: 'physical', baseWeight: 55,
           linkedBeats: ['t2', 't5'],
-          claim: `There's a gap in the wine rack in his kitchen. Eleven bottles, twelve slots, and no bottle anywhere in the flat or the bins.`,
-          vulnerability: `He drank. A missing bottle from a wine rack is the least remarkable thing in a dead man's kitchen.`,
+          claim: `There's a gap in the wine rack in the kitchen — one bottle missing, and none found in the flat or the bins.`,
+          vulnerability: `${vp.Subj} drank. A missing bottle from a wine rack is about the least remarkable thing in that kitchen.`,
         },
         {
           id: 'e8', type: 'witness', baseWeight: 35,
           linkedBeats: ['t6'],
-          claim: `${rider}, a delivery rider waiting outside, saw a man in a dark jacket come out of the bin store exit and walk toward the canal.`,
-          vulnerability: `He was looking at his phone, it was dark, and he describes the jacket but not the face. He initially told the first officer it might have been a woman.`,
+          claim: `${rider.name}, a delivery rider waiting outside, saw someone come out of the bin store exit and walk toward the canal.`,
+          vulnerability: `${rp.Subj} was looking at ${rp.poss} phone, it was dark, and ${rp.subj} describes a jacket but never a face. ${rp.Subj} initially told the first officer it might have been someone else entirely.`,
         },
       ],
-      witnesses: [
-        { id: 'w1', name: neighbour, relationship: 'neighbour, flat below', claim: `Heard two men arguing at around ${addMinutes(start, 5)}.`, accurate: true },
-        { id: 'w2', name: rider, relationship: 'delivery rider', claim: `Saw a figure in a dark jacket leave via the bin store and head for the canal.`, accurate: false, flaw: 'Gave a contradictory first account and never saw a face.' },
-      ],
-      fatalFact: `You were still inside that building at ${wifiDrop} — roughly twenty minutes after the time the suspect will almost certainly claim they left.`,
-      opener: `Let's start somewhere easy. Your fob opened the bin store door at ${fobExit}. Talk me through why you were in the bin store.`,
+      witnesses: [],
+      fatalFact: `You were still inside that building at ${wifiDrop} — later than the account you're about to give will allow for.`,
+      opener: `Talk me through last night, in your own words. Start wherever feels natural.`,
     }
   },
 }

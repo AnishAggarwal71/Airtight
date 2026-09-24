@@ -2,7 +2,13 @@ node_modules/
 .npmrc
 .env.local
 dist/
+
+# macOS filesystem metadata — this machine only, meaningless anywhere else
 .DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
 .certs/
 package-lock.json
 .claude/settings.local.json
