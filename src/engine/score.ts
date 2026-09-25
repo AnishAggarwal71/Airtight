@@ -35,18 +35,21 @@ export const SCORING_CONFIG = {
   // ── Evidence state transitions ───────────────────────────────────────────
   explainedQualityMin: 2,      // quality >= 2 on a played item → 'explained', can't be replayed
 
-  // ── Bluff scheduling (decided at session start) — lives in the late/collision phase ──
-  bluffEarliestTurn: 10,
-  bluffLatestTurn: 12,
+  // ── Bluff scheduling (decided at session start) — lives in the confront/corner phase ──
+  bluffEarliestTurn: 5,
+  bluffLatestTurn: 7,
   bluffChance: 0.7,
 
   // ── Turn structure ────────────────────────────────────────────────────────
-  baseTurns: 13,                // fixed; matches the 10-14 exchange target
-  earlyPhaseEnd: 4,              // turns 1-4 are open, unchallenged
-  midPhaseEnd: 9,                // turns 5-9 press for specificity; 10+ is collisions
+  // Collect → Probe → Confront/Corner arc. Short enough to stay gripping,
+  // long enough that collected lies have room to unravel.
+  baseTurns: 7,
+  earlyPhaseEnd: 1,              // turn 1 only: collect their timeline story
+  midPhaseEnd: 3,                // turns 2-3: probe relationship, intent, specifics
+                                 // turns 4-7 (late): confront with evidence + contradictions
 
   // ── Ending ─────────────────────────────────────────────────────────────────
-  chargedThreshold: 75,
+  chargedThreshold: 80,
 
   // ── Clamps ─────────────────────────────────────────────────────────────────
   suspicionFloor: 0,
@@ -72,10 +75,10 @@ export function getPhase(turn: number, config: ScoringConfig = SCORING_CONFIG): 
 
 /**
  * Pick the latent evidence item most worth the detective playing this turn.
- * Pure ordinal selection by weight — nothing forced in the early phase (the
- * detective takes everything at face value), highest-weight latent item
- * offered in mid/late phases. The model still decides whether to actually
- * use it this turn.
+ * Pure ordinal selection by weight — nothing offered in the collect phase
+ * (turn 1), highest-weight latent item offered from probe onward. The
+ * prompt guides when the detective actually drops it: mid-phase hints are
+ * softer ("you may mention"), late-phase hits are direct confrontations.
  */
 export function pickEvidenceToPlay(evidence: Evidence[], phase: Phase): Evidence | null {
   if (phase === 'early') return null
@@ -87,10 +90,10 @@ export function pickEvidenceToPlay(evidence: Evidence[], phase: Phase): Evidence
 // ─── Ending detection ────────────────────────────────────────────────────────
 
 /**
- * CHARGED triggers at any point Suspicion crosses the threshold. Otherwise
- * the case ends RELEASED at the final turn — winning should be rare, not
- * because the ceiling is high, but because the player has to hold a story
- * together for 10-14 exchanges without contradicting themselves once.
+ * CHARGED triggers the instant Suspicion crosses 80 — the game can end on
+ * any turn, not just the last. Otherwise the case ends RELEASED at turn 7.
+ * Winning should be rare: 60 points of runway across 7 turns means two bad
+ * slips and you're done.
  */
 export function checkEnding(
   turn: number,

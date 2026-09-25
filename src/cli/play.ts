@@ -5,8 +5,9 @@
  *   npm run play                          # random seed, crime picker
  *   npm run play -- mallard-7719 arson    # specific case
  *
- * 10-14 rounds. Two endings. No meter is ever shown during play — the only
- * feedback is the detective's tone. Suspicion is revealed once, at the end.
+ * 7 rounds. Collect → Probe → Confront/Corner arc. Suspicion bar visible
+ * after each answer — the player sees the meter move but never the score
+ * breakdown until the post-game reveal.
  */
 
 import dotenv from 'dotenv'
@@ -68,7 +69,39 @@ function renderTurnDisplay(session: GameSession, detectiveResponse: string): voi
   console.log()
 }
 
-/** Render the ending banner. Only two outcomes — winning should be rare. */
+/**
+ * Render the live suspicion bar after an answer lands. The player sees the
+ * bar move and the delta — that uncertainty-then-reveal loop is the core
+ * dopamine mechanic. Color thresholds: green < 40, yellow 40-64, red 65+.
+ */
+function renderLiveSuspicion(session: GameSession, delta: number): void {
+  const value = session.suspicion
+  const filled = Math.round((value / 100) * BAR_WIDTH)
+  const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
+
+  let coloured: string
+  if (value >= 65) coloured = C.red(bar)
+  else if (value >= 40) coloured = C.yellow(bar)
+  else coloured = C.green(bar)
+
+  // Delta display: +15 in red, -8 in green, 0 in dim
+  let deltaStr: string
+  if (delta > 0) deltaStr = C.red(` (+${delta})`)
+  else if (delta < 0) deltaStr = C.green(` (${delta})`)
+  else deltaStr = C.dim(' (+0)')
+
+  console.log(`  ${C.bold('Suspicion')}  [${coloured}]  ${String(value).padStart(3)}/100${deltaStr}`)
+
+  // Warn when the threshold is close
+  if (value >= 65 && value < 80) {
+    console.log(`  ${C.red('▲ You are close to being charged.')}`)
+  } else if (value >= 80) {
+    console.log(`  ${C.red(C.bold('▲▲ CHARGED'))}`)
+  }
+  console.log()
+}
+
+/** Render the ending banner. CHARGED can happen on any turn; RELEASED only at the end. */
 function renderEnding(ending: Ending, session: GameSession): void {
   const divider = '═'.repeat(56)
   console.log()
@@ -317,13 +350,24 @@ async function main(): Promise<void> {
   console.log(`  ${C.dim('Type your answers. /quit to exit.')}`)
   console.log(`  ${C.dim(`Max ${MAX_ANSWER_LENGTH} characters per answer.`)}`)
 
-  // Game loop
-  let lastDetectiveResponse = session.caseFile.opener
+  // Show initial suspicion — you're already a suspect, never presumed clean
+  console.log()
+  renderLiveSuspicion(session, 0)
 
+  // Show the opener before the loop — this is the detective's first line
+  {
+    const det = session.caseFile.detective
+    const divider = '═'.repeat(56)
+    console.log(` ${divider}`)
+    console.log(`  ${C.bold('AIRTIGHT')}          Turn 1 of ${session.maxTurns}        ${C.dim(session.seed)}`)
+    console.log(` ${divider}`)
+    console.log(`  ${C.bold(`${det.rank} ${det.name}`)}:`)
+    console.log(`  ${C.cyan('"' + session.caseFile.opener + '"')}`)
+    console.log()
+  }
+
+  // Game loop — each iteration: player answers → model reacts → suspicion bar
   while (!session.ending && session.turn < session.maxTurns) {
-    // Render current state
-    renderTurnDisplay(session, lastDetectiveResponse)
-
     // Get player input
     let answer = ''
     while (true) {
@@ -338,7 +382,7 @@ async function main(): Promise<void> {
       }
 
       if (trimmed === '/status') {
-        console.log(C.dim('  (You can\'t see what they\'re writing down.)'))
+        renderLiveSuspicion(session, 0)
         continue
       }
 
@@ -360,12 +404,16 @@ async function main(): Promise<void> {
     console.log(C.dim('\n  Thinking...\n'))
     const result = await playTurn(session, answer)
 
-    // Store the detective's response for next turn's display
-    lastDetectiveResponse = result.detectiveResponse
+    // Show the suspicion bar after the answer lands — the reveal moment
+    const lastDetail = session.turnDetails[session.turnDetails.length - 1]
+    const delta = lastDetail ? lastDetail.suspicionAfter - lastDetail.suspicionBefore : 0
+    renderLiveSuspicion(session, delta)
+
+    // Show the detective's reaction (which contains the next question)
+    renderTurnDisplay(session, result.detectiveResponse)
 
     // Check ending
     if (result.ending) {
-      renderTurnDisplay(session, lastDetectiveResponse)
       renderEnding(result.ending, session)
       break
     }
