@@ -9,6 +9,24 @@ before making changes. **M0 is complete and verified — don't rebuild it.**
 
 ---
 
+## Docs index
+
+This file is the settled/current-state summary. The reasoning behind
+decisions, dead ends ruled out, and detailed results live in `docs/*.md`
+instead — check there before relitigating something that was already tried.
+
+- [`docs/decisions.md`](docs/decisions.md) — reverse-chronological decision
+  log: what was decided, why, and what it superseded or deferred.
+- [`docs/eval-m2-results.md`](docs/eval-m2-results.md) — M2 eval harness
+  precision/recall results per model, including which runs turned out
+  contaminated and had to be discarded.
+
+New file per topic when a topic grows past a few paragraphs (e.g. a future
+`docs/eval-m3-results.md`); index it here with a one-line description rather
+than folding it into this file.
+
+---
+
 ## Hard invariants
 
 Break any of these and the game stops working. `src/cli/verify.ts` enforces
