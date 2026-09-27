@@ -29,6 +29,13 @@ export type Evidence = {
   type: EvidenceType
   /** Shown to the player once revealed. */
   claim: string
+  /**
+   * A non-revealing subject-area phrase (e.g. "your whereabouts around 11
+   * that night") the detective can use to ask a pointed PROBE-phase question
+   * without stating the underlying fact — that stays reserved for CONFRONT.
+   * Optional: templates without one fall back to a generic phrase.
+   */
+  topic?: string
   /** Current weight, 0–100. Mutated by the scoring engine. */
   weight: number
   baseWeight: number

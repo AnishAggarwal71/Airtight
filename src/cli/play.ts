@@ -294,12 +294,16 @@ async function main(): Promise<void> {
   const hasKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
     || process.env.ANTHROPIC_API_KEY
     || process.env.OPENAI_API_KEY
+    || process.env.XAI_API_KEY
+    || process.env.OPENROUTER_API_KEY
   if (!hasKey) {
     console.error(C.red('\n  Missing API key.'))
     console.error('  Create a .env.local file with one of:')
     console.error('    GOOGLE_GENERATIVE_AI_API_KEY=...')
     console.error('    ANTHROPIC_API_KEY=sk-ant-...')
-    console.error('    OPENAI_API_KEY=sk-...\n')
+    console.error('    OPENAI_API_KEY=sk-...')
+    console.error('    XAI_API_KEY=...')
+    console.error('    OPENROUTER_API_KEY=...\n')
     process.exit(1)
   }
 

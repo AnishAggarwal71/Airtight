@@ -15,6 +15,22 @@ function pronouns(p: 'he' | 'she') {
     : { subj: 'she', obj: 'her', poss: 'her', Subj: 'She' }
 }
 
+/**
+ * A vague, memory-shaped time phrase ("just gone eleven") instead of a clock
+ * reading — the briefing tells the player roughly when they got home so a
+ * lie about it is a deliberate risk, not a guess, but withholds the exact
+ * minute that only the wifi/key-card evidence pins down.
+ */
+function roughly(time: string): string {
+  const [h, m] = time.split(':').map(Number)
+  const hourWord = h === 0 ? 'midnight' : h === 23 ? 'eleven' : h === 22 ? 'ten' : h === 1 ? 'one in the morning' : `${h}`
+  if (h === 0) return 'right around midnight'
+  if (m < 10) return `just gone ${hourWord}`
+  if (m < 25) return `not long after ${hourWord}`
+  if (m < 40) return `about half past ${hourWord}`
+  return `getting on for midnight`
+}
+
 const stairwell: Template = {
   id: 'homicide-stairwell',
   crime: 'homicide',
@@ -45,6 +61,17 @@ const stairwell: Template = {
       'the Ordnance Building, six floors of converted offices',
     ])
 
+    // Occupation-based reason to have already been in the area that evening —
+    // a cover-story hook the player can lean on or discard, not a fact the
+    // detective ever brings up.
+    const coverHooks: Record<string, string> = {
+      'site foreman': `You'd signed off a snagging list on a site nearby that ran late — a reason to be in the area, if you needed one.`,
+      locksmith: `You'd fitted a lock round the corner earlier that evening — a reason to be in the area, if you needed one.`,
+      'delivery driver': `Your last drop of the shift happened to be two streets over — you were already in the area before you decided to go up.`,
+      physiotherapist: `Your last home visit that evening was a few doors down — you were already in the area before you decided to go up.`,
+    }
+    const homeTime = addMinutes(keyCardExit, r.int(8, 15))
+
     return {
       suspect: { name: suspect, occupation: suspectOccupation },
       victim: { name: victim.name, relationship },
@@ -54,7 +81,7 @@ const stairwell: Template = {
         name: suspect,
         age: r.int(27, 52),
         occupation: suspectOccupation,
-        what: `${victim.name} is ${relationship}, and ${vp.subj} owed you £${debt.toLocaleString()} ${vp.subj}'d stopped even pretending to pay back. Last night you went over to sort it out for good. It turned into a shouting match, and then it turned into something you can't undo. By the time you left, ${vp.subj} wasn't going to be paying anyone back anything. You went home and spent the rest of the night trying to make it look like an ordinary Tuesday.`,
+        what: `${victim.name} is ${relationship}, and ${vp.subj} owed you £${debt.toLocaleString()} — ${vp.subj}'d stopped even pretending to pay back. ${coverHooks[suspectOccupation]} Last night you went over to sort it out for good. It turned into a shouting match, and then it turned into something you can't undo. By the time you left, ${vp.subj} wasn't going to be paying anyone back anything. You got back to your own place ${roughly(homeTime)}, paranoid and guilty, running through what you'd say if anyone ever asked where you'd been.`,
       },
       truth: beats(
         ['t1', start, `You let yourself into ${victim.name}'s flat on the fourth floor. The argument about the money started almost immediately.`],
@@ -68,48 +95,56 @@ const stairwell: Template = {
         {
           id: 'e1', type: 'digital', baseWeight: 55,
           linkedBeats: ['t6'],
+          topic: `exactly how you left the building`,
           claim: `Your key card opened the bin store door at ${keyCardExit}.`,
           vulnerability: `The log records the card, not the person holding it. Cards in that block get lent out all the time — to contractors, to family, to whoever does the gutters. Nobody signs for them.`,
         },
         {
           id: 'e2', type: 'witness', baseWeight: 45,
           linkedBeats: ['t1', 't2'],
+          topic: `whether the argument was loud enough for anyone to hear`,
           claim: `${neighbour.name}, in the flat below, heard raised voices from ${victim.name}'s flat that night — two people, one of them shouting.`,
           vulnerability: `${np.Subj} is seventy-eight, takes ${np.poss} hearing aids out before bed, and has twice complained to the management company about noise ${np.subj} attributed to the wrong flat. Sound carries oddly between those floors.`,
         },
         {
           id: 'e3', type: 'physical', baseWeight: 60,
           linkedBeats: ['t3', 't4'],
+          topic: `exactly how the injury happened`,
           claim: `The pathologist thinks the head injury doesn't quite fit a fall down that stairwell — the angle looks wrong.`,
           vulnerability: `The report says "less consistent with," not impossible — that's a hedged opinion, not a finding. ${victim.name} also fell in that same stairwell two months ago and was treated for a head injury then.`,
         },
         {
           id: 'e4', type: 'digital', baseWeight: 70,
           linkedBeats: ['t5'],
+          topic: `how long you were actually still in the building`,
           claim: `Your phone stayed connected to the building wifi until ${wifiDrop}.`,
           vulnerability: `The router covers the whole east side of the building, including the car park and the towpath. Staying connected shows you were nearby, not that you were in the flat.`,
         },
         {
           id: 'e5', type: 'physical', baseWeight: 50,
           linkedBeats: ['t4'],
+          topic: `the condition you left the stairwell in`,
           claim: `There's a fresh scuff on the stairwell wall a few steps above the landing.`,
           vulnerability: `It's a bare breeze-block stairwell that every contractor in the building uses. There are a dozen other scuffs on that wall and nobody dated any of them.`,
         },
         {
           id: 'e6', type: 'circumstantial', baseWeight: 40,
           linkedBeats: ['t1'],
+          topic: `the money side of things between you and ${victim.name}`,
           claim: `${victim.name} owed you £${debt.toLocaleString()} and had missed the last three repayment dates.`,
           vulnerability: `A debt is a reason to want someone alive and earning. Dead, you're just an unsecured creditor at the back of a queue — you lose the money entirely.`,
         },
         {
           id: 'e7', type: 'physical', baseWeight: 55,
           linkedBeats: ['t2', 't5'],
+          topic: `what happened to the bottle from the kitchen`,
           claim: `There's a gap in the wine rack in the kitchen — one bottle missing, and none found in the flat or the bins.`,
           vulnerability: `${vp.Subj} drank. A missing bottle from a wine rack is about the least remarkable thing in that kitchen.`,
         },
         {
           id: 'e8', type: 'witness', baseWeight: 35,
           linkedBeats: ['t6'],
+          topic: `whether anyone outside saw you leave`,
           claim: `${rider.name}, a delivery rider waiting outside, saw someone come out of the bin store exit and walk toward the canal.`,
           vulnerability: `${rp.Subj} was looking at ${rp.poss} phone, it was dark, and ${rp.subj} describes a jacket but never a face. ${rp.Subj} initially told the first officer it might have been someone else entirely.`,
         },

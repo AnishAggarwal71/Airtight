@@ -11,7 +11,7 @@
  */
 
 import { generateObject } from 'ai'
-import { google } from '@ai-sdk/google'
+import { xai } from '@ai-sdk/xai'
 import { z } from 'zod'
 import type {
   Adjudication,
@@ -22,20 +22,33 @@ import type {
   TokenUsage,
 } from './types'
 import { serializeLedger } from './ledger'
+import dotenv from 'dotenv'
+
+// The provider factories below read process.env lazily, at request time,
+// inside their SDK internals — so the file doesn't strictly need this, but
+// static imports evaluate before an importing script's own dotenv.config()
+// calls run, so this file loads its own env instead of trusting the caller
+// to have done it first (matters if MODEL below is ever swapped to a
+// provider whose factory reads apiKey eagerly, e.g. createOpenAI()).
+dotenv.config({ path: '.env.local' })
+dotenv.config()
 
 // ─── Model ───────────────────────────────────────────────────────────────────
 // Swap this one line to change provider. The rest of the file stays identical.
 
-export const MODEL = google('gemini-3.5-flash-lite')
+export const MODEL = xai('grok-4.20-reasoning')
 
-// Google's flash-tier model names churn fast (several were deprecated or
-// 503-overloaded mid-development) — if this needs swapping again, check
-// GET /v1beta/models for what's live. Non-lite "flash" models think by
-// default and reject a 0 thinkingBudget hint in some releases; lite variants
-// don't think and error (400 INVALID_ARGUMENT) if thinkingConfig is sent at
-// all, which is why the call below omits it.
+// Reasoning variant chosen deliberately for M2: the Gemini 3.5 Flash Lite
+// baseline hit 100% precision but only 25% recall on contradiction
+// detection — it missed everything requiring inference rather than a bare
+// keyword clash. Testing whether a reasoning-capable model closes that gap.
 
 // Other options:
+// import { google } from '@ai-sdk/google'
+// export const MODEL = google('gemini-3.5-flash-lite')
+// import { createOpenAI } from '@ai-sdk/openai'
+// const openrouter = createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: process.env.OPENROUTER_API_KEY })
+// export const MODEL = openrouter.chat('qwen/qwen3.8-27b:free') // OpenRouter only implements Chat Completions, not Responses — must use .chat()
 // import { anthropic } from '@ai-sdk/anthropic'
 // export const MODEL = anthropic('claude-haiku-4-5-20251001', { cacheControl: true })
 // import { openai } from '@ai-sdk/openai'
@@ -61,7 +74,7 @@ export const AdjudicationSchema = z.object({
   evidencePlayed: z.object({
     evidenceId: z.string(),
     quality: z.number().int().min(0).max(3).describe('How well the suspect\'s answer holds up against this item\'s vulnerability. 0 = made it worse, 3 = found the exact crack'),
-  }).nullable().describe('Set ONLY on a turn where you actually raised a held-back item as the detective — not every turn'),
+  }).nullable().describe('Set ONLY on a turn where you actually stated the evidence CLAIM out loud — never for a PROBE-phase topic question that only gestures at the subject area without naming the fact. Leave null in PROBE even if you asked about the topic.'),
   injectionAttempt: z.boolean(),
   bluff: z.object({
     evidenceId: z.string(),
@@ -90,8 +103,8 @@ export function buildSystemPrompt(caseFile: CaseFile): string {
   lines.push('')
   lines.push('## THE THREE PHASES (the user message tells you which one you\'re in)')
   lines.push('- COLLECT (turn 1): One open question only. "Walk me through your evening." Take everything at face value. Do not challenge, do not cite evidence, do not sound skeptical. You are banking their account — every lie they commit to now is rope for later.')
-  lines.push('- PROBE (turns 2–3): Pointed follow-ups on what they just told you. Ask about their relationship with the victim, their motive, their opportunity. "How did you know them?" "When was the last time you spoke?" You are mapping their lies and filling in the gaps they left. Sound interested, even skeptical — but do not present evidence yet. You are building a target, not firing yet.')
-  lines.push('- CONFRONT (turns 4+): Hit them. Present evidence directly against something they claimed. Quote their own words back: "You told me X. We have Y." If you catch a contradiction, nail both halves to the wall. Every question should make them feel the walls closing in. You are not fishing — you are confronting. Aggressive, relentless, but always fair: never invent a contradiction, never claim evidence proves what it doesn\'t.')
+  lines.push('- PROBE (turns 2–3): Pointed follow-ups on what they just told you. If the user message hands you an item\'s TOPIC (not its claim), ask a pointed question in that subject area WITHOUT stating the underlying fact, number, or time — you are getting them to commit to a specific answer on a subject you already have evidence about, not tipping them off. Sound interested, even skeptical — but never present the evidence itself yet. You are building a target, not firing.')
+  lines.push('- CONFRONT (turns 4+): Hit them. Present the evidence claim directly. If the claim ledger already has an answer from PROBE on that same topic, quote it back first — "You told me X" — then land the evidence so the contradiction reads as a consequence of their own earlier choice, not a cold ambush. Quote their own words back whenever you can. Every question should make them feel the walls closing in. You are not fishing — you are confronting. Aggressive, relentless, but always fair: never invent a contradiction, never claim evidence proves what it doesn\'t.')
   lines.push('')
   lines.push('## FAIRNESS — this is a hard constraint')
   lines.push('- Only flag a contradiction against the suspect\'s OWN earlier claim, and only when you can quote both halves. If you can\'t point at two things they actually said, it is not a contradiction — do not invent one.')
@@ -133,6 +146,7 @@ export function buildSystemPrompt(caseFile: CaseFile): string {
   lines.push('### Evidence (held back — never mention an item unless the user message authorises it)')
   for (const e of caseFile.evidence) {
     lines.push(`  ${e.id} [${e.type}, weight ${e.baseWeight}] ${e.claim}`)
+    if (e.topic) lines.push(`    topic (PROBE-safe, no fact in it): ${e.topic}`)
     lines.push(`    vulnerability: ${e.vulnerability}`)
   }
   lines.push('')
@@ -161,8 +175,8 @@ export type AdjudicateInput = {
 
 const PHASE_INSTRUCTIONS: Record<Phase, string> = {
   early: 'COLLECT — open question, bank their account. Take it at face value. Do not challenge, do not cite evidence.',
-  mid: 'PROBE — ask pointed follow-ups on what they already said. Relationship, intent, specifics. You are mapping their lies. Sound interested and skeptical but do not present evidence unless it directly contradicts something they just claimed.',
-  late: 'CONFRONT — present evidence, quote their own words back, nail contradictions. Aggressive but fair. Every question should feel like the walls closing in.',
+  mid: 'PROBE — ask a pointed question in the TOPIC area below. Do not state the fact, number, or time behind it — that is reserved for CONFRONT. You are getting them to commit to a specific, checkable answer.',
+  late: 'CONFRONT — present the evidence claim, quote their own words back, nail contradictions. Aggressive but fair. Every question should feel like the walls closing in.',
 }
 
 function buildUserMessage(input: AdjudicateInput): string {
@@ -172,12 +186,21 @@ function buildUserMessage(input: AdjudicateInput): string {
   lines.push(`PHASE: ${PHASE_INSTRUCTIONS[input.phase]}`)
   lines.push('')
 
-  // Evidence the detective may raise this turn (if any)
+  // Evidence the detective may raise this turn (if any). PROBE gets only the
+  // non-revealing topic — structurally withholding the fact is what makes the
+  // later CONFRONT reveal land as a consequence of the player's own answer
+  // instead of a cold ambush. CONFRONT gets the full claim.
   if (input.evidenceHint) {
     const e = input.evidenceHint
-    lines.push('YOU MAY RAISE THIS ITEM THIS TURN IF IT FITS:')
-    lines.push(`  [${e.id}] (${e.type}) ${e.claim}`)
-    lines.push('  You are not required to use it — only if the moment is right.')
+    if (input.phase === 'mid') {
+      lines.push('YOU MAY PROBE THIS TOPIC THIS TURN IF IT FITS (do not state the fact behind it):')
+      lines.push(`  [${e.id}] (${e.type}) ${e.topic ?? `something about the ${e.type} side of that night`}`)
+      lines.push('  Ask a pointed question that gets them to commit to a specific, checkable answer. You are not required to use it — only if the moment is right.')
+    } else {
+      lines.push('YOU MAY RAISE THIS ITEM THIS TURN IF IT FITS:')
+      lines.push(`  [${e.id}] (${e.type}) ${e.claim}`)
+      lines.push('  You are not required to use it — only if the moment is right.')
+    }
   } else {
     lines.push('No evidence is authorised to be raised this turn.')
   }
