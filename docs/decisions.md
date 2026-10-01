@@ -5,6 +5,59 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-02 — V2 role flip: player is now the detective, AI plays a lying suspect + witness
+
+**Decision:** Complete redesign and reimplementation of the game's core loop.
+Player was the guilty suspect being judged by an AI detective (V1); now the
+player is the detective, and the AI generates in-character dialogue as a
+guilty suspect (and a separate witness persona) that the player must break.
+All 14 engine/CLI files touched, 1 new file (`witness.ts`). Full file map and
+architecture are in `CLAUDE.md` — not duplicated here.
+
+**Why:** V1's adjudicator was a flat classifier task (judge the player's
+answer, extract claims, flag contradictions) — a thin AI-engineering story
+for a portfolio. Flipping the roles turns the model's job into *acting*
+instead of *judging*: it has to perform a consistent lie under adversarial
+questioning while a second persona (the witness) can independently
+corroborate or contradict it. This is a materially richer multi-agent
+orchestration problem, and separately, playtesting V1 suggested catching an
+AI's lies is more fun than defending your own.
+
+**What changed, briefly:** Security boundary in `toPublicCase()` inverted
+(evidence now shown upfront, suspect's strategy hidden — was the reverse).
+Suspicion meter dropped; Case Strength is now the only meter. Turn structure
+collapsed from 12 player-defense rounds to 6 suspect-interrogation questions
++ 2 witness questions. New endings: `CHARGED_STRONG` / `CHARGED_WEAK` /
+`RELEASED`, replacing V1's `CHARGED` / `RELEASED` / `HELD 48 HOURS`.
+
+**Known risk accepted, not yet resolved:** the suspect model call both acts
+(writes dialogue) and self-judges (reports its own contradictions and
+inadvertent reveals) in one structured response. If playtesting shows the
+model doesn't honestly flag its own slips, the documented fallback is to
+split into two calls — see "The self-judging risk" section in `CLAUDE.md`.
+Not implemented pre-emptively; wait for evidence it's actually a problem.
+
+**Deferred, not forgotten:**
+- `npm run eval` is now a stub — V1's contradiction-detection eval doesn't
+  transfer to an actor model. New eval dimensions needed (suspect
+  consistency, self-report honesty, evidence-response-quality calibration,
+  witness corroboration accuracy) — not designed yet, waiting on manual
+  playtesting patterns first.
+- No live playthrough has happened against a real model response yet as of
+  this entry — `npx tsc --noEmit` and `npm run verify` are clean, but the
+  suspect-actor prompt (persona + cover story + guilty knowledge + every
+  evidence vulnerability in one cached block) is unverified for latency,
+  cost, and whether the model actually stays in character.
+- `README.md` and `AIRTIGHT-PRD.md` still describe V1 in full — not rewritten
+  yet. `CLAUDE.md` is the only current-state source of truth until they are.
+- No prompt-injection handling exists in the V2 suspect schema. V1 had an
+  explicit `injectionAttempt` flag; whether an in-character guilty suspect
+  needs an equivalent "break character" mechanic is an open question, not a
+  decision.
+- Cost-per-playthrough target not re-validated. V1's $0.05 target assumed
+  Haiku pricing and one call per turn; V2 makes up to 8 calls per game with
+  longer prompts, against Grok instead of Haiku.
+
 ## 2026-09-27 — Default adjudicator model swapped to xAI Grok (pending validation)
 
 **Decision:** `MODEL` in `src/engine/adjudicate.ts` now points at
