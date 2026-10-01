@@ -37,6 +37,12 @@ instead — check there before relitigating something that was already tried.
 - [`docs/eval-m2-results.md`](docs/eval-m2-results.md) — M2 eval harness
   precision/recall results per model (V1 adjudicator-as-judge contract —
   doesn't apply to V2's actor model, kept for history).
+- [`docs/playtest-notes.md`](docs/playtest-notes.md) — **owned by the testing
+  machine.** Raw playtest findings land here first; this (build) side folds
+  anything settled into this file or `decisions.md` and may prune entries
+  once incorporated. Don't edit `CLAUDE.md`/`decisions.md` from the testing
+  side directly — write here instead, to avoid both machines colliding on
+  the same file across a `git pull`.
 
 New file per topic when a topic grows past a few paragraphs (e.g. a future
 `docs/eval-v2-results.md` once the V2 eval harness exists); index it here
