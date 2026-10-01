@@ -1,5 +1,5 @@
 import { Rng } from './rng'
-import type { CaseFile, CrimeType, Evidence, PublicCase } from './types'
+import type { CaseFile, CrimeType, DetectiveEvidence, PublicCase } from './types'
 import { TEMPLATES } from './templates'
 import { DETECTIVE_NAMES } from './templates/shared'
 
@@ -20,7 +20,6 @@ import { DETECTIVE_NAMES } from './templates/shared'
 export type GenerateOptions = {
   seed: string
   crime: CrimeType
-  /** Force a specific template (e.g. for beta-testing one scenario against varied seeds). Omit for the normal random pick. */
   templateId?: string
 }
 
@@ -39,17 +38,16 @@ export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile
   const detective = r.pick(DETECTIVE_NAMES)
   const built = template.build(r, detective)
 
-  // Nothing starts revealed. The player knows what they did, not what the
-  // police have — every item surfaces only when the detective plays it
-  // during the interrogation (see score.ts's pickEvidenceToPlay).
-  const evidence: Evidence[] = built.evidence.map((e) => {
-    const { anchor, ...rest } = e
-    return {
-      ...rest,
-      weight: e.baseWeight,
-      state: 'latent',
-    }
-  })
+  // All evidence starts unpresented — the player sees claims upfront but
+  // must explicitly deploy each item during interrogation.
+  const evidence: DetectiveEvidence[] = built.evidence.map((e) => ({
+    id: e.id,
+    type: e.type,
+    claim: e.claim,
+    presented: false,
+    vulnerability: e.vulnerability,
+    linkedBeats: e.linkedBeats,
+  }))
 
   return {
     seed,
@@ -61,21 +59,21 @@ export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile
     window: built.window,
     truth: built.truth,
     evidence,
-    witnesses: built.witnesses,
+    witness: built.witness,
     fatalFact: built.fatalFact,
-    detective: { name: detective.name, rank: detective.rank },
-    opener: built.opener,
-    briefing: built.briefing,
+    suspectPersona: built.suspectPersona,
+    detectiveBriefing: built.detectiveBriefing,
   }
 }
 
 /**
- * Strip the case file down to what the browser is allowed to know.
+ * Strip the case file down to what the player-detective is allowed to see.
  *
- * This function is a security boundary. Everything it drops — the truth
- * timeline, vulnerabilities, latent evidence, witness flaws, the fatal fact —
- * is the game. If any of it reaches the client, the game is over before it
- * starts. Never serialise a CaseFile to a response; always route through here.
+ * V2 security boundary is INVERTED from V1: the player now sees evidence
+ * upfront (they need it to interrogate), but the suspect's strategy — persona,
+ * cover story, breaking points, guilty knowledge, evidence vulnerabilities —
+ * stays hidden. The truth timeline and fatal fact are also hidden (revealed
+ * only in the post-game breakdown).
  */
 export function toPublicCase(file: CaseFile): PublicCase {
   return {
@@ -85,11 +83,16 @@ export function toPublicCase(file: CaseFile): PublicCase {
     victim: file.victim,
     location: file.location,
     window: file.window,
-    detective: file.detective,
-    opener: file.opener,
-    briefing: file.briefing,
-    evidence: file.evidence
-      .filter((e) => e.state !== 'latent')
-      .map((e) => ({ id: e.id, type: e.type, claim: e.claim })),
+    briefing: file.detectiveBriefing,
+    evidence: file.evidence.map((e) => ({
+      id: e.id,
+      type: e.type,
+      claim: e.claim,
+      presented: e.presented,
+    })),
+    witness: {
+      name: file.witness.name,
+      relationship: file.witness.relationship,
+    },
   }
 }

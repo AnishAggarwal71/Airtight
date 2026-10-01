@@ -1,13 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * AIRTIGHT — interactive terminal interrogation.
+ * AIRTIGHT V2 — interactive terminal interrogation (detective mode).
  *
  *   npm run play                          # random seed, crime picker
  *   npm run play -- mallard-7719 arson    # specific case
  *
- * 7 rounds. Collect → Probe → Confront/Corner arc. Suspicion bar visible
- * after each answer — the player sees the meter move but never the score
- * breakdown until the post-game reveal.
+ * Three-phase flow:
+ *   1. Briefing — read the case, see your evidence
+ *   2. Interrogation (6 turns) — question the suspect, optionally present evidence
+ *   3. Witness (2 turns) — question the witness
+ *   4. Verdict — charge or release
+ *   5. Post-game breakdown — truth revealed, ledger annotated
  */
 
 import dotenv from 'dotenv'
@@ -15,11 +18,17 @@ dotenv.config({ path: '.env.local' })  // project convention: keys live in .env.
 dotenv.config()                        // fallback to .env if present
 import * as readline from 'node:readline'
 import { randomSeed } from '../engine/rng'
-import { createSession, playTurn } from '../engine/session'
-import type { CrimeType, GameSession, Ending, TurnDetail } from '../engine/types'
+import { toPublicCase } from '../engine/generate'
+import {
+  createSession,
+  playInterrogationTurn,
+  playWitnessTurn,
+  resolveVerdict,
+} from '../engine/session'
+import type { CrimeType, GameSession, Ending, SuspectResponse } from '../engine/types'
 import { CRIME_LABELS, CRIME_BLURBS } from '../engine/types'
 
-// ─── ANSI helpers (same pattern as inspect.ts) ───────────────────────────────
+// ─── ANSI helpers ───────────────────────────────────────────────────────────
 
 const C = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
@@ -31,98 +40,94 @@ const C = {
   magenta: (s: string) => `\x1b[35m${s}\x1b[0m`,
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────
 
-const MAX_ANSWER_LENGTH = 300
+const MAX_QUESTION_LENGTH = 300
 const BAR_WIDTH = 20
-const CRIMES: CrimeType[] = ['homicide', 'arson', 'embezzlement']
+const CRIMES: CrimeType[] = ['homicide', 'arson']  // embezzlement deferred to Phase 2
 
-// ─── Rendering helpers ───────────────────────────────────────────────────────
+// ─── Rendering helpers ──────────────────────────────────────────────────────
 
-/** Render a meter bar with colour thresholds — used only in the post-game breakdown. */
-function meterBar(value: number, label: string, warnAt: number, dangerAt: number): string {
-  const filled = Math.round((value / 100) * BAR_WIDTH)
-  const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
-  let coloured: string
-  if (value >= dangerAt) coloured = C.red(bar)
-  else if (value >= warnAt) coloured = C.yellow(bar)
-  else coloured = C.green(bar)
-  const padded = label.padEnd(16)
-  return `  ${padded}[${coloured}]  ${String(value).padStart(3)}/100`
-}
-
-/**
- * Render the turn header and the detective's line. No meters, no evidence
- * table — the player knows what they did, not what the police have, and
- * feedback is tone only. Evidence surfaces inside detectiveResponse itself.
- */
-function renderTurnDisplay(session: GameSession, detectiveResponse: string): void {
-  const divider = '═'.repeat(56)
-  console.log()
-  console.log(` ${divider}`)
-  console.log(`  ${C.bold('AIRTIGHT')}          Turn ${session.turn} of ${session.maxTurns}        ${C.dim(session.seed)}`)
-  console.log(` ${divider}`)
-
-  const det = session.caseFile.detective
-  console.log(`  ${C.bold(`${det.rank} ${det.name}`)}:`)
-  console.log(`  ${C.cyan('"' + detectiveResponse + '"')}`)
-  console.log()
-}
-
-/**
- * Render the live suspicion bar after an answer lands. The player sees the
- * bar move and the delta — that uncertainty-then-reveal loop is the core
- * dopamine mechanic. Color thresholds: green < 40, yellow 40-64, red 65+.
- */
-function renderLiveSuspicion(session: GameSession, delta: number): void {
-  const value = session.suspicion
+/** Case Strength bar — green is progress toward charging, visible to the player. */
+function renderCaseStrength(value: number, delta: number): void {
   const filled = Math.round((value / 100) * BAR_WIDTH)
   const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
 
+  // Color: low = dim, medium = yellow, high = green (high is good for the detective!)
   let coloured: string
-  if (value >= 65) coloured = C.red(bar)
+  if (value >= 65) coloured = C.green(bar)
   else if (value >= 40) coloured = C.yellow(bar)
-  else coloured = C.green(bar)
+  else coloured = C.dim(bar)
 
-  // Delta display: +15 in red, -8 in green, 0 in dim
+  // Delta display
   let deltaStr: string
-  if (delta > 0) deltaStr = C.red(` (+${delta})`)
-  else if (delta < 0) deltaStr = C.green(` (${delta})`)
+  if (delta > 0) deltaStr = C.green(` (+${delta})`)
+  else if (delta < 0) deltaStr = C.red(` (${delta})`)
   else deltaStr = C.dim(' (+0)')
 
-  console.log(`  ${C.bold('Suspicion')}  [${coloured}]  ${String(value).padStart(3)}/100${deltaStr}`)
+  console.log(`  ${C.bold('Case Strength')}  [${coloured}]  ${String(value).padStart(3)}/100${deltaStr}`)
 
-  // Warn when the threshold is close
-  if (value >= 65 && value < 80) {
-    console.log(`  ${C.red('▲ You are close to being charged.')}`)
-  } else if (value >= 80) {
-    console.log(`  ${C.red(C.bold('▲▲ CHARGED'))}`)
+  if (value >= 80) {
+    console.log(`  ${C.green(C.bold('▲▲ CASE STRONG ENOUGH TO CHARGE'))}`)
+  } else if (value >= 65) {
+    console.log(`  ${C.yellow('▲ Getting close — keep pressing.')}`)
   }
   console.log()
 }
 
-/** Render the ending banner. CHARGED can happen on any turn; RELEASED only at the end. */
+/** Render a demeanor indicator for the suspect. */
+function renderDemeanor(demeanor: SuspectResponse['demeanor']): string {
+  const indicators: Record<SuspectResponse['demeanor'], string> = {
+    calm: C.dim('😐 calm'),
+    nervous: C.yellow('😰 nervous'),
+    defensive: C.yellow('🛡️ defensive'),
+    aggressive: C.red('😡 aggressive'),
+    evasive: C.magenta('👀 evasive'),
+  }
+  return indicators[demeanor] ?? C.dim(demeanor)
+}
+
+/** Show evidence table — what the detective has to work with. */
+function renderEvidenceTable(session: GameSession): void {
+  const pub = toPublicCase(session.caseFile)
+  console.log(`  ${C.bold('YOUR EVIDENCE:')}`)
+  for (const e of pub.evidence) {
+    const status = e.presented ? C.dim('[presented]') : C.green('[available] ')
+    console.log(`  ${C.bold(e.id)} ${status} ${C.dim(`[${e.type}]`)} ${e.claim.slice(0, 80)}`)
+  }
+  console.log()
+  console.log(`  ${C.dim('To present evidence: PRESENT e3: Your question here')}`)
+  console.log()
+}
+
+/** Render the ending banner. */
 function renderEnding(ending: Ending, session: GameSession): void {
   const divider = '═'.repeat(56)
   console.log()
   console.log(` ${divider}`)
 
   switch (ending) {
-    case 'CHARGED':
-      console.log(`  ${C.red(C.bold('CHARGED'))}`)
-      console.log(`  The detective built a chargeable case. You're done.`)
+    case 'CHARGED_STRONG':
+      console.log(`  ${C.green(C.bold('CHARGED — STRONG CASE'))}`)
+      console.log(`  Case Strength hit ${session.caseStrength}. The evidence speaks for itself.`)
+      console.log(`  ${session.caseFile.suspect.name} is going away.`)
+      break
+    case 'CHARGED_WEAK':
+      console.log(`  ${C.yellow(C.bold('CHARGED — GAMBLE PAID OFF'))}`)
+      console.log(`  Case Strength was only ${session.caseStrength}, but you charged anyway.`)
+      console.log(`  The suspect was guilty — your instinct was right.`)
       break
     case 'RELEASED':
-      console.log(`  ${C.green(C.bold('RELEASED'))}`)
-      console.log(`  You survived ${session.turn} rounds. Insufficient evidence.`)
-      console.log(`  You're free to go.`)
+      console.log(`  ${C.red(C.bold('RELEASED'))}`)
+      console.log(`  You released ${session.caseFile.suspect.name}.`)
+      console.log(`  ${C.red('They were guilty. They walked free.')}`)
       break
   }
 
   console.log(` ${divider}`)
 }
 
-// ─── Post-game breakdown ─────────────────────────────────────────────────────
+// ─── Post-game breakdown ────────────────────────────────────────────────────
 
 function renderBreakdown(session: GameSession): void {
   const divider = '─'.repeat(56)
@@ -130,99 +135,105 @@ function renderBreakdown(session: GameSession): void {
   console.log(`  ${C.bold('POST-GAME BREAKDOWN')}`)
   console.log(` ${divider}`)
 
-  // 1. Final meter — the only time it's ever shown
-  console.log(meterBar(session.suspicion, 'Suspicion', 50, 75))
-  console.log(`  Turns played: ${session.turn}/${session.maxTurns}`)
+  // 1. Final Case Strength
+  console.log()
+  renderCaseStrength(session.caseStrength, 0)
+  console.log(`  Interrogation turns: ${session.interrogationTurn}/${session.maxInterrogationTurns}`)
+  console.log(`  Witness turns: ${session.witnessTurn}/${session.maxWitnessTurns}`)
   console.log()
 
-  // 2. Turning point — largest Suspicion jump
-  if (session.turnDetails.length > 0) {
-    let turningPoint: TurnDetail | null = null
+  // 2. The truth — what actually happened
+  console.log(`  ${C.red(C.bold('THE TRUTH'))}`)
+  for (const beat of session.caseFile.truth) {
+    console.log(`  ${C.dim(beat.time.padEnd(7))} ${beat.fact}`)
+  }
+  console.log()
+  console.log(`  ${C.red('Fatal fact:')} ${session.caseFile.fatalFact}`)
+  console.log()
+
+  // 3. Turning point — largest Case Strength jump
+  if (session.interrogationDetails.length > 0) {
+    let turningTurn = 0
     let maxDelta = 0
-    for (const td of session.turnDetails) {
-      const delta = Math.abs(td.suspicionAfter - td.suspicionBefore)
+    for (const d of session.interrogationDetails) {
+      const delta = Math.abs(d.caseStrengthAfter - d.caseStrengthBefore)
       if (delta > maxDelta) {
         maxDelta = delta
-        turningPoint = td
+        turningTurn = d.turn
       }
     }
-    if (turningPoint && maxDelta > 0) {
-      const direction = turningPoint.suspicionAfter > turningPoint.suspicionBefore
-        ? C.red(`+${maxDelta}`)
-        : C.green(`-${maxDelta}`)
+    if (maxDelta > 0) {
+      const detail = session.interrogationDetails.find((d) => d.turn === turningTurn)!
+      const direction = detail.caseStrengthAfter > detail.caseStrengthBefore
+        ? C.green(`+${maxDelta}`)
+        : C.red(`-${maxDelta}`)
       console.log(`  ${C.bold('THE MOMENT IT TURNED')}`)
-      console.log(`  Turn ${turningPoint.turn}: Suspicion ${direction} (${turningPoint.suspicionBefore} → ${turningPoint.suspicionAfter})`)
-      console.log(`  You said: ${C.dim('"' + turningPoint.playerAnswer.slice(0, 120) + '"')}`)
+      console.log(`  Interrogation turn ${turningTurn}: Case Strength ${direction} (${detail.caseStrengthBefore} → ${detail.caseStrengthAfter})`)
+      console.log(`  You asked: ${C.dim('"' + detail.playerQuestion.slice(0, 120) + '"')}`)
       console.log()
     }
   }
 
-  // 3. Meter trajectory (ASCII sparkline)
-  if (session.suspicionHistory.length > 0) {
-    console.log(`  ${C.bold('SUSPICION OVER TIME')}`)
-    console.log(`  ${sparkline(session.suspicionHistory)}`)
+  // 4. Case Strength trajectory (ASCII sparkline)
+  if (session.caseStrengthHistory.length > 1) {
+    console.log(`  ${C.bold('CASE STRENGTH OVER TIME')}`)
+    console.log(`  ${sparkline(session.caseStrengthHistory)}`)
     console.log()
   }
 
-  // 4. Evidence breakdown — what was ever played, and what never came up
+  // 5. Suspect's cover story revealed
+  console.log(`  ${C.bold('THE SUSPECT\'S STRATEGY')}`)
+  console.log(`  ${C.dim('Cover story:')} ${session.caseFile.suspectPersona.coverStory}`)
+  console.log(`  ${C.dim('Breaking points:')} ${session.caseFile.suspectPersona.breakingPoints.join(', ')}`)
+  console.log(`  ${C.dim('Guilty knowledge:')}`)
+  for (const gk of session.caseFile.suspectPersona.guiltyKnowledge) {
+    console.log(`    - ${gk}`)
+  }
+  console.log()
+
+  // 6. Evidence breakdown — what was presented and what was missed
   console.log(`  ${C.bold('EVIDENCE BREAKDOWN')}`)
-  for (const e of session.evidence) {
-    const stateTag = e.state === 'latent' ? C.dim('[never raised]') : `[${e.state}]`
-    console.log(`  ${C.dim(e.id)} ${stateTag} ${e.claim.slice(0, 90)}`)
-    if (e.state !== 'latent') {
-      console.log(`    ${C.yellow('vulnerability:')} ${C.dim(e.vulnerability.slice(0, 100))}`)
+  for (const e of session.caseFile.evidence) {
+    const status = e.presented ? C.green('[presented]') : C.dim('[never used]')
+    console.log(`  ${C.dim(e.id)} ${status} ${e.claim.slice(0, 80)}`)
+    console.log(`    ${C.yellow('vulnerability:')} ${C.dim(e.vulnerability)}`)
+
+    // Find how the suspect responded to this evidence
+    const responseDetail = session.interrogationDetails.find(
+      (d) => d.suspectResponse.evidenceResponse?.evidenceId === e.id,
+    )
+    if (responseDetail) {
+      const er = responseDetail.suspectResponse.evidenceResponse!
+      const qualityLabel = ['terrible lie', 'weak deflection', 'plausible', 'airtight'][er.quality]
+      console.log(`    ${C.dim(`Suspect used: ${er.strategy} (quality ${er.quality} — ${qualityLabel})`)}`)
     }
   }
   console.log()
 
-  // 5. Annotated claim ledger
-  if (session.claims.length > 0) {
-    console.log(`  ${C.bold('CLAIM LEDGER')}`)
-    for (const claim of session.claims) {
-      const contradictions = session.turnDetails
-        .flatMap((td) => td.adjudication.contradictions)
-        .filter((c) => c.againstClaimId === claim.id)
-      const tags: string[] = []
-      for (const c of contradictions) {
-        tags.push(c.severity === 'major' ? C.red('[MAJOR CONTRADICTION]') : C.yellow('[minor contradiction]'))
-      }
-      console.log(`  ${claim.id} (turn ${claim.turn}): "${claim.text}" ${tags.join(' ')}`)
+  // 7. Annotated suspect claim ledger
+  if (session.suspectClaims.length > 0) {
+    console.log(`  ${C.bold('SUSPECT CLAIM LEDGER')}`)
+    for (const claim of session.suspectClaims) {
+      // Find contradictions against this claim
+      const contradicted = session.interrogationDetails.some(
+        (d) => d.suspectResponse.selfContradiction?.againstClaimId === claim.id,
+      )
+      const tag = contradicted ? C.red(' [CONTRADICTED]') : ''
+      console.log(`  ${claim.id} (turn ${claim.turn}): "${claim.text}"${tag}`)
     }
     console.log()
   }
 
-  // 6. Bluff reveal
-  if (session.bluffUsed && session.bluffDetail) {
-    console.log(`  ${C.magenta(C.bold('[BLUFF]'))} Turn ${session.bluffTurn}`)
-    console.log(`  The detective fabricated: "${session.bluffDetail.text}"`)
-    console.log(`  ${C.dim('(Denying this flat would have cost nothing.)')}`)
-    console.log()
-  } else if (session.bluffTurn !== null && !session.bluffUsed) {
-    console.log(`  ${C.dim('A bluff was scheduled for turn ' + session.bluffTurn + ' but the detective chose not to use it.')}`)
-    console.log()
-  }
-
-  // 7. Vulnerabilities never found
-  const missed = session.evidence.filter((e) => {
-    const bestQuality = Math.max(
-      0,
-      ...session.turnDetails
-        .map((td) => td.adjudication.evidencePlayed)
-        .filter((ep) => ep && ep.evidenceId === e.id)
-        .map((ep) => ep!.quality),
-    )
-    return e.state !== 'latent' && bestQuality < 2
-  })
-  if (missed.length > 0) {
-    console.log(`  ${C.bold('WHAT YOU MISSED')}`)
-    for (const e of missed) {
-      console.log(`  ${C.dim(e.id)} ${e.claim.slice(0, 60)}...`)
-      console.log(`    ${C.yellow('The crack was:')} ${e.vulnerability}`)
+  // 8. Witness claim ledger
+  if (session.witnessClaims.length > 0) {
+    console.log(`  ${C.bold('WITNESS CLAIM LEDGER')}`)
+    for (const claim of session.witnessClaims) {
+      console.log(`  ${claim.id} (turn ${claim.turn}): "${claim.text}"`)
     }
     console.log()
   }
 
-  // 8. Token cost summary
+  // 9. Token cost summary
   renderCostSummary(session)
 }
 
@@ -234,28 +245,17 @@ function sparkline(values: number[]): string {
 
 function renderCostSummary(session: GameSession): void {
   const u = session.usage
-  // Rates below are the old Gemini 2.0 Flash pricing, kept as a rough
-  // placeholder after the model swap to 3.5 Flash Lite — re-check against
-  // the current rate card before trusting these dollar figures.
-  const inputCost = (u.inputTokens * 1.0) / 1_000_000
-  const outputCost = (u.outputTokens * 5.0) / 1_000_000
-  const cacheCost = (u.cacheCreationTokens * 1.25) / 1_000_000
-  const cacheReadCost = (u.cacheReadTokens * 0.1) / 1_000_000
-  const total = inputCost + outputCost + cacheCost + cacheReadCost
-
   const divider = '─'.repeat(56)
   console.log(` ${divider}`)
-  console.log(`  ${C.bold('COST SUMMARY')} ${C.dim('(Gemini 3.5 Flash Lite — rates approximate)')}`)
-  console.log(`  Input tokens:       ${String(u.inputTokens).padStart(8)}    $${inputCost.toFixed(4)}`)
-  console.log(`  Output tokens:      ${String(u.outputTokens).padStart(8)}    $${outputCost.toFixed(4)}`)
-  console.log(`  Cache creation:     ${String(u.cacheCreationTokens).padStart(8)}    $${cacheCost.toFixed(4)}`)
-  console.log(`  Cache reads:        ${String(u.cacheReadTokens).padStart(8)}    $${cacheReadCost.toFixed(4)}`)
-  console.log(`  ${'─'.repeat(38)}`)
-  console.log(`  ${C.bold('Total:')}                            ${C.bold('$' + total.toFixed(4))}`)
+  console.log(`  ${C.bold('TOKEN USAGE')} ${C.dim('(cost depends on provider — see adjudicate.ts MODEL)')}`)
+  console.log(`  Input tokens:       ${String(u.inputTokens).padStart(8)}`)
+  console.log(`  Output tokens:      ${String(u.outputTokens).padStart(8)}`)
+  console.log(`  Cache creation:     ${String(u.cacheCreationTokens).padStart(8)}`)
+  console.log(`  Cache reads:        ${String(u.cacheReadTokens).padStart(8)}`)
   console.log(` ${divider}`)
 }
 
-// ─── Input helpers ───────────────────────────────────────────────────────────
+// ─── Input helpers ──────────────────────────────────────────────────────────
 
 function createPrompt(): readline.Interface {
   return readline.createInterface({
@@ -268,10 +268,10 @@ function ask(rl: readline.Interface, prompt: string): Promise<string> {
   return new Promise((resolve) => rl.question(prompt, resolve))
 }
 
-/** Show crime picker with blurbs and return the chosen type. */
+/** Show crime picker and return the chosen type. */
 async function pickCrime(rl: readline.Interface): Promise<CrimeType> {
   console.log()
-  console.log(`  ${C.bold('CHOOSE YOUR CRIME:')}`)
+  console.log(`  ${C.bold('CHOOSE YOUR CASE:')}`)
   console.log()
   for (let i = 0; i < CRIMES.length; i++) {
     console.log(`  ${C.bold(String(i + 1))}. ${C.bold(CRIME_LABELS[CRIMES[i]])}`)
@@ -280,14 +280,14 @@ async function pickCrime(rl: readline.Interface): Promise<CrimeType> {
   console.log()
 
   while (true) {
-    const answer = await ask(rl, '  Pick (1–3): ')
+    const answer = await ask(rl, `  Pick (1–${CRIMES.length}): `)
     const n = parseInt(answer.trim(), 10)
-    if (n >= 1 && n <= 3) return CRIMES[n - 1]
-    console.log(`  ${C.red('Enter 1, 2, or 3.')}`)
+    if (n >= 1 && n <= CRIMES.length) return CRIMES[n - 1]
+    console.log(`  ${C.red(`Enter 1–${CRIMES.length}.`)}`)
   }
 }
 
-// ─── Main game loop ──────────────────────────────────────────────────────────
+// ─── Main game loop ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   // Check for API key (support multiple providers)
@@ -299,10 +299,10 @@ async function main(): Promise<void> {
   if (!hasKey) {
     console.error(C.red('\n  Missing API key.'))
     console.error('  Create a .env.local file with one of:')
+    console.error('    XAI_API_KEY=...')
     console.error('    GOOGLE_GENERATIVE_AI_API_KEY=...')
     console.error('    ANTHROPIC_API_KEY=sk-ant-...')
     console.error('    OPENAI_API_KEY=sk-...')
-    console.error('    XAI_API_KEY=...')
     console.error('    OPENROUTER_API_KEY=...\n')
     process.exit(1)
   }
@@ -310,9 +310,6 @@ async function main(): Promise<void> {
   const rl = createPrompt()
 
   // Parse CLI args: [seed] [crime] [templateId]
-  // templateId forces a specific scenario (e.g. "homicide-stairwell") while
-  // still varying names/times/amounts from the seed — useful for beta-testing
-  // one rewritten template against many playthroughs.
   const args = process.argv.slice(2)
   const seed = args[0] ?? randomSeed()
   const templateId = args[2]
@@ -336,85 +333,102 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  // Intro
+  // ── Phase 1: Briefing ──────────────────────────────────────────────────
+  const divider = '═'.repeat(56)
   console.log()
+  console.log(` ${divider}`)
   console.log(`  ${C.bold('AIRTIGHT')} ${C.dim(`${seed} · ${CRIME_LABELS[crime]}`)}`)
+  console.log(` ${divider}`)
   console.log()
 
-  const briefing = session.caseFile.briefing
-  if (briefing) {
-    console.log(`  You're ${C.bold(briefing.name)}, ${briefing.age}, ${briefing.occupation}.`)
-    console.log()
-    console.log(`  ${briefing.what}`)
-  } else {
-    console.log(`  You are ${C.bold(session.caseFile.suspect.name)}, ${session.caseFile.suspect.occupation}.`)
-    console.log(`  You did it. Now talk your way out.`)
-  }
+  const briefing = session.caseFile.detectiveBriefing
+  console.log(`  ${C.bold('CASE BRIEFING')}`)
   console.log()
-  console.log(`  ${C.dim('Type your answers. /quit to exit.')}`)
-  console.log(`  ${C.dim(`Max ${MAX_ANSWER_LENGTH} characters per answer.`)}`)
-
-  // Show initial suspicion — you're already a suspect, never presumed clean
+  console.log(`  ${C.bold('Victim:')} ${briefing.victimSummary}`)
+  console.log(`  ${C.bold('Suspect:')} ${briefing.suspectSummary}`)
+  console.log(`  ${C.bold('Scene:')} ${briefing.sceneSummary}`)
   console.log()
-  renderLiveSuspicion(session, 0)
+  console.log(`  ${C.cyan(briefing.evidenceSummary)}`)
+  console.log()
 
-  // Show the opener before the loop — this is the detective's first line
-  {
-    const det = session.caseFile.detective
-    const divider = '═'.repeat(56)
-    console.log(` ${divider}`)
-    console.log(`  ${C.bold('AIRTIGHT')}          Turn 1 of ${session.maxTurns}        ${C.dim(session.seed)}`)
-    console.log(` ${divider}`)
-    console.log(`  ${C.bold(`${det.rank} ${det.name}`)}:`)
-    console.log(`  ${C.cyan('"' + session.caseFile.opener + '"')}`)
-    console.log()
-  }
+  // Show evidence table
+  renderEvidenceTable(session)
 
-  // Game loop — each iteration: player answers → model reacts → suspicion bar
-  while (!session.ending && session.turn < session.maxTurns) {
-    // Get player input
-    let answer = ''
+  // Show witness info
+  const witness = session.caseFile.witness
+  console.log(`  ${C.bold('WITNESS AVAILABLE:')} ${witness.name} — ${witness.relationship}`)
+  console.log(`  ${C.dim('(You can question the witness after the interrogation — 2 questions max)')}`)
+  console.log()
+
+  // Initial case strength
+  renderCaseStrength(session.caseStrength, 0)
+
+  console.log(`  ${C.dim('Commands: type a question, PRESENT e3: question, /evidence, /status, /quit')}`)
+  console.log(`  ${C.dim(`Max ${MAX_QUESTION_LENGTH} characters per question.`)}`)
+  console.log()
+
+  // ── Phase 2: Interrogation ─────────────────────────────────────────────
+  console.log(` ${divider}`)
+  console.log(`  ${C.bold('INTERROGATION')} — ${session.caseFile.suspect.name}`)
+  console.log(` ${divider}`)
+  console.log()
+
+  while (!session.ending && session.interrogationTurn < session.maxInterrogationTurns) {
+    const turnLabel = `Turn ${session.interrogationTurn + 1}/${session.maxInterrogationTurns}`
+    let question = ''
+
     while (true) {
-      const raw = await ask(rl, '  > ')
+      const raw = await ask(rl, `  ${C.dim(turnLabel)} > `)
       const trimmed = raw.trim()
 
       if (trimmed === '/quit') {
         console.log(C.dim('\n  Ending session early.\n'))
         rl.close()
-        if (session.turnDetails.length > 0) renderBreakdown(session)
+        if (session.interrogationDetails.length > 0) renderBreakdown(session)
         process.exit(0)
       }
 
       if (trimmed === '/status') {
-        renderLiveSuspicion(session, 0)
+        renderCaseStrength(session.caseStrength, 0)
+        continue
+      }
+
+      if (trimmed === '/evidence') {
+        renderEvidenceTable(session)
         continue
       }
 
       if (trimmed.length === 0) {
-        console.log(C.dim('  (say something — or /quit to leave)'))
+        console.log(C.dim('  (ask a question — or /quit to leave)'))
         continue
       }
 
-      if (trimmed.length > MAX_ANSWER_LENGTH) {
-        console.log(C.yellow(`  Too long (${trimmed.length}/${MAX_ANSWER_LENGTH}). Try again.`))
+      if (trimmed.length > MAX_QUESTION_LENGTH) {
+        console.log(C.yellow(`  Too long (${trimmed.length}/${MAX_QUESTION_LENGTH}). Try again.`))
         continue
       }
 
-      answer = trimmed
+      question = trimmed
       break
     }
 
     // Play the turn
     console.log(C.dim('\n  Thinking...\n'))
-    const result = await playTurn(session, answer)
+    const result = await playInterrogationTurn(session, question)
 
-    // Show the suspicion bar after the answer lands — the reveal moment
-    const lastDetail = session.turnDetails[session.turnDetails.length - 1]
-    const delta = lastDetail ? lastDetail.suspicionAfter - lastDetail.suspicionBefore : 0
-    renderLiveSuspicion(session, delta)
+    // Show the suspect's response
+    console.log(`  ${C.bold(session.caseFile.suspect.name)} ${renderDemeanor(result.suspectDemeanor)}:`)
+    console.log(`  ${C.cyan('"' + result.suspectDialogue + '"')}`)
+    console.log()
 
-    // Show the detective's reaction (which contains the next question)
-    renderTurnDisplay(session, result.detectiveResponse)
+    // Show case strength update
+    renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
+
+    // Show what evidence was presented
+    if (result.presentedEvidenceId) {
+      console.log(`  ${C.dim(`Evidence ${result.presentedEvidenceId} presented.`)}`)
+      console.log()
+    }
 
     // Check ending
     if (result.ending) {
@@ -423,11 +437,117 @@ async function main(): Promise<void> {
     }
   }
 
-  // If we ran out of turns without a mid-game ending, check now
-  if (!session.ending && session.turn >= session.maxTurns) {
-    session.ending = 'RELEASED'
-    session.endTurn = session.turn
-    renderEnding('RELEASED', session)
+  // ── Phase 3: Witness ───────────────────────────────────────────────────
+  if (!session.ending) {
+    console.log()
+    console.log(` ${divider}`)
+    console.log(`  ${C.bold('WITNESS INTERVIEW')} — ${witness.name} (${witness.relationship})`)
+    console.log(` ${divider}`)
+    console.log()
+    console.log(`  ${C.dim(`You have ${session.maxWitnessTurns} questions for this witness.`)}`)
+    console.log()
+
+    while (!session.ending && session.witnessTurn < session.maxWitnessTurns) {
+      const turnLabel = `Q${session.witnessTurn + 1}/${session.maxWitnessTurns}`
+      let question = ''
+
+      while (true) {
+        const raw = await ask(rl, `  ${C.dim(turnLabel)} > `)
+        const trimmed = raw.trim()
+
+        if (trimmed === '/quit') {
+          console.log(C.dim('\n  Ending session early.\n'))
+          rl.close()
+          renderBreakdown(session)
+          process.exit(0)
+        }
+
+        if (trimmed === '/skip') {
+          console.log(C.dim('  Skipping remaining witness questions.'))
+          // Force out of the witness loop
+          session.witnessTurn = session.maxWitnessTurns
+          question = ''
+          break
+        }
+
+        if (trimmed === '/status') {
+          renderCaseStrength(session.caseStrength, 0)
+          continue
+        }
+
+        if (trimmed.length === 0) {
+          console.log(C.dim('  (ask a question, /skip to move on, or /quit)'))
+          continue
+        }
+
+        if (trimmed.length > MAX_QUESTION_LENGTH) {
+          console.log(C.yellow(`  Too long (${trimmed.length}/${MAX_QUESTION_LENGTH}). Try again.`))
+          continue
+        }
+
+        question = trimmed
+        break
+      }
+
+      // /skip sets question to '' and advances witnessTurn — break out
+      if (!question) break
+
+      console.log(C.dim('\n  Thinking...\n'))
+      const result = await playWitnessTurn(session, question)
+
+      // Show the witness's response
+      console.log(`  ${C.bold(witness.name)} ${C.dim(`(${result.witnessDemeanor})`)}:`)
+      console.log(`  ${C.cyan('"' + result.witnessDialogue + '"')}`)
+      console.log()
+
+      // Show case strength update
+      renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
+
+      if (result.ending) {
+        renderEnding(result.ending, session)
+        break
+      }
+    }
+  }
+
+  // ── Phase 4: Verdict ──────────────────────────────────────────────────
+  if (!session.ending) {
+    console.log()
+    console.log(` ${divider}`)
+    console.log(`  ${C.bold('VERDICT')}`)
+    console.log(` ${divider}`)
+    console.log()
+    console.log(`  Case Strength: ${session.caseStrength}/100`)
+    console.log()
+
+    if (session.caseStrength >= 80) {
+      // Should have been caught earlier, but just in case
+      const ending = resolveVerdict(session, true)
+      renderEnding(ending, session)
+    } else {
+      console.log(`  ${C.yellow('Your case isn\'t strong enough for a guaranteed conviction.')}`)
+      console.log(`  ${C.bold('Do you charge the suspect anyway, or release them?')}`)
+      console.log()
+      console.log(`  ${C.bold('1.')} ${C.green('CHARGE')} — gamble that they\'re guilty`)
+      console.log(`  ${C.bold('2.')} ${C.red('RELEASE')} — let them go`)
+      console.log()
+
+      while (true) {
+        const answer = await ask(rl, '  Your decision (1 or 2): ')
+        const n = parseInt(answer.trim(), 10)
+        if (n === 1) {
+          const ending = resolveVerdict(session, true)
+          renderEnding(ending, session)
+          break
+        }
+        if (n === 2) {
+          const ending = resolveVerdict(session, false)
+          renderEnding(ending, session)
+          break
+        }
+        console.log(`  ${C.red('Enter 1 or 2.')}`)
+      }
+    }
   }
 
   // Post-game breakdown
@@ -436,12 +556,9 @@ async function main(): Promise<void> {
   rl.close()
 }
 
-// ─── Run ─────────────────────────────────────────────────────────────────────
+// ─── Run ────────────────────────────────────────────────────────────────────
 
 main().catch((err) => {
-  // A closed stdin (Ctrl+D, or piped input reaching EOF) surfaces as this
-  // readline error — it's not a game bug, just an ended input stream, so
-  // exit quietly instead of dumping a stack trace.
   if ((err as { code?: string })?.code === 'ERR_USE_AFTER_CLOSE') {
     console.log(C.dim('\n  Input closed — ending session.\n'))
     process.exit(0)

@@ -1,17 +1,21 @@
 /**
  * Scoring engine — pure TypeScript, no model involvement.
  *
- * "The model judges; the engine scores." All arithmetic on Suspicion and
- * evidence weights lives here, never in a prompt. This is what makes
- * difficulty a config file you can tune in seconds and what makes the game
- * feel fair instead of arbitrary. — CLAUDE.md invariant #3
+ * "The model acts; the engine scores." All Case Strength arithmetic lives
+ * here, never in a prompt. This is what makes difficulty a config file you
+ * can tune in seconds and what makes the game feel fair instead of arbitrary.
  *
- * Suspicion is the only meter — Case Strength was dropped. The player never
- * sees a number during play; feedback is the detective's tone, and the score
- * is revealed once, in the post-game breakdown.
+ * V2 scores the ANSWER the question provoked, not the question itself.
+ * Two scoring functions: one for suspect interrogation turns, one for
+ * witness turns.
  */
 
-import type { Adjudication, Evidence, Ending, GameSession, Phase } from './types'
+import type {
+  SuspectResponse,
+  WitnessResponse,
+  Ending,
+  GameSession,
+} from './types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -19,43 +23,36 @@ import type { Adjudication, Evidence, Ending, GameSession, Phase } from './types
  * All scoring weights in one object. Tuning is a single-file change.
  */
 export const SCORING_CONFIG = {
-  // ── Starting point — never 0. A suspect is never presumed clean. ─────────
-  initialSuspicion: 20,
+  // ── Starting point ─────────────────────────────────────────────────────────
+  initialCaseStrength: 15,
 
-  // ── Suspicion deltas ──────────────────────────────────────────────────────
-  majorContradiction: 25,      // contradicting an earlier claim — the heaviest cost
-  minorContradiction: 10,
-  revisesEarlier: 12,          // changing the account after being pressed
-  volunteersDetail: 5,         // unprompted detail that creates new checkable surface
-  specificityFailure: 15,      // a testable detail offered, and it doesn't hold up
-  flatDenialPattern: 10,       // 2nd+ occurrence of denial/don't-remember/decline; 1st is free
-  injectionSuspicionPenalty: 20,
-  explainsQuality3Relief: -8,  // nailing an explanation for a played piece of evidence
+  // ── Suspect response scoring ──────────────────────────────────────────────
+  majorContradiction: 20,        // suspect contradicts their own earlier claim (major)
+  minorContradiction: 8,         // suspect contradicts their own earlier claim (minor)
 
-  // ── Evidence state transitions ───────────────────────────────────────────
-  explainedQualityMin: 2,      // quality >= 2 on a played item → 'explained', can't be replayed
+  evidenceQuality0: 12,          // terrible lie — made it worse
+  evidenceQuality1: 8,           // weak deflection — didn't address the evidence
+  evidenceQuality2: 3,           // plausible but cracked — leaves doubt
+  evidenceQuality3: 0,           // airtight — exploited the vulnerability perfectly
 
-  // ── Bluff scheduling (decided at session start) — lives in the confront/corner phase ──
-  bluffEarliestTurn: 5,
-  bluffLatestTurn: 7,
-  bluffChance: 0.7,
+  inadvertentReveal: 15,         // accidentally revealed guilty knowledge
+
+  // ── Demeanor shifts ───────────────────────────────────────────────────────
+  demeanorShift: 3,              // shifting from calm to nervous/defensive/aggressive/evasive
+
+  // ── Witness scoring ───────────────────────────────────────────────────────
+  witnessContradiction: 10,      // witness's honest account contradicts suspect's claim
 
   // ── Turn structure ────────────────────────────────────────────────────────
-  // Collect → Probe → Confront/Corner arc. Short enough to stay gripping,
-  // long enough that collected lies have room to unravel.
-  baseTurns: 7,
-  earlyPhaseEnd: 1,              // turn 1 only: collect their timeline story
-  midPhaseEnd: 3,                // turns 2-3: probe relationship, intent, specifics
-                                 // turns 4-7 (late): confront with evidence + contradictions
+  maxInterrogationTurns: 6,
+  maxWitnessTurns: 2,
 
   // ── Ending ─────────────────────────────────────────────────────────────────
   chargedThreshold: 80,
 
   // ── Clamps ─────────────────────────────────────────────────────────────────
-  suspicionFloor: 0,
-  suspicionCeiling: 100,
-  evidenceWeightFloor: 0,
-  evidenceWeightCeiling: 100,
+  caseStrengthFloor: 0,
+  caseStrengthCeiling: 100,
 } as const
 
 export type ScoringConfig = typeof SCORING_CONFIG
@@ -66,159 +63,110 @@ function clamp(min: number, max: number, val: number): number {
   return Math.max(min, Math.min(max, val))
 }
 
-/** Which behavioural phase a turn falls into. Engine decides this, not the model. */
-export function getPhase(turn: number, config: ScoringConfig = SCORING_CONFIG): Phase {
-  if (turn <= config.earlyPhaseEnd) return 'early'
-  if (turn <= config.midPhaseEnd) return 'mid'
-  return 'late'
+// ─── Score a suspect interrogation turn ─────────────────────────────────────
+
+export type ScoreSuspectResult = {
+  delta: number
+  newCaseStrength: number
 }
 
 /**
- * Pick the latent evidence item most worth the detective playing this turn.
- * Pure ordinal selection by weight — nothing offered in the collect phase
- * (turn 1), highest-weight latent item offered from probe onward. The
- * prompt guides when the detective actually drops it: mid-phase hints are
- * softer ("you may mention"), late-phase hits are direct confrontations.
+ * Score one suspect interrogation turn. Pure — reads the response and current
+ * case strength, returns the delta and new value. The caller applies it.
+ *
+ * Tracks the previous demeanor to detect shifts. On turn 1, previousDemeanor
+ * is 'calm' (the suspect hasn't spoken yet).
  */
-export function pickEvidenceToPlay(evidence: Evidence[], phase: Phase): Evidence | null {
-  if (phase === 'early') return null
-  const latent = evidence.filter((e) => e.state === 'latent')
-  if (latent.length === 0) return null
-  return [...latent].sort((a, b) => b.weight - a.weight)[0]
+export function scoreSuspectTurn(
+  response: SuspectResponse,
+  currentCaseStrength: number,
+  previousDemeanor: SuspectResponse['demeanor'],
+  config: ScoringConfig = SCORING_CONFIG,
+): ScoreSuspectResult {
+  let delta = 0
+
+  // 1. Self-contradiction — the heaviest cost
+  if (response.selfContradiction) {
+    delta += response.selfContradiction.severity === 'major'
+      ? config.majorContradiction
+      : config.minorContradiction
+  }
+
+  // 2. Evidence response quality (only when evidence was presented)
+  if (response.evidenceResponse) {
+    const q = response.evidenceResponse.quality
+    if (q === 0) delta += config.evidenceQuality0
+    else if (q === 1) delta += config.evidenceQuality1
+    else if (q === 2) delta += config.evidenceQuality2
+    // quality 3 adds nothing — the suspect nailed it
+  }
+
+  // 3. Inadvertent reveal of guilty knowledge
+  if (response.inadvertentReveal) {
+    delta += config.inadvertentReveal
+  }
+
+  // 4. Demeanor shift (calm → anything else is a signal)
+  if (previousDemeanor === 'calm' && response.demeanor !== 'calm') {
+    delta += config.demeanorShift
+  }
+
+  const newCaseStrength = clamp(
+    config.caseStrengthFloor,
+    config.caseStrengthCeiling,
+    currentCaseStrength + delta,
+  )
+
+  return { delta, newCaseStrength }
+}
+
+// ─── Score a witness turn ───────────────────────────────────────────────────
+
+export type ScoreWitnessResult = {
+  delta: number
+  newCaseStrength: number
+}
+
+/**
+ * Score one witness interrogation turn. Simpler than suspect scoring —
+ * the main signal is whether the witness contradicts a suspect claim.
+ */
+export function scoreWitnessTurn(
+  response: WitnessResponse,
+  currentCaseStrength: number,
+  config: ScoringConfig = SCORING_CONFIG,
+): ScoreWitnessResult {
+  let delta = 0
+
+  // Witness contradicts something the suspect claimed
+  if (response.suspectContradiction) {
+    delta += config.witnessContradiction
+  }
+
+  const newCaseStrength = clamp(
+    config.caseStrengthFloor,
+    config.caseStrengthCeiling,
+    currentCaseStrength + delta,
+  )
+
+  return { delta, newCaseStrength }
 }
 
 // ─── Ending detection ────────────────────────────────────────────────────────
 
 /**
- * CHARGED triggers the instant Suspicion crosses 80 — the game can end on
- * any turn, not just the last. Otherwise the case ends RELEASED at turn 7.
- * Winning should be rare: 60 points of runway across 7 turns means two bad
- * slips and you're done.
+ * Check whether the game has reached an ending. Called after every scoring
+ * update, during any phase.
+ *
+ * - CHARGED_STRONG: Case Strength ≥ 80 at any point (clean win).
+ * - Verdict phase handles CHARGED_WEAK / RELEASED based on player's gamble.
+ *
+ * Returns null if the game continues.
  */
 export function checkEnding(
-  turn: number,
-  maxTurns: number,
-  suspicion: number,
+  caseStrength: number,
   config: ScoringConfig = SCORING_CONFIG,
 ): Ending | null {
-  if (suspicion >= config.chargedThreshold) return 'CHARGED'
-  if (turn >= maxTurns) return 'RELEASED'
+  if (caseStrength >= config.chargedThreshold) return 'CHARGED_STRONG'
   return null
-}
-
-// ─── Score a single turn ─────────────────────────────────────────────────────
-
-export type ScoreTurnResult = {
-  suspicionDelta: number
-  newSuspicion: number
-  evidenceWeightChanges: Array<{ evidenceId: string; oldWeight: number; newWeight: number }>
-  evidenceRevealed: string[]
-  evidenceExplained: string[]
-  /** Free-pass flags to write back onto the session (first occurrence of each stance is free). */
-  freePassesUsed: {
-    denial: boolean
-    dontRemember: boolean
-    decline: boolean
-  }
-  ending: Ending | null
-}
-
-/**
- * Apply one turn's adjudication to the game state. Pure — reads from session
- * and adjudication, returns a result. The caller (session.ts) applies it.
- */
-export function scoreTurn(
-  adjudication: Adjudication,
-  session: GameSession,
-  config: ScoringConfig = SCORING_CONFIG,
-): ScoreTurnResult {
-  const evidence = session.evidence.map((e) => ({ ...e }))
-  const evidenceById = new Map(evidence.map((e) => [e.id, e]))
-  const weightChanges: ScoreTurnResult['evidenceWeightChanges'] = []
-  const revealed: string[] = []
-  const explained: string[] = []
-
-  let suspicionDelta = 0
-
-  // ── 1. Contradictions against the player's own words — the heaviest cost ──
-  for (const c of adjudication.contradictions) {
-    suspicionDelta += c.severity === 'major' ? config.majorContradiction : config.minorContradiction
-  }
-
-  // ── 2. Revising an account after being pressed ────────────────────────────
-  if (adjudication.revisesEarlier) {
-    suspicionDelta += config.revisesEarlier
-  }
-
-  // ── 3. Response stance — free passes, patterns, and volunteered exposure ──
-  const freePassesUsed = { denial: false, dontRemember: false, decline: false }
-  switch (adjudication.responseStance) {
-    case 'flat_denial':
-      if (session.usedFreeDenial) suspicionDelta += config.flatDenialPattern
-      else freePassesUsed.denial = true
-      break
-    case 'dont_remember':
-      if (session.usedFreeDontRemember) suspicionDelta += config.flatDenialPattern
-      else freePassesUsed.dontRemember = true
-      break
-    case 'decline_to_speculate':
-      if (session.usedFreeDecline) suspicionDelta += config.flatDenialPattern
-      else freePassesUsed.decline = true
-      break
-    case 'volunteers_detail':
-      suspicionDelta += config.volunteersDetail
-      break
-    default:
-      break
-  }
-
-  // ── 4. Specificity that can be tested and fails ────────────────────────────
-  if (adjudication.specificityFailure) {
-    suspicionDelta += config.specificityFailure
-  }
-
-  // ── 5. Evidence played this turn ────────────────────────────────────────────
-  if (adjudication.evidencePlayed) {
-    const { evidenceId, quality } = adjudication.evidencePlayed
-    const ev = evidenceById.get(evidenceId)
-    if (ev) {
-      if (ev.state === 'latent') {
-        ev.state = 'revealed'
-        revealed.push(ev.id)
-      }
-      const oldWeight = ev.weight
-      const delta = quality === 3 ? -40 : quality === 2 ? -20 : quality === 1 ? -5 : 10
-      ev.weight = clamp(config.evidenceWeightFloor, config.evidenceWeightCeiling, ev.weight + delta)
-      if (ev.weight !== oldWeight) {
-        weightChanges.push({ evidenceId: ev.id, oldWeight, newWeight: ev.weight })
-      }
-      if (quality >= config.explainedQualityMin) {
-        ev.state = 'explained'
-        explained.push(ev.id)
-      }
-      if (quality === 3) suspicionDelta += config.explainsQuality3Relief
-      if (quality === 0) suspicionDelta += config.specificityFailure
-    }
-  }
-
-  // ── 6. Injection ─────────────────────────────────────────────────────────
-  if (adjudication.injectionAttempt) {
-    suspicionDelta += config.injectionSuspicionPenalty
-  }
-
-  // ── 7. New meter ─────────────────────────────────────────────────────────
-  const newSuspicion = clamp(config.suspicionFloor, config.suspicionCeiling, session.suspicion + suspicionDelta)
-
-  // ── 8. Check ending ──────────────────────────────────────────────────────
-  const ending = checkEnding(session.turn, session.maxTurns, newSuspicion, config)
-
-  return {
-    suspicionDelta,
-    newSuspicion,
-    evidenceWeightChanges: weightChanges,
-    evidenceRevealed: revealed,
-    evidenceExplained: explained,
-    freePassesUsed,
-    ending,
-  }
 }

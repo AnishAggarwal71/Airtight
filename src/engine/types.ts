@@ -1,14 +1,14 @@
 /**
- * AIRTIGHT — core domain types.
+ * AIRTIGHT V2 — core domain types.
  *
- * The CaseFile is the hidden ground truth. It is regenerated server-side from
- * the seed on every request and must never be serialised to the client in full.
- * The client only ever receives a PublicCase.
+ * The player is the detective. The AI plays the suspect (and witnesses).
+ * The CaseFile is the hidden ground truth — regenerated server-side from the
+ * seed on every request, never serialised to the client in full. The client
+ * receives a PublicCase that shows evidence but hides the suspect's strategy.
  */
 
 export type CrimeType = 'homicide' | 'arson' | 'embezzlement'
 
-/** A beat of what actually happened. Never shown to the player. */
 export type TimelineBeat = {
   id: string
   time: string
@@ -22,44 +22,54 @@ export type EvidenceType =
   | 'financial'
   | 'circumstantial'
 
-export type EvidenceState = 'latent' | 'revealed' | 'explained' | 'corroborated'
-
-export type Evidence = {
+/** A piece of evidence the player-detective can deploy during interrogation. */
+export type DetectiveEvidence = {
   id: string
   type: EvidenceType
-  /** Shown to the player once revealed. */
+  /** What the detective knows — shown to the player upfront. */
   claim: string
-  /**
-   * A non-revealing subject-area phrase (e.g. "your whereabouts around 11
-   * that night") the detective can use to ask a pointed PROBE-phase question
-   * without stating the underlying fact — that stays reserved for CONFRONT.
-   * Optional: templates without one fall back to a generic phrase.
-   */
-  topic?: string
-  /** Current weight, 0–100. Mutated by the scoring engine. */
-  weight: number
-  baseWeight: number
-  state: EvidenceState
-  /** Timeline beats this evidence points at. */
-  linkedBeats: string[]
-  /**
-   * The crack in this evidence. Never shown during play — revealed in the
-   * post-game breakdown. If a player's explanation lands near this, the
-   * adjudicator scores it high and the weight drops hard.
-   */
+  /** Whether this item has been formally presented to the suspect yet. */
+  presented: boolean
+  /** Hidden: the crack in this evidence the suspect can exploit. Never shown during play. */
   vulnerability: string
+  /** Hidden: which truth beats this evidence connects to. */
+  linkedBeats: string[]
 }
 
-export type Witness = {
+/** Suspect NPC personality and strategy — NEVER shown to the player. */
+export type SuspectPersona = {
+  /** How they behave under questioning — tone, mannerisms, default posture. */
+  personality: string
+  /** The lie they've prepared — their version of events. */
+  coverStory: string
+  /** Topics or evidence that make them nervous and may cause them to slip. */
+  breakingPoints: string[]
+  /** Things they know but shouldn't if they were innocent. */
+  guiltyKnowledge: string[]
+}
+
+/** What the player-detective reads at the start of the case. */
+export type DetectiveBriefing = {
+  victimSummary: string
+  suspectSummary: string
+  sceneSummary: string
+  evidenceSummary: string
+}
+
+/** Witness NPC profile — name and relationship shown to the player, strategy hidden. */
+export type WitnessProfile = {
   id: string
   name: string
   relationship: string
-  claim: string
-  /** Inaccurate witnesses are exploitable — that's the point of them. */
-  accurate: boolean
-  flaw?: string
+  /** Hidden: how they behave when questioned. */
+  personality: string
+  /** Hidden: what they actually saw or know — the boundary of their testimony. */
+  knowledgeBoundary: string
+  /** Hidden: where their honest account differs from the suspect's cover story. */
+  suspectContradictions: string[]
 }
 
+/** The full hidden case — regenerated from the seed, never sent to the client. */
 export type CaseFile = {
   seed: string
   crime: CrimeType
@@ -69,25 +79,14 @@ export type CaseFile = {
   location: string
   window: { start: string; end: string }
   truth: TimelineBeat[]
-  evidence: Evidence[]
-  witnesses: Witness[]
-  /** What the detective is building toward. Drives question strategy. */
+  evidence: DetectiveEvidence[]
+  witness: WitnessProfile
   fatalFact: string
-  detective: { name: string; rank: string }
-  opener: string
-  /** What you did, in plain language, zero forensic detail. See Briefing. */
-  briefing?: Briefing
+  suspectPersona: SuspectPersona
+  detectiveBriefing: DetectiveBriefing
 }
 
-/** What the player is told before turn 1 — see templates/shared.ts. */
-export type Briefing = {
-  name: string
-  age: number
-  occupation: string
-  what: string
-}
-
-/** Everything the client is allowed to know at the start of a session. */
+/** Everything the client is allowed to see — evidence shown, strategy hidden. */
 export type PublicCase = {
   seed: string
   crime: CrimeType
@@ -95,10 +94,9 @@ export type PublicCase = {
   victim: { name: string; relationship: string }
   location: string
   window: { start: string; end: string }
-  detective: { name: string; rank: string }
-  opener: string
-  briefing?: Briefing
-  evidence: { id: string; type: EvidenceType; claim: string }[]
+  briefing: DetectiveBriefing
+  evidence: { id: string; type: EvidenceType; claim: string; presented: boolean }[]
+  witness: { name: string; relationship: string }
 }
 
 export const CRIME_LABELS: Record<CrimeType, string> = {
@@ -109,21 +107,20 @@ export const CRIME_LABELS: Record<CrimeType, string> = {
 
 export const CRIME_BLURBS: Record<CrimeType, string> = {
   homicide:
-    'A body, a timeline, and a relationship the detective will pull apart thread by thread.',
+    'A body, a timeline, and a suspect who has had all night to rehearse.',
   arson:
-    'Technical evidence that sounds conclusive and is anything but. Everything here is arguable.',
+    'Technical evidence that sounds conclusive and is anything but. Every item has a crack.',
   embezzlement:
-    'A paper crime. No alibi will save you — only an explanation for the paper.',
+    'Coming in Phase 2.',
 }
 
-// ─── M1: Adjudicator, scoring, and session types ────────────────────────────
+// ─── Adjudicator response types ─────────────────────────────────────────────
 
-/** A normalised player assertion, extracted by the adjudicator each turn. */
+/** A normalised assertion from the suspect, extracted each turn for the ledger. */
 export type Claim = {
-  id: string       // "c1", "c2", ... sequential
-  text: string     // normalised assertion (1–2 sentences)
+  id: string
+  text: string
   turn: number
-  /** False for opinions/feelings — only checkable claims count as contradiction surface. */
   checkable: boolean
 }
 
@@ -135,84 +132,75 @@ export type TokenUsage = {
   cacheReadTokens: number
 }
 
-/** Suspicion is the only meter. Charged if it crosses the threshold; released otherwise. */
-export type Ending = 'CHARGED' | 'RELEASED'
-
-/** Which of the three behavioural phases a turn falls into — drives the detective's approach. */
-export type Phase = 'early' | 'mid' | 'late'
-
-/**
- * The adjudicator's structured response.
- *
- * The model labels what happened in the player's answer; every number that
- * follows from it lives in score.ts. "No prose parsing" means detectiveResponse
- * is read as dialogue, never scraped for meaning.
- */
-export type Adjudication = {
-  /** Claims the adjudicator extracted from the player's answer. */
-  newClaims: { id: string; text: string; checkable: boolean }[]
-  /** Contradictions against the player's own earlier claims — both halves quoted for fairness. */
-  contradictions: {
+/** The AI suspect's structured response. */
+export type SuspectResponse = {
+  dialogue: string
+  claims: { text: string; checkable: boolean }[]
+  evidenceResponse: {
+    evidenceId: string
+    strategy: 'deny' | 'explain_away' | 'deflect' | 'partial_admit'
+    quality: 0 | 1 | 2 | 3
+  } | null
+  selfContradiction: {
     againstClaimId: string
     quotedEarlier: string
     quotedNow: string
     severity: 'minor' | 'major'
-  }[]
-  /** True if the player changed their account after being pressed on it. */
-  revisesEarlier: boolean
-  /** What kind of answer this was, for the free-pass and pattern rules in score.ts. */
-  responseStance:
-    | 'explains'
-    | 'flat_denial'
-    | 'dont_remember'
-    | 'decline_to_speculate'
-    | 'volunteers_detail'
-    | 'normal'
-  /** True if the player offered a specific, testable detail that doesn't hold up. */
-  specificityFailure: boolean
-  /** Set only when the detective actually raised a held-back evidence item this turn. */
-  evidencePlayed: { evidenceId: string; quality: 0 | 1 | 2 | 3 } | null
-  /** True if the player attempted prompt injection. */
-  injectionAttempt: boolean
-  /** If bluff was authorised and used, the fabricated evidence. */
-  bluff: { evidenceId: string; text: string } | null
-  /** The detective's next spoken line — tone-only feedback, no numbers. */
-  detectiveResponse: string
+  } | null
+  demeanor: 'calm' | 'nervous' | 'defensive' | 'aggressive' | 'evasive'
+  inadvertentReveal: boolean
 }
 
-/**
- * Full mutable game state for one session. Created once at game start,
- * updated each turn by the session orchestrator.
- */
+/** The AI witness's structured response. */
+export type WitnessResponse = {
+  dialogue: string
+  claims: { text: string; checkable: boolean }[]
+  suspectContradiction: {
+    againstClaimId: string
+    witnessVersion: string
+    suspectVersion: string
+  } | null
+  demeanor: 'cooperative' | 'reluctant' | 'nervous' | 'confused'
+}
+
+export type Ending = 'CHARGED_STRONG' | 'CHARGED_WEAK' | 'RELEASED'
+
+export type GamePhase = 'briefing' | 'interrogation' | 'witness' | 'verdict'
+
+// ─── Session types ──────────────────────────────────────────────────────────
+
+export type InterrogationDetail = {
+  turn: number
+  playerQuestion: string
+  presentedEvidenceId: string | null
+  suspectResponse: SuspectResponse
+  caseStrengthBefore: number
+  caseStrengthAfter: number
+}
+
+export type WitnessDetail = {
+  turn: number
+  playerQuestion: string
+  witnessResponse: WitnessResponse
+  caseStrengthBefore: number
+  caseStrengthAfter: number
+}
+
 export type GameSession = {
   seed: string
   crime: CrimeType
-  turn: number
-  maxTurns: number
+  phase: GamePhase
+  interrogationTurn: number
+  maxInterrogationTurns: number
+  witnessTurn: number
+  maxWitnessTurns: number
   caseFile: CaseFile
-  claims: Claim[]
-  evidence: Evidence[]                    // mutable copy — state/weight change during play
-  suspicion: number
-  suspicionHistory: number[]
-  bluffTurn: number | null                // decided at start from seeded RNG
-  bluffUsed: boolean
-  bluffDetail: { evidenceId: string; text: string } | null
-  /** Each flat_denial/dont_remember/decline_to_speculate stance is free once. */
-  usedFreeDenial: boolean
-  usedFreeDontRemember: boolean
-  usedFreeDecline: boolean
+  suspectClaims: Claim[]
+  witnessClaims: Claim[]
+  caseStrength: number
+  caseStrengthHistory: number[]
   ending: Ending | null
-  endTurn: number | null
-  usage: TokenUsage                       // accumulated across all turns
-  turnDetails: TurnDetail[]
-}
-
-/** Per-turn record for the post-game breakdown. Zero model calls to render. */
-export type TurnDetail = {
-  turn: number
-  playerAnswer: string
-  adjudication: Adjudication
-  suspicionBefore: number
-  suspicionAfter: number
-  evidenceRevealed: string[]
+  usage: TokenUsage
+  interrogationDetails: InterrogationDetail[]
+  witnessDetails: WitnessDetail[]
 }

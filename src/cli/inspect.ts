@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * Case file inspector.
+ * Case file inspector — V2 detective mode.
  *
  *   npx tsx src/cli/inspect.ts                      # random seed, random crime
  *   npx tsx src/cli/inspect.ts mallard-7719 arson   # a specific case
  *   npx tsx src/cli/inspect.ts --public mallard-7719 homicide
  *
- * --public shows only what the browser would receive, which is the quickest
- * way to confirm nothing sensitive is leaking through toPublicCase().
+ * --public shows only what the player-detective would receive, which is the
+ * quickest way to confirm nothing strategic is leaking through toPublicCase().
  */
 
 import { generate, toPublicCase } from '../engine/generate'
@@ -22,6 +22,7 @@ const C = {
   green: (s: string) => `\x1b[32m${s}\x1b[0m`,
   yellow: (s: string) => `\x1b[33m${s}\x1b[0m`,
   cyan: (s: string) => `\x1b[36m${s}\x1b[0m`,
+  magenta: (s: string) => `\x1b[35m${s}\x1b[0m`,
 }
 
 const args = process.argv.slice(2)
@@ -31,7 +32,7 @@ const positional = args.filter((a) => !a.startsWith('--'))
 const seed = positional[0] ?? randomSeed()
 const crime = (positional[1] as CrimeType) ?? 'homicide'
 
-const valid: CrimeType[] = ['homicide', 'arson', 'embezzlement']
+const valid: CrimeType[] = ['homicide', 'arson']
 if (!valid.includes(crime)) {
   console.error(`Unknown crime "${crime}". Expected one of: ${valid.join(', ')}`)
   process.exit(1)
@@ -40,7 +41,7 @@ if (!valid.includes(crime)) {
 const file = generate({ seed, crime })
 
 if (publicOnly) {
-  console.log(C.bold('\n── WHAT THE CLIENT RECEIVES ───────────────────────\n'))
+  console.log(C.bold('\n── WHAT THE PLAYER-DETECTIVE RECEIVES ────────────\n'))
   console.log(JSON.stringify(toPublicCase(file), null, 2))
   console.log()
   process.exit(0)
@@ -51,41 +52,59 @@ const rule = (label: string) =>
 
 console.log(C.bold(`\n  AIRTIGHT  ${C.dim(`${seed} · ${CRIME_LABELS[crime]} · ${file.templateId}`)}`))
 
-rule('THE ROOM')
-console.log(`  ${C.bold(file.detective.rank + ' ' + file.detective.name)} interviewing ${C.bold(file.suspect.name)}, ${file.suspect.occupation}`)
+rule('THE CASE')
+console.log(`  Suspect:  ${C.bold(file.suspect.name)}, ${file.suspect.occupation}`)
 console.log(`  Victim:   ${file.victim.name} — ${file.victim.relationship}`)
 console.log(`  Scene:    ${file.location}`)
 console.log(`  Window:   ${file.window.start} – ${file.window.end}`)
 
-rule('OPENER')
-console.log(`  ${C.cyan('"' + file.opener + '"')}`)
+rule('DETECTIVE BRIEFING')
+console.log(`  Victim:   ${file.detectiveBriefing.victimSummary}`)
+console.log(`  Suspect:  ${file.detectiveBriefing.suspectSummary}`)
+console.log(`  Scene:    ${file.detectiveBriefing.sceneSummary}`)
+console.log(`  Evidence: ${file.detectiveBriefing.evidenceSummary}`)
 
 rule(C.red('GROUND TRUTH — never leaves the server'))
 for (const b of file.truth) {
   console.log(`  ${C.dim(b.time.padEnd(7))} ${b.fact}`)
 }
 
-rule('EVIDENCE')
+rule('EVIDENCE (all visible to player)')
 for (const e of file.evidence) {
-  const tag = e.state === 'revealed' ? C.green('REVEALED') : C.dim('latent  ')
-  console.log(`  ${tag} ${C.bold(e.id)} ${C.dim(`[${e.type}, w${e.weight}]`)}`)
+  const status = e.presented ? C.green('presented') : C.dim('available')
+  console.log(`  ${status} ${C.bold(e.id)} ${C.dim(`[${e.type}]`)}`)
   console.log(`           ${e.claim}`)
-  console.log(`           ${C.yellow('crack:')} ${C.dim(e.vulnerability)}`)
+  console.log(`           ${C.yellow('vulnerability:')} ${C.dim(e.vulnerability)}`)
+  console.log(`           ${C.dim(`linked beats: ${e.linkedBeats.join(', ')}`)}`)
   console.log()
 }
 
-rule('WITNESSES')
-for (const w of file.witnesses) {
-  const tag = w.accurate ? C.green('reliable  ') : C.red('unreliable')
-  console.log(`  ${tag} ${C.bold(w.name)} ${C.dim(`(${w.relationship})`)}`)
-  console.log(`             ${w.claim}`)
-  if (w.flaw) console.log(`             ${C.yellow('flaw:')} ${C.dim(w.flaw)}`)
+rule('WITNESS')
+const w = file.witness
+console.log(`  ${C.bold(w.name)} ${C.dim(`(${w.relationship})`)}`)
+console.log(`  ${C.dim('Personality:')} ${w.personality}`)
+console.log(`  ${C.dim('Knows:')} ${w.knowledgeBoundary}`)
+console.log(`  ${C.dim('Can contradict:')}`)
+for (const c of w.suspectContradictions) {
+  console.log(`    - ${c}`)
+}
+
+rule(C.magenta('SUSPECT PERSONA — hidden from player'))
+console.log(`  ${C.dim('Personality:')} ${file.suspectPersona.personality}`)
+console.log(`  ${C.dim('Cover story:')} ${file.suspectPersona.coverStory}`)
+console.log(`  ${C.dim('Breaking points:')}`)
+for (const bp of file.suspectPersona.breakingPoints) {
+  console.log(`    - ${bp}`)
+}
+console.log(`  ${C.dim('Guilty knowledge:')}`)
+for (const gk of file.suspectPersona.guiltyKnowledge) {
+  console.log(`    - ${gk}`)
 }
 
 rule(C.red('FATAL FACT'))
 console.log(`  ${file.fatalFact}`)
 
-const revealed = file.evidence.filter((e) => e.state === 'revealed').length
+const presented = file.evidence.filter((e) => e.presented).length
 console.log(
-  C.dim(`\n  ${file.evidence.length} evidence items · ${revealed} revealed · ${file.evidence.length - revealed} latent\n`),
+  C.dim(`\n  ${file.evidence.length} evidence items · ${presented} presented · ${file.evidence.length - presented} available\n`),
 )

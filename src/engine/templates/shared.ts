@@ -1,5 +1,11 @@
 import type { Rng } from '../rng'
-import type { CrimeType, Evidence, TimelineBeat, Witness } from '../types'
+import type {
+  CrimeType,
+  DetectiveBriefing,
+  EvidenceType,
+  SuspectPersona,
+  TimelineBeat,
+} from '../types'
 
 /**
  * Shared contract and helpers for crime templates.
@@ -10,31 +16,25 @@ import type { CrimeType, Evidence, TimelineBeat, Witness } from '../types'
  * relies on it for determinism.
  */
 
-/** The interviewing detective's identity — randomised per case, fixed for the session. */
 export type DetectiveIdentity = { name: string; rank: string }
 
-/**
- * Evidence as authored by a template. `anchor` is retired — generate() no
- * longer reveals anything at game start (the player doesn't know what the
- * police have). Kept only so untouched templates still type-check; new
- * templates should not set it. `baseWeight` is now purely an ordinal the
- * engine uses to decide which held-back item is worth playing late-game.
- */
-export type TemplateEvidence = Omit<Evidence, 'weight' | 'state'> & {
-  anchor?: boolean
+/** Evidence as authored by a template — generate() adds `presented: false`. */
+export type TemplateEvidence = {
+  id: string
+  type: EvidenceType
+  claim: string
+  vulnerability: string
+  linkedBeats: string[]
 }
 
-/**
- * What the player is told before turn 1 — what they did, in their own frame,
- * with zero forensic detail. This replaces a prepared story: the player
- * invents their account live from this alone.
- */
-export type Briefing = {
+/** Witness as authored by a template. */
+export type TemplateWitness = {
+  id: string
   name: string
-  age: number
-  occupation: string
-  /** Who, what, how, why — plainly, under 120 words. No timestamps, no evidence. */
-  what: string
+  relationship: string
+  personality: string
+  knowledgeBoundary: string
+  suspectContradictions: string[]
 }
 
 export type TemplateBuild = {
@@ -44,11 +44,10 @@ export type TemplateBuild = {
   window: { start: string; end: string }
   truth: TimelineBeat[]
   evidence: TemplateEvidence[]
-  witnesses: Witness[]
+  witness: TemplateWitness
   fatalFact: string
-  opener: string
-  /** Optional during migration — templates without one fall back to opener-only. */
-  briefing?: Briefing
+  suspectPersona: SuspectPersona
+  detectiveBriefing: DetectiveBriefing
 }
 
 export type Template = {
@@ -79,7 +78,6 @@ const LAST_NAMES = [
   'Farrow', 'Kimura', 'Redgrave', 'Onyeka', 'Stavros', 'Linton', 'Bellamy',
 ] as const
 
-/** A random "First Last" name, distinct enough across a small cast that collisions are rare. */
 export function fullName(r: Rng): string {
   return `${r.pick(FIRST_NAMES)} ${r.pick(LAST_NAMES)}`
 }
@@ -96,19 +94,12 @@ const FEMALE_FIRST_NAMES = [
   'Natalie', 'Rachel', 'Louise', 'Amy',
 ] as const
 
-/**
- * A random name paired with a matching pronoun, so hardcoded he/his or she/her
- * text in a template's truth beats and evidence claims never disagrees with
- * the name it's describing. Independent of `fullName()` — existing templates
- * keep using bare `fullName()` untouched.
- */
 export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
   const isMale = r.chance(0.5)
   const first = r.pick(isMale ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES)
   return { name: `${first} ${r.pick(LAST_NAMES)}`, pronoun: isMale ? 'he' : 'she' }
 }
 
-/** Detective identities — one is drawn per case and stays fixed for the session. */
 export const DETECTIVE_NAMES: DetectiveIdentity[] = [
   { name: 'Aisha Okonkwo', rank: 'Detective Inspector' },
   { name: 'Callum Reid', rank: 'Detective Sergeant' },
