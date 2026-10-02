@@ -136,11 +136,11 @@ export type TokenUsage = {
 export type SuspectResponse = {
   dialogue: string
   claims: { text: string; checkable: boolean }[]
-  evidenceResponse: {
+  evidenceResponses: {
     evidenceId: string
     strategy: 'deny' | 'explain_away' | 'deflect' | 'partial_admit'
     quality: 0 | 1 | 2 | 3
-  } | null
+  }[]
   selfContradiction: {
     againstClaimId: string
     quotedEarlier: string
@@ -172,7 +172,7 @@ export type GamePhase = 'briefing' | 'interrogation' | 'witness' | 'verdict'
 export type InterrogationDetail = {
   turn: number
   playerQuestion: string
-  presentedEvidenceId: string | null
+  presentedEvidenceIds: string[]
   suspectResponse: SuspectResponse
   caseStrengthBefore: number
   caseStrengthAfter: number

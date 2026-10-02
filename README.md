@@ -1,111 +1,112 @@
 # AIRTIGHT
 
-**An LLM-driven interrogation game.** You did it. Now talk your way out.
+**An LLM-driven interrogation game where you are the detective.**
 
-A procedurally generated crime, an AI detective who remembers every word you say,
-and twelve questions between you and a cell.
+Build a case against an AI suspect before they talk their way free. Each case is generated deterministically from a seed; the suspect must sustain a cover story under questioning, and an independent AI witness can corroborate or dismantle that story.
 
-> **Status: M0 complete.** Scenario engine built and verified. No model calls yet —
-> the adjudicator lands in M1.
+> **Status: V2 core loop is implemented and verified.** It is currently a terminal game; live-model playtesting and tuning are the next milestones.
 
----
+## Why it exists
+
+AIRTIGHT is a portfolio project about building dependable LLM systems, not merely wrapping a chat completion in a UI. It explores a constrained multi-agent game loop where the model performs a role, deterministic TypeScript owns state and scoring, hidden ground truth stays private, compact claim ledgers replace growing transcripts, and behaviour is replayable from a seed.
+
+See [the portfolio brief](docs/portfolio.md) for the project narrative, architecture, design decisions, current scope, and evaluation plan.
+
+## How it works
+
+```text
+seed + crime -> deterministic case generator -> private CaseFile
+                                               |
+                                               +-> public case briefing + evidence
+
+detective question -> AI suspect -> structured response -> pure scoring engine
+                                               |
+                                               +-> claim ledger
+
+two witness questions -> separate AI witness -> corroboration / contradiction
+                                               |
+                                               +-> charge, gamble, or release
+```
+
+The player receives a briefing and five evidence items, asks up to six questions of the suspect, then up to two questions of a witness. Evidence can be formally presented during an interrogation. Case Strength reaches 80 for a strong charge; otherwise the player chooses whether to gamble on a charge or release a guilty suspect.
 
 ## Run it
 
 ```bash
 npm install
-npm run verify                   # M0 sanity checks
-npm run case                     # random case, full ground truth
-npm run case mallard-7719 arson  # a specific case
-npm run case:public mallard-7719 homicide   # what the browser would receive
+npm run verify
+
+# Inspect deterministic cases (no API key required)
+npm run case homicide
+npm run case:public homicide
+npm run case test-seed-1 arson
+
+# Play against a model
+Copy-Item .env.example .env.local
+npm run play
+npm run play -- test-seed-1 homicide
 ```
 
-Copy `.env.example` to `.env.local` and add your model API key before running
-`npm run play`.
+Add `GROQ_API_KEY` to `.env.local` for the default setup. The game uses Groq when that key is present (default model: `openai/gpt-oss-20b`); xAI is the optional fallback. Keys are local only and must never be committed.
 
----
+During play:
 
-## What M0 built
-
+```text
+PRESENT e3: Why does the phone record place you there?
+PRESENT e1,e3: Explain both of these records.
+/evidence     # reprint available evidence
+/status       # reprint Case Strength
+/quit         # leave early and see the breakdown
 ```
+
+Questions are capped at 300 characters. Homicide cases can optionally use a city/region and country as fictional scene context. Each playthrough saves a gitignored JSONL transcript under `playtest-logs/`.
+
+## Current implementation
+
+| Area | What is here now |
+|---|---|
+| Cases | Deterministic seeded generation; homicide and arson each have one playable template. Embezzlement is reserved for Phase 2. |
+| Suspect | Structured AI actor response: dialogue, claims, evidence response quality, demeanor, contradictions, and inadvertent reveals. |
+| Witness | A separate persona and model call with bounded knowledge that can challenge suspect claims. |
+| State | A compact claim ledger, evidence presentation state, Case Strength history, ending state, and token usage. |
+| Scoring | Pure TypeScript with all tuning weights in `SCORING_CONFIG`; the model never performs score arithmetic. |
+| Safety boundary | `toPublicCase()` exposes the detective’s evidence while withholding the truth timeline, evidence vulnerabilities, and suspect strategy. |
+| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify`. |
+
+## Project map
+
+```text
 src/engine/
-  types.ts              CaseFile, Evidence, PublicCase
-  rng.ts                seeded deterministic RNG (cyrb128 + sfc32)
-  generate.ts           seed + crime → CaseFile, and the public-view boundary
-  templates/
-    homicide.ts         3 templates
-    arson.ts            3 templates
-    embezzlement.ts     3 templates
+  generate.ts       seeded case generation and public/private boundary
+  adjudicate.ts     suspect actor prompt and structured-response call
+  witness.ts        independent witness prompt and structured-response call
+  ledger.ts         compact suspect and witness claim ledgers
+  score.ts          pure scoring configuration and ending checks
+  session.ts        game-loop orchestration
+  templates/        homicide, arson, and future embezzlement cases
 src/cli/
-  inspect.ts            print a case file
-  verify.ts             determinism, leak-safety, integrity, variance
+  play.ts           interactive terminal experience and post-game breakdown
+  verify.ts         generator and leak-safety verification
+  inspect.ts        full or public-case inspection
+  transcript.ts     JSONL playtest logging
+docs/
+  portfolio.md      portfolio-ready project brief
+  decisions.md      architectural decision log
+  playtest-notes.md findings from manual testing
 ```
 
-Nine templates across three crime types, each producing a 4–6 beat ground-truth
-timeline, 8 evidence items, 1–2 witnesses, and a fatal fact the detective builds
-toward. Slot randomisation on names, times, locations, amounts, and which
-evidence starts revealed means the same template yields a different case every
-seed — verified at 10+ distinct cases per template across 120 seeds.
+## Important design choices
 
----
+**The model acts; the engine scores.** The AI generates dialogue and structured signals. Case Strength arithmetic, thresholds, and outcomes live in code so the game can be tuned and explained.
 
-## Three decisions worth knowing
+**The transcript is not the memory.** The system passes a small, normalized claim ledger between turns instead of repeatedly sending the full conversation. That controls context growth and gives the witness precise suspect claims to confirm or contradict.
 
-### Scenario generation is deterministic and costs nothing
+**Ground truth stays private.** The player can inspect all available evidence, but not the suspect’s cover story, the evidence’s exploitable weaknesses, or the actual timeline. Those are revealed only in the zero-call post-game breakdown.
 
-No model call. Three payoffs: it's free, which is the biggest single lever on
-cost per playthrough; it's instant, so there's no spinner between "start" and
-the first question; and it's **reproducible**, which is the only reason the eval
-harness in M2 can exist. A fixed seed is a fixed scenario to test against.
-
-`generate()` must stay pure — the server regenerates the case file from the seed
-on every turn rather than storing it, so any impurity desynchronises the session
-mid-game. `verify.ts` asserts this.
-
-### The case file never reaches the browser
-
-`toPublicCase()` is a security boundary, not a convenience. It drops the truth
-timeline, every evidence `vulnerability`, all latent evidence, witness flaws and
-the fatal fact. If any of that reached the client the game would be solved in
-devtools, so `verify.ts` checks all of it across 180 generated cases.
-
-This is also why there's no database. The client holds the seed; the server
-regenerates hidden state from it on demand. Nothing to persist, nothing to leak,
-and sessions are shareable as a URL.
-
-### Every piece of evidence has a crack in it
-
-The `vulnerability` field is the quiet centre of the design. It's the innocent
-explanation a sharp player might find, and it's never shown during play:
-
-> **claim:** The fire investigator found an irregular burn pattern across the
-> concrete at the rear racking — what they'd call a pour pattern.
->
-> **vulnerability:** Irregular floor patterns were treated as proof of accelerant
-> for decades and then the research showed flashover produces the same marks with
-> no accelerant at all.
-
-When a player's answer lands near it, the adjudicator scores the explanation high
-and the evidence weight drops hard. That's the moment the game comes alive — and
-it's why arson earns its slot, because fire investigation evidence is genuinely
-contestable rather than merely inconvenient.
-
----
+**Every case is reproducible.** A seed and crime type always produce the same case, which makes bugs replayable and future evaluation possible without a database.
 
 ## Next
 
-| Milestone | Deliverable |
-|---|---|
-| **M0** ✅ | Scenario engine, 9 templates, verification suite |
-| **M1** | Adjudicator (Haiku 4.5, structured output) + scoring engine + CLI play loop — **game fully playable in a terminal** |
-| **M2** | Eval harness, ~40 cases, published precision/recall on contradiction detection |
-| **M3** | Next.js UI |
-| **M4** | Tuning — 50 playthroughs |
-| **M5** | Post-game breakdown, notebook panel, cost counter, replay mode |
-| **M6** | Deploy, rate limits, writeup |
+The immediate priority is live playtesting: validate actor consistency, self-reported contradictions, witness usefulness, latency, and real token cost. If the suspect cannot reliably identify its own slips, the planned fallback is to split acting and judging into separate model calls. A V2 evaluation harness, a web UI, more templates, and innocent-suspect mode follow only after the core loop proves fun and fair.
 
-The engine and its evals come before any UI on purpose. The game is playable at
-M1 in a terminal, and tuning against a CLI is several times faster than tuning
-through a browser.
-
-See `AIRTIGHT-PRD.md` for the full design.
+For the detailed portfolio framing, read [docs/portfolio.md](docs/portfolio.md).

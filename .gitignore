@@ -2,6 +2,7 @@ node_modules/
 .npmrc
 .env.local
 dist/
+playtest-logs/
 
 # macOS filesystem metadata — this machine only, meaningless anywhere else
 .DS_Store

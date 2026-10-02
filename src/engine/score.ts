@@ -82,6 +82,7 @@ export function scoreSuspectTurn(
   currentCaseStrength: number,
   previousDemeanor: SuspectResponse['demeanor'],
   config: ScoringConfig = SCORING_CONFIG,
+  presentedEvidenceIds: string[] = [],
 ): ScoreSuspectResult {
   let delta = 0
 
@@ -92,13 +93,16 @@ export function scoreSuspectTurn(
       : config.minorContradiction
   }
 
-  // 2. Evidence response quality (only when evidence was presented)
-  if (response.evidenceResponse) {
-    const q = response.evidenceResponse.quality
-    if (q === 0) delta += config.evidenceQuality0
-    else if (q === 1) delta += config.evidenceQuality1
-    else if (q === 2) delta += config.evidenceQuality2
-    // quality 3 adds nothing — the suspect nailed it
+  // Average evidence score so presenting more items does not multiply the per-turn reward.
+  if (presentedEvidenceIds.length > 0) {
+    const evidencePoints = presentedEvidenceIds.map((id) => {
+      const quality = response.evidenceResponses.find((item) => item.evidenceId === id)?.quality ?? 1
+      if (quality === 0) return config.evidenceQuality0
+      if (quality === 1) return config.evidenceQuality1
+      if (quality === 2) return config.evidenceQuality2
+      return 0
+    })
+    delta += Math.round(evidencePoints.reduce<number>((sum, points) => sum + points, 0) / evidencePoints.length)
   }
 
   // 3. Inadvertent reveal of guilty knowledge

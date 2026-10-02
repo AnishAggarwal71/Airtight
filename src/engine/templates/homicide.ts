@@ -18,7 +18,7 @@ const stairwell: Template = {
   id: 'homicide-stairwell',
   crime: 'homicide',
   title: 'The Service Stairwell',
-  build: (r, _detective) => {
+  build: (r, _detective, locality) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -27,19 +27,22 @@ const stairwell: Template = {
     const start = hhmm(22, r.int(40, 55))
     const end = addMinutes(start, r.int(35, 50))
     const debt = r.pick([9000, 12500, 14000, 18000, 21000])
-    const wifiDrop = addMinutes(start, r.int(24, 32))
-    const keyCardExit = addMinutes(start, r.int(28, 36))
+    const wifiDropOffset = r.int(24, 32)
+    const keyCardExitOffset = Math.max(r.int(28, 36), wifiDropOffset + 1)
+    const wifiDrop = addMinutes(start, wifiDropOffset)
+    const keyCardExit = addMinutes(start, keyCardExitOffset)
     const relationship = r.pick([
       `${vp.poss} brother-in-law`,
       `${vp.poss} cousin`,
       `${vp.poss} closest friend of nineteen years`,
     ])
     const suspectOccupation = r.pick(['site foreman', 'locksmith', 'delivery driver', 'physiotherapist'])
-    const block = r.pick([
+    const blockName = r.pick([
       'Wraysbury Mill, a converted flour mill on the canal',
       'Ashcroft Wharf, a converted warehouse block',
       'the Ordnance Building, six floors of converted offices',
     ])
+    const block = locality ? `${blockName} in ${locality}` : blockName
     const homeTime = addMinutes(keyCardExit, r.int(8, 15))
 
     return {

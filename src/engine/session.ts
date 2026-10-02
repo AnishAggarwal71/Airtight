@@ -49,8 +49,9 @@ export function createSession(
   crime: CrimeType,
   config: ScoringConfig = SCORING_CONFIG,
   templateId?: string,
+  locality?: string,
 ): GameSession {
-  const caseFile = generate({ seed, crime, templateId })
+  const caseFile = generate({ seed, crime, templateId, locality })
 
   return {
     seed,
@@ -76,25 +77,29 @@ export function createSession(
 
 /**
  * Parse a player input that may include an evidence presentation prefix.
- * Format: "PRESENT e3: What about this key card?"
- * Returns the evidence ID (if any) and the question text.
+ * Formats: "PRESENT e3: ..." or "PRESENT e1,e3: ..."
  */
 export function parsePlayerInput(
   input: string,
   evidence: DetectiveEvidence[],
-): { presentedEvidenceId: string | null; question: string } {
-  const match = input.match(/^PRESENT\s+(e\d+)\s*:\s*(.+)$/i)
+): { presentedEvidenceIds: string[]; rejectedEvidenceIds: string[]; question: string } {
+  const match = input.match(/^PRESENT\s+(e\d+(?:\s*,\s*e\d+)*)\s*:\s*(.+)$/i)
   if (match) {
-    const evidenceId = match[1].toLowerCase()
+    const requestedIds = [...new Set(match[1].split(',').map((id) => id.trim().toLowerCase()))]
     const question = match[2].trim()
-    const ev = evidence.find((e) => e.id === evidenceId)
-    if (ev && !ev.presented) {
-      return { presentedEvidenceId: evidenceId, question }
+    const presentedEvidenceIds: string[] = []
+    const rejectedEvidenceIds: string[] = []
+    for (const evidenceId of requestedIds) {
+      const item = evidence.find((e) => e.id === evidenceId)
+      if (item && !item.presented) {
+        presentedEvidenceIds.push(evidenceId)
+      } else {
+        rejectedEvidenceIds.push(evidenceId)
+      }
     }
-    // If evidence not found or already presented, treat as plain question
-    // (the CLI will warn about this)
+    return { presentedEvidenceIds, rejectedEvidenceIds, question }
   }
-  return { presentedEvidenceId: null, question: input.trim() }
+  return { presentedEvidenceIds: [], rejectedEvidenceIds: [], question: input.trim() }
 }
 
 // ─── Play one interrogation turn ────────────────────────────────────────────
@@ -104,7 +109,8 @@ export type PlayInterrogationResult = {
   suspectDemeanor: SuspectResponse['demeanor']
   caseStrengthDelta: number
   ending: Ending | null
-  presentedEvidenceId: string | null
+  presentedEvidenceIds: string[]
+  rejectedEvidenceIds: string[]
 }
 
 /**
@@ -130,20 +136,16 @@ export async function playInterrogationTurn(
   session.interrogationTurn++
 
   // Parse evidence presentation
-  const { presentedEvidenceId, question } = parsePlayerInput(
+  const { presentedEvidenceIds, rejectedEvidenceIds, question } = parsePlayerInput(
     rawPlayerInput,
     session.caseFile.evidence,
   )
 
   // Mark evidence as presented if applicable
-  let presentedEvidence: DetectiveEvidence | null = null
-  if (presentedEvidenceId) {
-    const ev = session.caseFile.evidence.find((e) => e.id === presentedEvidenceId)
-    if (ev) {
-      ev.presented = true
-      presentedEvidence = ev
-    }
-  }
+  const presentedEvidence = session.caseFile.evidence.filter((e) =>
+    presentedEvidenceIds.includes(e.id),
+  )
+  for (const evidence of presentedEvidence) evidence.presented = true
 
   // Determine previous demeanor for scoring (calm on first turn)
   const previousDemeanor: SuspectResponse['demeanor'] =
@@ -183,6 +185,7 @@ export async function playInterrogationTurn(
     session.caseStrength,
     previousDemeanor,
     config,
+    presentedEvidenceIds,
   )
 
   // Apply scoring
@@ -199,7 +202,7 @@ export async function playInterrogationTurn(
   const detail: InterrogationDetail = {
     turn: session.interrogationTurn,
     playerQuestion: question,
-    presentedEvidenceId,
+    presentedEvidenceIds,
     suspectResponse: response,
     caseStrengthBefore: csBefore,
     caseStrengthAfter: session.caseStrength,
@@ -211,7 +214,8 @@ export async function playInterrogationTurn(
     suspectDemeanor: response.demeanor,
     caseStrengthDelta: scoreResult.delta,
     ending,
-    presentedEvidenceId,
+    presentedEvidenceIds,
+    rejectedEvidenceIds,
   }
 }
 

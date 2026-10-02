@@ -21,9 +21,10 @@ export type GenerateOptions = {
   seed: string
   crime: CrimeType
   templateId?: string
+  locality?: string
 }
 
-export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile {
+export function generate({ seed, crime, templateId, locality }: GenerateOptions): CaseFile {
   const r = new Rng(`${seed}::${crime}`)
 
   const pool = TEMPLATES[crime]
@@ -36,7 +37,7 @@ export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile
 
   const template = r.pick(eligible)
   const detective = r.pick(DETECTIVE_NAMES)
-  const built = template.build(r, detective)
+  const built = template.build(r, detective, locality?.trim() || undefined)
 
   // All evidence starts unpresented — the player sees claims upfront but
   // must explicitly deploy each item during interrogation.

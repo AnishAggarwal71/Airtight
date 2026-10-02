@@ -131,7 +131,8 @@ export type InterrogateWitnessResult = {
 
 /**
  * Make one witness interrogation call. Returns the structured response and
- * token usage. On parse failure, returns safe defaults.
+ * token usage. Model errors are surfaced so a failed request cannot masquerade
+ * as an in-character response.
  */
 export async function interrogateWitness(
   input: InterrogateWitnessInput,
@@ -163,15 +164,7 @@ export async function interrogateWitness(
 
     return { response: result.object as WitnessResponse, usage }
   } catch (err) {
-    console.error('[interrogateWitness] Model call failed, using safe defaults:', err)
-    return {
-      response: {
-        dialogue: 'I\'m sorry, I\'m not sure I understood the question. Could you ask again?',
-        claims: [],
-        suspectContradiction: null,
-        demeanor: 'nervous',
-      },
-      usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
-    }
+    const detail = err instanceof Error ? err.message : String(err)
+    throw new Error(`Witness model request failed: ${detail}`)
   }
 }

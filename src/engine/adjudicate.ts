@@ -16,6 +16,7 @@
 
 import { generateObject } from 'ai'
 import { xai } from '@ai-sdk/xai'
+import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type {
   CaseFile,
@@ -34,9 +35,15 @@ dotenv.config({ path: '.env.local' })
 dotenv.config()
 
 // ─── Model ───────────────────────────────────────────────────────────────────
-// Swap this one line to change provider. The rest of the file stays identical.
+// A Groq key takes priority when both provider keys are present.
+const groqApiKey = process.env.GROQ_API_KEY?.trim()
 
-export const MODEL = xai('grok-4.20-reasoning')
+export const MODEL = groqApiKey
+  ? createOpenAI({
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKey: groqApiKey,
+    }).chat(process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-20b')
+  : xai('grok-4.20-reasoning')
 
 // Other options:
 // import { google } from '@ai-sdk/google'
@@ -61,7 +68,7 @@ export const SuspectResponseSchema = z.object({
     text: z.string().describe('Normalised 1–2 sentence assertion in third person past tense'),
     checkable: z.boolean().describe('False for feelings/opinions. True for anything verifiable against evidence or timeline.'),
   })).describe('1–3 factual assertions extracted from your own dialogue this turn.'),
-  evidenceResponse: z.object({
+  evidenceResponses: z.array(z.object({
     evidenceId: z.string().describe('The ID of the evidence item you are responding to'),
     strategy: z.enum(['deny', 'explain_away', 'deflect', 'partial_admit']).describe(
       'deny: flat rejection. explain_away: provide innocent explanation (use the vulnerability). ' +
@@ -73,7 +80,7 @@ export const SuspectResponseSchema = z.object({
       '2 = plausible but cracked (addresses it but leaves doubt). ' +
       '3 = airtight (exploits the vulnerability perfectly).',
     ),
-  }).nullable().describe('Set ONLY when the player presented evidence this turn (PRESENT eN: question). Null otherwise.'),
+  })).describe('Return one assessment for each evidence item presented this turn. Return an empty array if none was presented.'),
   selfContradiction: z.object({
     againstClaimId: z.string().describe('Claim ID from the ledger, e.g. "c3"'),
     quotedEarlier: z.string().describe('The exact or closely paraphrased earlier claim'),
@@ -162,7 +169,7 @@ export type InterrogateSuspectInput = {
   turn: number
   maxTurns: number
   playerQuestion: string
-  presentedEvidence: DetectiveEvidence | null
+  presentedEvidence: DetectiveEvidence[]
   suspectClaims: Claim[]
 }
 
@@ -173,11 +180,14 @@ function buildSuspectUserMessage(input: InterrogateSuspectInput): string {
   lines.push('')
 
   // Evidence presented this turn, if any
-  if (input.presentedEvidence) {
-    const e = input.presentedEvidence
+  if (input.presentedEvidence.length > 0) {
     lines.push('THE DETECTIVE IS PRESENTING EVIDENCE:')
-    lines.push(`  [${e.id}] (${e.type}): ${e.claim}`)
-    lines.push('You must respond to this. Use the vulnerability if you can. Set evidenceResponse accordingly.')
+    for (const e of input.presentedEvidence) {
+      lines.push(`  [${e.id}] (${e.type}): ${e.claim}`)
+      lines.push(`    Vulnerability: ${e.vulnerability}`)
+    }
+    lines.push('Assess and respond to each presented item. Return one evidenceResponses entry per item, using its exact ID.')
+    lines.push('Use each item\'s vulnerability if you can.')
     lines.push('')
   } else {
     lines.push('No evidence presented this turn.')
@@ -205,7 +215,8 @@ export type InterrogateSuspectResult = {
 
 /**
  * Make one suspect interrogation call. Returns the structured response and
- * token usage. On parse failure, returns safe defaults so the game doesn't crash.
+ * token usage. Model errors are surfaced so a failed request cannot masquerade
+ * as an in-character response.
  */
 export async function interrogateSuspect(
   input: InterrogateSuspectInput,
@@ -237,17 +248,7 @@ export async function interrogateSuspect(
 
     return { response: result.object as SuspectResponse, usage }
   } catch (err) {
-    console.error('[interrogateSuspect] Model call failed, using safe defaults:', err)
-    return {
-      response: {
-        dialogue: 'I... I need a moment. Can you repeat that?',
-        claims: [],
-        evidenceResponse: null,
-        selfContradiction: null,
-        demeanor: 'nervous',
-        inadvertentReveal: false,
-      },
-      usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
-    }
+    const detail = err instanceof Error ? err.message : String(err)
+    throw new Error(`Suspect model request failed: ${detail}`)
   }
 }

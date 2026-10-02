@@ -54,7 +54,7 @@ export type Template = {
   id: string
   crime: CrimeType
   title: string
-  build: (r: Rng, detective: DetectiveIdentity) => TemplateBuild
+  build: (r: Rng, detective: DetectiveIdentity, locality?: string) => TemplateBuild
 }
 
 /** Build a timeline from `[id, time, fact]` tuples, in narrative order. */

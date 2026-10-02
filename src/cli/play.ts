@@ -17,10 +17,17 @@ import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })  // project convention: keys live in .env.local
 dotenv.config()                        // fallback to .env if present
 import * as readline from 'node:readline'
+import {
+  appendTranscriptExchange,
+  appendTranscriptTurnFailed,
+  appendTranscriptTurnStarted,
+  createTranscriptLog,
+} from './transcript'
 import { randomSeed } from '../engine/rng'
 import { toPublicCase } from '../engine/generate'
 import {
   createSession,
+  parsePlayerInput,
   playInterrogationTurn,
   playWitnessTurn,
   resolveVerdict,
@@ -43,6 +50,7 @@ const C = {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const MAX_QUESTION_LENGTH = 300
+const MAX_LOCALITY_LENGTH = 100
 const BAR_WIDTH = 20
 const CRIMES: CrimeType[] = ['homicide', 'arson']  // embezzlement deferred to Phase 2
 
@@ -96,7 +104,7 @@ function renderEvidenceTable(session: GameSession): void {
     console.log(`  ${C.bold(e.id)} ${status} ${C.dim(`[${e.type}]`)} ${e.claim.slice(0, 80)}`)
   }
   console.log()
-  console.log(`  ${C.dim('To present evidence: PRESENT e3: Your question here')}`)
+  console.log(`  ${C.dim('Present one: PRESENT e3: question  |  Multiple: PRESENT e1,e3: question')}`)
   console.log()
 }
 
@@ -200,10 +208,10 @@ function renderBreakdown(session: GameSession): void {
 
     // Find how the suspect responded to this evidence
     const responseDetail = session.interrogationDetails.find(
-      (d) => d.suspectResponse.evidenceResponse?.evidenceId === e.id,
+      (d) => d.suspectResponse.evidenceResponses.some((response) => response.evidenceId === e.id),
     )
     if (responseDetail) {
-      const er = responseDetail.suspectResponse.evidenceResponse!
+      const er = responseDetail.suspectResponse.evidenceResponses.find((response) => response.evidenceId === e.id)!
       const qualityLabel = ['terrible lie', 'weak deflection', 'plausible', 'airtight'][er.quality]
       console.log(`    ${C.dim(`Suspect used: ${er.strategy} (quality ${er.quality} — ${qualityLabel})`)}`)
     }
@@ -290,20 +298,17 @@ async function pickCrime(rl: readline.Interface): Promise<CrimeType> {
 // ─── Main game loop ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  // Check for API key (support multiple providers)
-  const hasKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-    || process.env.ANTHROPIC_API_KEY
-    || process.env.OPENAI_API_KEY
-    || process.env.XAI_API_KEY
-    || process.env.OPENROUTER_API_KEY
-  if (!hasKey) {
+  const groqApiKey = process.env.GROQ_API_KEY?.trim()
+  const xaiApiKey = process.env.XAI_API_KEY?.trim()
+  if (!groqApiKey && xaiApiKey?.startsWith('gsk_')) {
+    console.error(C.red('\n  Your key looks like a GroqCloud key. Put it in GROQ_API_KEY in .env.local.\n'))
+    process.exit(1)
+  }
+
+  if (!groqApiKey && !xaiApiKey) {
     console.error(C.red('\n  Missing API key.'))
-    console.error('  Create a .env.local file with one of:')
-    console.error('    XAI_API_KEY=...')
-    console.error('    GOOGLE_GENERATIVE_AI_API_KEY=...')
-    console.error('    ANTHROPIC_API_KEY=sk-ant-...')
-    console.error('    OPENAI_API_KEY=sk-...')
-    console.error('    OPENROUTER_API_KEY=...\n')
+    console.error('  Put your GroqCloud key in .env.local as: GROQ_API_KEY=gsk_...')
+    console.error('  The game selects Groq automatically when GROQ_API_KEY is set.\n')
     process.exit(1)
   }
 
@@ -324,14 +329,32 @@ async function main(): Promise<void> {
     crime = await pickCrime(rl)
   }
 
+  let locality: string | undefined
+  if (crime === 'homicide') {
+    while (true) {
+      const answer = await ask(
+        rl,
+        '  Case setting (optional city/region and country; no street address, Enter to skip): ',
+      )
+      const trimmed = answer.replace(/\s+/g, ' ').trim()
+      if (trimmed.length <= MAX_LOCALITY_LENGTH) {
+        locality = trimmed || undefined
+        break
+      }
+      console.log(C.yellow(`  Keep the setting under ${MAX_LOCALITY_LENGTH} characters.`))
+    }
+  }
+
   // Initialise session
   let session: ReturnType<typeof createSession>
   try {
-    session = createSession(seed, crime, undefined, templateId)
+    session = createSession(seed, crime, undefined, templateId, locality)
   } catch (err) {
     console.error(C.red(`\n  ${(err as Error).message}\n`))
     process.exit(1)
   }
+
+  const transcriptPath = await createTranscriptLog(seed, crime, locality)
 
   // ── Phase 1: Briefing ──────────────────────────────────────────────────
   const divider = '═'.repeat(56)
@@ -339,6 +362,8 @@ async function main(): Promise<void> {
   console.log(` ${divider}`)
   console.log(`  ${C.bold('AIRTIGHT')} ${C.dim(`${seed} · ${CRIME_LABELS[crime]}`)}`)
   console.log(` ${divider}`)
+  console.log()
+  console.log(`  ${C.dim(`Transcript: ${transcriptPath}`)}`)
   console.log()
 
   const briefing = session.caseFile.detectiveBriefing
@@ -363,7 +388,7 @@ async function main(): Promise<void> {
   // Initial case strength
   renderCaseStrength(session.caseStrength, 0)
 
-  console.log(`  ${C.dim('Commands: type a question, PRESENT e3: question, /evidence, /status, /quit')}`)
+  console.log(`  ${C.dim('Commands: type a question, PRESENT e3: question, PRESENT e1,e3: question, /evidence, /status, /quit')}`)
   console.log(`  ${C.dim(`Max ${MAX_QUESTION_LENGTH} characters per question.`)}`)
   console.log()
 
@@ -412,21 +437,69 @@ async function main(): Promise<void> {
       break
     }
 
+    const parsedInput = parsePlayerInput(question, session.caseFile.evidence)
+    if (parsedInput.rejectedEvidenceIds.length > 0) {
+      console.log(C.yellow(`  Not presented (unknown or already used): ${parsedInput.rejectedEvidenceIds.join(', ')}`))
+      console.log()
+    }
+
     // Play the turn
+    const interrogationTurn = session.interrogationTurn + 1
+    await appendTranscriptTurnStarted(transcriptPath, {
+      type: 'turn_started',
+      phase: 'interrogation',
+      turn: interrogationTurn,
+      detectiveInput: question,
+      detectiveMessage: parsedInput.question,
+      aiRole: 'suspect',
+      ...(parsedInput.presentedEvidenceIds.length > 0
+        ? { presentedEvidenceIds: parsedInput.presentedEvidenceIds }
+        : {}),
+      ...(parsedInput.rejectedEvidenceIds.length > 0
+        ? { rejectedEvidenceIds: parsedInput.rejectedEvidenceIds }
+        : {}),
+    })
     console.log(C.dim('\n  Thinking...\n'))
-    const result = await playInterrogationTurn(session, question)
+    let result
+    try {
+      result = await playInterrogationTurn(session, question)
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      await appendTranscriptTurnFailed(
+        transcriptPath,
+        {
+          type: 'turn_failed',
+          phase: 'interrogation',
+          turn: interrogationTurn,
+          aiRole: 'suspect',
+          error: { name: error.name, message: error.message },
+        },
+        [process.env.GROQ_API_KEY ?? '', process.env.XAI_API_KEY ?? ''],
+      )
+      throw err
+    }
+    await appendTranscriptExchange(transcriptPath, {
+      type: 'exchange',
+      phase: 'interrogation',
+      turn: session.interrogationTurn,
+      detectiveMessage: question,
+      aiRole: 'suspect',
+      aiMessage: result.suspectDialogue,
+      ...(result.presentedEvidenceIds.length > 0
+        ? { presentedEvidenceIds: result.presentedEvidenceIds }
+        : {}),
+    })
 
     // Show the suspect's response
     console.log(`  ${C.bold(session.caseFile.suspect.name)} ${renderDemeanor(result.suspectDemeanor)}:`)
     console.log(`  ${C.cyan('"' + result.suspectDialogue + '"')}`)
     console.log()
-
     // Show case strength update
     renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
 
     // Show what evidence was presented
-    if (result.presentedEvidenceId) {
-      console.log(`  ${C.dim(`Evidence ${result.presentedEvidenceId} presented.`)}`)
+    if (result.presentedEvidenceIds.length > 0) {
+      console.log(`  ${C.dim(`Evidence presented: ${result.presentedEvidenceIds.join(', ')}.`)}`)
       console.log()
     }
 
@@ -492,8 +565,42 @@ async function main(): Promise<void> {
       // /skip sets question to '' and advances witnessTurn — break out
       if (!question) break
 
+      const witnessTurn = session.witnessTurn + 1
+      await appendTranscriptTurnStarted(transcriptPath, {
+        type: 'turn_started',
+        phase: 'witness',
+        turn: witnessTurn,
+        detectiveInput: question,
+        detectiveMessage: question,
+        aiRole: 'witness',
+      })
       console.log(C.dim('\n  Thinking...\n'))
-      const result = await playWitnessTurn(session, question)
+      let result
+      try {
+        result = await playWitnessTurn(session, question)
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err))
+        await appendTranscriptTurnFailed(
+          transcriptPath,
+          {
+            type: 'turn_failed',
+            phase: 'witness',
+            turn: witnessTurn,
+            aiRole: 'witness',
+            error: { name: error.name, message: error.message },
+          },
+          [process.env.GROQ_API_KEY ?? '', process.env.XAI_API_KEY ?? ''],
+        )
+        throw err
+      }
+      await appendTranscriptExchange(transcriptPath, {
+        type: 'exchange',
+        phase: 'witness',
+        turn: session.witnessTurn,
+        detectiveMessage: question,
+        aiRole: 'witness',
+        aiMessage: result.witnessDialogue,
+      })
 
       // Show the witness's response
       console.log(`  ${C.bold(witness.name)} ${C.dim(`(${result.witnessDemeanor})`)}:`)

@@ -260,13 +260,15 @@ on it for anything yet.
 
 ## Model
 
-Default: **xAI `grok-4.20-reasoning`**, set in `src/engine/adjudicate.ts`'s
-exported `MODEL` constant. `witness.ts` imports the same `MODEL` so both
-calls share one provider — swap it in one file to change providers for both
-the suspect and the witness.
+GroqCloud is selected automatically when `GROQ_API_KEY` is set in `.env.local`;
+the optional `GROQ_MODEL` defaults to `openai/gpt-oss-20b`. If no Groq key is
+set, the app falls back to xAI `grok-4.20-reasoning` using `XAI_API_KEY`.
+Groq keys (usually prefixed `gsk_`) belong in `GROQ_API_KEY`, not
+`XAI_API_KEY`. `witness.ts` imports the same `MODEL`, so both calls use the
+same provider.
 
-Other providers are commented out in `adjudicate.ts` ready to uncomment:
-Google Gemini, Anthropic Claude, OpenAI, OpenRouter (note: OpenRouter needs
+Other provider examples remain commented out in `adjudicate.ts`: Google
+Gemini, Anthropic Claude, OpenAI, and OpenRouter (note: OpenRouter needs
 `.chat(modelId)`, not the bare call — it only implements the Chat Completions
 API, not the Responses API).
 
@@ -282,8 +284,9 @@ actual provider pricing before claiming a number publicly.
 ## Environment
 
 - Keys live in `.env.local` (gitignored, never committed). See
-  `.env.example` for the full list and which variable name each provider
-  expects. Both `adjudicate.ts` and the CLI entry points self-load
+  `.env.example` for the minimal GroqCloud setup. The CLI checks for a key
+  before play, and model request failures are surfaced rather than replaced
+  with pretend dialogue. Both `adjudicate.ts` and the CLI entry points self-load
   `.env.local` via `dotenv.config()` at module top — this matters because
   static imports evaluate before an importing script's own `dotenv.config()`
   call runs, so provider factories that read `process.env` eagerly at import

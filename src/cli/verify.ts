@@ -17,6 +17,7 @@
  */
 
 import { generate, toPublicCase } from '../engine/generate'
+import { parsePlayerInput } from '../engine/session'
 import { ALL_TEMPLATES } from '../engine/templates'
 import type { CrimeType } from '../engine/types'
 
@@ -45,6 +46,42 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
     }
   }
   if (stable) pass('generate() is deterministic across 40 seed/crime pairs')
+
+  const locality = 'Bengaluru, India'
+  const localA = generate({ seed: 'verify-locality', crime: 'homicide', locality })
+  const localB = generate({ seed: 'verify-locality', crime: 'homicide', locality })
+  if (JSON.stringify(localA) !== JSON.stringify(localB)) {
+    fail('generate() is not deterministic with locality context')
+  } else if (!localA.location.includes(locality)) {
+    fail('homicide scene does not include the requested locality')
+  } else {
+    pass('homicide locality context is included deterministically')
+  }
+
+  let timelineOrderValid = true
+  for (const seed of SEEDS) {
+    const file = generate({ seed, crime: 'homicide' })
+    const wifiDrop = file.truth.find((beat) => beat.id === 't5')?.time
+    const exit = file.truth.find((beat) => beat.id === 't6')?.time
+    if (!wifiDrop || !exit || wifiDrop >= exit) {
+      fail(`homicide exit precedes or coincides with final building activity (${seed})`)
+      timelineOrderValid = false
+    }
+  }
+  if (timelineOrderValid) pass('homicide timeline keeps the suspect inside until before their exit')
+
+  const evidence = generate({ seed: 'verify-evidence-input', crime: 'homicide' }).evidence
+  evidence[1].presented = true
+  const parsed = parsePlayerInput('PRESENT e1, e2, e3: Explain these records.', evidence)
+  if (
+    parsed.question !== 'Explain these records.'
+    || parsed.presentedEvidenceIds.join(',') !== 'e1,e3'
+    || parsed.rejectedEvidenceIds.join(',') !== 'e2'
+  ) {
+    fail('multiple evidence input does not accept unused items and reject used items correctly')
+  } else {
+    pass('multiple evidence input parses lists and rejects already-presented items')
+  }
 }
 
 // 2. Leak-safety — V2 inverted boundary: hide suspect strategy, show evidence
