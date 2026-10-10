@@ -10,13 +10,12 @@
  * varies: the turn number, claim ledger, player's question, and any evidence
  * the player presents.
  *
- * The provider sits behind the Vercel AI SDK so swapping to OpenAI/Anthropic is
+ * The provider sits behind the Vercel AI SDK so swapping models/providers is
  * a one-line change (swap MODEL). — CLAUDE.md
  */
 
 import { generateObject } from 'ai'
-import { xai } from '@ai-sdk/xai'
-import { createOpenAI } from '@ai-sdk/openai'
+import { anthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
 import type {
   CaseFile,
@@ -25,6 +24,7 @@ import type {
   SuspectResponse,
   TokenUsage,
 } from './types'
+export type { SuspectResponse }
 import { serializeLedger } from './ledger'
 import dotenv from 'dotenv'
 
@@ -35,26 +35,9 @@ dotenv.config({ path: '.env.local' })
 dotenv.config()
 
 // ─── Model ───────────────────────────────────────────────────────────────────
-// A Groq key takes priority when both provider keys are present.
-const groqApiKey = process.env.GROQ_API_KEY?.trim()
-
-export const MODEL = groqApiKey
-  ? createOpenAI({
-      baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: groqApiKey,
-    }).chat(process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-20b')
-  : xai('grok-4.20-reasoning')
-
-// Other options:
-// import { google } from '@ai-sdk/google'
-// export const MODEL = google('gemini-3.5-flash-lite')
-// import { createOpenAI } from '@ai-sdk/openai'
-// const openrouter = createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: process.env.OPENROUTER_API_KEY })
-// export const MODEL = openrouter.chat('qwen/qwen3.8-27b:free')
-// import { anthropic } from '@ai-sdk/anthropic'
-// export const MODEL = anthropic('claude-haiku-4-5-20251001', { cacheControl: true })
-// import { openai } from '@ai-sdk/openai'
-// export const MODEL = openai('gpt-4o-mini')
+// Claude Haiku 4.5 — cheapest current Anthropic model, used for both the
+// persona agent and the invigilator (see CLAUDE.md "Model" section).
+export const MODEL = anthropic('claude-haiku-4-5')
 
 // ─── Structured output schema ─────────────────────────────────────────────────
 
@@ -68,37 +51,8 @@ export const SuspectResponseSchema = z.object({
     text: z.string().describe('Normalised 1–2 sentence assertion in third person past tense'),
     checkable: z.boolean().describe('False for feelings/opinions. True for anything verifiable against evidence or timeline.'),
   })).describe('1–3 factual assertions extracted from your own dialogue this turn.'),
-  evidenceResponses: z.array(z.object({
-    evidenceId: z.string().describe('The ID of the evidence item you are responding to'),
-    strategy: z.enum(['deny', 'explain_away', 'deflect', 'partial_admit']).describe(
-      'deny: flat rejection. explain_away: provide innocent explanation (use the vulnerability). ' +
-      'deflect: change subject. partial_admit: concede the fact but deny the implication.',
-    ),
-    quality: z.number().int().min(0).max(3).describe(
-      '0 = terrible lie (contradicts known facts). ' +
-      '1 = weak deflection (doesn\'t address the evidence). ' +
-      '2 = plausible but cracked (addresses it but leaves doubt). ' +
-      '3 = airtight (exploits the vulnerability perfectly).',
-    ),
-  })).describe('Return one assessment for each evidence item presented this turn. Return an empty array if none was presented.'),
-  selfContradiction: z.object({
-    againstClaimId: z.string().describe('Claim ID from the ledger, e.g. "c3"'),
-    quotedEarlier: z.string().describe('The exact or closely paraphrased earlier claim'),
-    quotedNow: z.string().describe('What you just said that contradicts it'),
-    severity: z.enum(['minor', 'major']).describe(
-      'minor: inconsistency in detail (times off by a bit, small discrepancy). ' +
-      'major: direct contradiction of a core claim (was there vs wasn\'t, saw vs didn\'t see).',
-    ),
-  }).nullable().describe(
-    'Flag ONLY if your dialogue this turn genuinely contradicts one of your own prior claims ' +
-    'in the ledger. Be honest — the engine uses this for scoring. If in doubt, null.',
-  ),
   demeanor: z.enum(['calm', 'nervous', 'defensive', 'aggressive', 'evasive']).describe(
     'Your emotional state this turn. Start calm. Shift when breaking points are hit or pressure mounts.',
-  ),
-  inadvertentReveal: z.boolean().describe(
-    'True if your dialogue this turn accidentally reveals guilty knowledge — ' +
-    'something you shouldn\'t know if innocent. Be honest. The engine checks this.',
   ),
 })
 
@@ -137,24 +91,16 @@ export function buildSuspectSystemPrompt(caseFile: CaseFile): string {
     lines.push(`  - ${bp}`)
   }
   lines.push('')
-  lines.push('## EVIDENCE THE DETECTIVE MAY HAVE (and how to exploit the cracks)')
-  for (const e of caseFile.evidence) {
-    lines.push(`  ${e.id} [${e.type}]: ${e.claim}`)
-    lines.push(`    Vulnerability you can exploit: ${e.vulnerability}`)
-  }
-  lines.push('')
   lines.push('## ACTING RULES')
   lines.push('1. NEVER confess outright unless cornered with 3+ unexplainable contradictions AND presented evidence you cannot explain away.')
-  lines.push('2. When evidence is presented: use the vulnerability to explain it away if you can. The quality of your response should honestly reflect how well you addressed it (0–3 scale).')
-  lines.push('3. Maintain consistency with your cover story and ALL prior claims in the ledger. If you accidentally contradict yourself, flag it honestly in selfContradiction.')
+  lines.push('2. When evidence is presented: address it in your dialogue. Deny it, explain it away, deflect, or partially admit — whatever fits your character and cover story.')
+  lines.push('3. Maintain consistency with your cover story and ALL prior claims in the ledger.')
   lines.push('4. Start calm. Only shift demeanor when a breaking point is hit or sustained pressure mounts.')
-  lines.push('5. Guard guilty knowledge — deflect questions that get close. If you accidentally reveal something you shouldn\'t know, set inadvertentReveal: true.')
+  lines.push('5. Guard guilty knowledge — deflect questions that get close. Never volunteer information only the guilty party would know.')
   lines.push('6. Never volunteer incriminating detail. Keep answers tight when the question gets dangerous.')
   lines.push('7. You may express concern about the victim, redirect to your grief, ask why you\'re being treated as a suspect — use the full range of suspect behaviour.')
-  lines.push('8. Return ONLY the structured JSON matching the schema. No extra text outside the JSON.')
-  lines.push('')
-  lines.push('## SELF-JUDGING — THIS IS A HARD CONSTRAINT')
-  lines.push('The engine scores you based on your own structured output. If you contradict a prior claim, you MUST flag it. If you reveal guilty knowledge, you MUST flag it. Lying in the metadata to protect your score defeats the purpose — the game becomes unfair. Be an honest reporter of your own performance as a liar.')
+  lines.push('8. You do NOT know what evidence the detective has. When they present something, react in character — you are hearing it for the first time.')
+  lines.push('9. Return ONLY the structured JSON matching the schema. No extra text outside the JSON.')
   lines.push('')
   lines.push(`## FATAL FACT (the detective's win condition — guard this above all else)`)
   lines.push(caseFile.fatalFact)
@@ -184,10 +130,8 @@ function buildSuspectUserMessage(input: InterrogateSuspectInput): string {
     lines.push('THE DETECTIVE IS PRESENTING EVIDENCE:')
     for (const e of input.presentedEvidence) {
       lines.push(`  [${e.id}] (${e.type}): ${e.claim}`)
-      lines.push(`    Vulnerability: ${e.vulnerability}`)
     }
-    lines.push('Assess and respond to each presented item. Return one evidenceResponses entry per item, using its exact ID.')
-    lines.push('Use each item\'s vulnerability if you can.')
+    lines.push('Address each item in your dialogue. You do NOT know what weakness the detective thinks this evidence has — respond naturally, in character.')
     lines.push('')
   } else {
     lines.push('No evidence presented this turn.')
@@ -236,14 +180,8 @@ export async function interrogateSuspect(
     const usage: TokenUsage = {
       inputTokens: result.usage?.inputTokens ?? 0,
       outputTokens: result.usage?.outputTokens ?? 0,
-      cacheCreationTokens:
-        (result.providerMetadata?.google?.cachedContentTokenCount as number)
-        ?? (result.providerMetadata?.anthropic?.cacheCreationInputTokens as number)
-        ?? 0,
-      cacheReadTokens:
-        (result.providerMetadata?.google?.cachedContentTokenCount as number)
-        ?? (result.providerMetadata?.anthropic?.cacheReadInputTokens as number)
-        ?? 0,
+      cacheCreationTokens: (result.providerMetadata?.anthropic?.cacheCreationInputTokens as number) ?? 0,
+      cacheReadTokens: (result.providerMetadata?.anthropic?.cacheReadInputTokens as number) ?? 0,
     }
 
     return { response: result.object as SuspectResponse, usage }

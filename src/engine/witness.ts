@@ -32,14 +32,6 @@ export const WitnessResponseSchema = z.object({
     text: z.string().describe('Normalised 1–2 sentence assertion in third person past tense'),
     checkable: z.boolean().describe('False for feelings/opinions. True for anything verifiable.'),
   })).describe('1–2 factual assertions from this response.'),
-  suspectContradiction: z.object({
-    againstClaimId: z.string().describe('Suspect claim ID from the ledger that your testimony contradicts'),
-    witnessVersion: z.string().describe('What you (the witness) say happened'),
-    suspectVersion: z.string().describe('What the suspect claimed (from the ledger)'),
-  }).nullable().describe(
-    'Set ONLY if your honest testimony directly contradicts something the suspect ' +
-    'claimed in the ledger. Null if nothing contradicts.',
-  ),
   demeanor: z.enum(['cooperative', 'reluctant', 'nervous', 'confused']).describe(
     'Your emotional state. Most witnesses are cooperative or nervous.',
   ),
@@ -73,8 +65,7 @@ export function buildWitnessSystemPrompt(caseFile: CaseFile): string {
   lines.push('2. Stay within your knowledge boundary. If asked something you don\'t know, say so. Don\'t fabricate details.')
   lines.push('3. If the detective asks about something where your knowledge contradicts the suspect\'s claims, answer honestly — this will naturally create the contradiction.')
   lines.push('4. Don\'t volunteer information the detective hasn\'t asked about. Be responsive, not proactive.')
-  lines.push('5. If you would contradict a suspect claim, flag it in suspectContradiction with the specific claim ID.')
-  lines.push('6. Return ONLY the structured JSON matching the schema. No extra text outside the JSON.')
+  lines.push('5. Return ONLY the structured JSON matching the schema. No extra text outside the JSON.')
   lines.push('')
   lines.push('## CASE CONTEXT')
   lines.push(`Suspect: ${caseFile.suspect.name}`)
@@ -152,14 +143,8 @@ export async function interrogateWitness(
     const usage: TokenUsage = {
       inputTokens: result.usage?.inputTokens ?? 0,
       outputTokens: result.usage?.outputTokens ?? 0,
-      cacheCreationTokens:
-        (result.providerMetadata?.google?.cachedContentTokenCount as number)
-        ?? (result.providerMetadata?.anthropic?.cacheCreationInputTokens as number)
-        ?? 0,
-      cacheReadTokens:
-        (result.providerMetadata?.google?.cachedContentTokenCount as number)
-        ?? (result.providerMetadata?.anthropic?.cacheReadInputTokens as number)
-        ?? 0,
+      cacheCreationTokens: (result.providerMetadata?.anthropic?.cacheCreationInputTokens as number) ?? 0,
+      cacheReadTokens: (result.providerMetadata?.anthropic?.cacheReadInputTokens as number) ?? 0,
     }
 
     return { response: result.object as WitnessResponse, usage }

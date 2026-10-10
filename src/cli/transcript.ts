@@ -53,7 +53,7 @@ export async function createTranscriptLog(
     seed,
     crime,
     ...(locality ? { locality } : {}),
-    format: 'airtight-transcript-v1',
+    format: 'airtight-transcript-v2',
   }
 
   await writeFile(filePath, `${JSON.stringify(header)}\n`, {
@@ -85,6 +85,7 @@ export async function appendTranscriptTurnFailed(
   const message = turn.error.message
     .replace(/gsk_[A-Za-z0-9_-]+/g, '[REDACTED]')
     .replace(/xai-[A-Za-z0-9_-]+/g, '[REDACTED]')
+    .replace(/sk-ant-[A-Za-z0-9_-]+/g, '[REDACTED]')
   const redactedMessage = secrets
     .filter((secret) => secret.length > 0)
     .reduce((redacted, secret) => redacted.replaceAll(secret, '[REDACTED]'), message)

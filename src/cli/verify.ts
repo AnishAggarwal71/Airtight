@@ -21,8 +21,8 @@ import { parsePlayerInput } from '../engine/session'
 import { ALL_TEMPLATES } from '../engine/templates'
 import type { CrimeType } from '../engine/types'
 
-const CRIMES: CrimeType[] = ['homicide', 'arson']  // only active crime types
-const ALL_CRIMES: CrimeType[] = ['homicide', 'arson', 'embezzlement']
+const CRIMES: CrimeType[] = ['homicide']
+const ALL_CRIMES: CrimeType[] = ['homicide', 'arson', 'embezzlement']  // coverage check still validates arson template is reachable
 const SEEDS = Array.from({ length: 60 }, (_, i) => `verify-${i}`)
 
 let failures = 0

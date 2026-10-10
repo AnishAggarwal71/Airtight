@@ -5,6 +5,108 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-11 — Provider switch: GroqCloud/xAI → Anthropic Claude Haiku 4.5
+
+**Decision:** Replaced the Groq-primary/xAI-fallback provider logic in
+`adjudicate.ts` with a single Anthropic call: `anthropic('claude-haiku-4-5')`
+via `@ai-sdk/anthropic`, selected using `ANTHROPIC_API_KEY`. Removed the
+`@ai-sdk/google`, `@ai-sdk/openai`, and `@ai-sdk/xai` dependencies (unused
+once the branching logic and commented-out provider examples were deleted)
+and the Google-specific cache-token lookup in the token usage mapping.
+Updated `.env.example`, `README.md`, `docs/portfolio.md`, and this project's
+`CLAUDE.md` ("Model"/"Environment" sections) to match. Added an
+`sk-ant-[A-Za-z0-9_-]+` redaction pattern to `transcript.ts` alongside the
+existing Groq/xAI ones, and swapped the key-validation and transcript-secret
+plumbing in `play.ts`/`eval.ts` from `GROQ_API_KEY`/`XAI_API_KEY` to
+`ANTHROPIC_API_KEY`.
+
+**Why:** User already has an Anthropic API key and asked to standardize on
+it, picking Haiku 4.5 as the cheapest current Anthropic model. `@ai-sdk/anthropic`
+was already a dependency and the token-usage mapping in `adjudicate.ts`/
+`witness.ts` already anticipated Anthropic's `cacheCreationInputTokens`/
+`cacheReadInputTokens` provider-metadata keys, so this was a low-risk swap
+behind the existing single-`MODEL`-export architecture.
+
+**Left alone:** Historical docs (`docs/playtest-notes.md`,
+`docs/decisions.md` entries below this one, `docs/eval-m2-results.md`) keep
+their original Groq/xAI mentions — they document what actually happened at
+the time of those runs and are not rewritten retroactively.
+
+**Not yet done:** No live playthrough or eval run against Haiku 4.5 yet —
+this is a provider swap, not a recalibration. Invigilator accuracy and
+evidence-quality scoring should be re-validated against the new model before
+trusting old Groq/xAI-era eval numbers.
+
+---
+
+
+
+**Decision:** Split the single model call per turn into two agents. The
+**Persona Agent** (adjudicate.ts / witness.ts) acts — generates in-character
+dialogue, claims, and demeanor. The **Invigilator Agent** (new file:
+invigilator.ts) judges — an independent LLM-as-judge with full case context
+that evaluates the dialogue and returns structured signals (contradictions
+with claim IDs, guilty knowledge leaks, evidence handling quality 0–3,
+demeanor shifts). The deterministic scoring engine reads invigilator signals
+instead of the suspect's self-reported fields, applying the same
+`SCORING_CONFIG` weights.
+
+Also: narrowed to **murder only** (arson template stays on disk, excluded
+from active play/verify), built a **two-layer eval harness** (18 hand-crafted
+invigilator accuracy cases + automated full-game runner with hardcoded
+detective script).
+
+**Why — the self-judging failure:** V2 playtesting proved the documented
+risk was real. The suspect model called `selfContradiction: false` and
+`inadvertentReveal: null` on every single turn across multiple games, even
+when it obviously contradicted itself or leaked guilty knowledge. Case
+Strength stayed at 15 the entire game. The fallback documented in V2's
+CLAUDE.md (split into two calls — actor + external judge) was the correct
+fix.
+
+**Why — remove evidence from suspect prompt:** V2 gave the suspect all
+evidence items with vulnerabilities, making it unrealistically good at
+deflecting. V3 strips evidence from the suspect's system prompt entirely.
+The suspect knows the truth and its cover story, but NOT what evidence the
+detective has. When evidence is presented, the user message shows the claim
+only (not the vulnerability). The suspect must improvise.
+
+**Why — murder only:** Focus. One crime type, one template, exercised deeply
+through the eval harness, is more convincing for a portfolio than three
+shallow crime types. Arson stays on disk to show the multi-crime design.
+
+**What changed, by file:**
+- `types.ts`: added `InvigilatorSuspectResponse`, `InvigilatorWitnessResponse`.
+  Simplified `SuspectResponse` (removed `evidenceResponses`,
+  `selfContradiction`, `inadvertentReveal`). Simplified `WitnessResponse`
+  (removed `suspectContradiction`). Updated `InterrogationDetail` and
+  `WitnessDetail` to include `invigilatorResponse`.
+- `adjudicate.ts`: stripped evidence section from suspect system prompt.
+  Simplified `SuspectResponseSchema` to dialogue + claims + demeanor only.
+- `witness.ts`: removed `suspectContradiction` from `WitnessResponseSchema`.
+- `invigilator.ts` (new): `SuspectInvigilatorSchema`,
+  `WitnessInvigilatorSchema`, `buildInvigilatorSystemPrompt()` (full case
+  context), `evaluateSuspectTurn()`, `evaluateWitnessTurn()` with retry.
+- `score.ts`: rewired `scoreSuspectTurn()` and `scoreWitnessTurn()` to read
+  invigilator signals. Added claim ID validation (checks `againstClaimId`
+  exists in actual ledger before counting).
+- `session.ts`: two-call flow per turn (persona → ledger → invigilator →
+  score). Invigilator failure = zero-delta turn.
+- `play.ts`: murder-only (no crime picker), shows invigilator reasoning
+  after each turn, breakdown shows per-turn invigilator analysis.
+- `verify.ts`, `inspect.ts`: murder-only active crime list.
+- `eval/types.ts`, `eval/cases.ts`, `eval/detective.ts`, `cli/eval.ts` (new):
+  full eval harness replacing the V2 stub.
+
+**Deferred, not forgotten:**
+- No live playthrough or eval run yet — implementation is verified by
+  `npx tsc --noEmit` and `npm run verify`, not by actual model responses.
+- Arson/embezzlement templates not removed, just excluded.
+- README.md and AIRTIGHT-PRD.md still describe V1.
+- Cost per playthrough unverified for 16-call pattern.
+
+---
+
 ## 2026-10-02 — V2 role flip: player is now the detective, AI plays a lying suspect + witness
 
 **Decision:** Complete redesign and reimplementation of the game's core loop.

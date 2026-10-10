@@ -1,8 +1,10 @@
 # AIRTIGHT — working notes for Claude Code
 
-An LLM-driven interrogation game. **The player is the detective.** The AI plays
-a guilty suspect (and a witness) who must lie convincingly across a limited
-set of questions while the player tries to build a chargeable case.
+An LLM-driven interrogation game. **The player is the detective.** The AI
+plays a guilty suspect (and a witness) through a **Persona Agent**, while an
+independent **Invigilator Agent** (LLM-as-judge) evaluates each turn from a
+bird's-eye view with full case context. A deterministic scoring engine
+converts the invigilator's structured signals into Case Strength changes.
 
 > **Two-machine workflow:** this project is being built on one laptop and
 > tested on another, each with its own Claude Code session. This file is the
@@ -18,11 +20,12 @@ original design doc — **both still describe V1 (player-as-suspect) and are
 stale.** Treat this file as the current-state source of truth until they're
 rewritten.
 
-**Status: V2 role-flip redesign implemented, not yet playtested with a live
-model.** All three implementation layers (types/templates, engine, CLI) are
-done, type-checked, and passing `npm run verify`. What hasn't happened yet:
-an actual playthrough against a live API, and tuning the scoring config
-against real transcripts.
+**Status: V3 two-agent architecture implemented, type-checked, and passing
+`npm run verify`.** The self-judging risk from V2 is resolved — the suspect
+no longer evaluates itself. Eval harness (Layer 1: 18 hand-crafted invigilator
+accuracy cases, Layer 2: automated full-game runner) is built. What hasn't
+happened yet: a live playthrough against a real API, and running the eval
+harness to calibrate the invigilator.
 
 ---
 
@@ -36,7 +39,7 @@ instead — check there before relitigating something that was already tried.
   log: what was decided, why, and what it superseded or deferred.
 - [`docs/eval-m2-results.md`](docs/eval-m2-results.md) — M2 eval harness
   precision/recall results per model (V1 adjudicator-as-judge contract —
-  doesn't apply to V2's actor model, kept for history).
+  doesn't apply to V3, kept for history).
 - [`docs/playtest-notes.md`](docs/playtest-notes.md) — **owned by the testing
   machine.** Raw playtest findings land here first; this (build) side folds
   anything settled into this file or `decisions.md` and may prune entries
@@ -45,46 +48,36 @@ instead — check there before relitigating something that was already tried.
   the same file across a `git pull`.
 
 New file per topic when a topic grows past a few paragraphs (e.g. a future
-`docs/eval-v2-results.md` once the V2 eval harness exists); index it here
-with a one-line description rather than folding it into this file.
+`docs/eval-v3-results.md` once the eval has been run); index it here with a
+one-line description rather than folding it into this file.
 
 ---
 
-## The role flip (V1 → V2)
+## History: V1 → V2 → V3
 
-V1: player is the guilty suspect, AI is the detective who judges the
-player's answers and scores them. V2 inverts this entirely:
+**V1:** Player is the guilty suspect, AI is the detective who judges and
+scores. A flat classifier task — thin for a portfolio.
 
-- **Player = detective.** Gets a case briefing and 4–5 evidence items upfront,
-  asks the suspect up to 6 questions, then questions 1 witness for up to 2
-  questions, then decides whether to charge.
-- **AI = suspect actor (+ witness persona).** The model now *generates*
-  in-character dialogue as a guilty suspect who must maintain a consistent
-  cover story, exploit the cracks in evidence against them, guard guilty
-  knowledge, and only crack under real pressure. A second, independent model
-  call plays the witness, who answers honestly within a limited knowledge
-  boundary and may contradict the suspect.
-- The model's job changed from **classifier/judge** to **actor**. This is the
-  single biggest engineering change in the project — see "The self-judging
-  risk" below for the risk it introduces.
+**V2:** Roles flipped — player is detective, AI plays a lying suspect +
+witness. Much richer orchestration, but the suspect self-judged its own
+contradictions and guilty-knowledge leaks in one call. Playtesting proved
+this was unreliable: the model never flagged itself, so Case Strength stayed
+flat and the game felt broken.
 
-Why: a flat classifier task is a thin AI-engineering story for a portfolio.
-An actor that has to perform a consistent lie under adversarial questioning,
-plus a second persona that can corroborate or contradict it, is a much richer
-multi-agent orchestration problem — and it's a better game.
+**V3 (current):** Two-agent split. The **Persona Agent** acts (suspect
+dialogue + claims); the **Invigilator Agent** judges (structured signals from
+a bird's-eye view). The engine scores deterministically from those signals.
+Also narrowed to **murder only** for focus — arson/embezzlement templates
+remain on disk but are excluded from active play and verification.
 
-Non-negotiable constraints from the redesign brief (don't relitigate without
-a new reason):
+Non-negotiable constraints (don't relitigate without a new reason):
 - Score the **answer** a question provoked, not the question itself.
 - The suspect is **always guilty** in Phase 1. Innocent-suspect mode is
   Phase 2.
-- 6 suspect questions, 2 witness questions. Tweakable after playtesting, not
-  before.
-- 2 crime types shipped (homicide, arson), 1 template each. Embezzlement
-  template file exists but exports an empty array — Phase 2.
+- 6 suspect questions, 2 witness questions.
+- **Homicide only** for V3. Arson template stays on disk for portfolio
+  breadth; embezzlement is a Phase 2 placeholder.
 - 4–5 evidence items per case, shown to the player upfront, not drip-fed.
-- Minimal scope on purpose — the goal right now is testing the core loop
-  fast, not breadth.
 
 ---
 
@@ -107,68 +100,84 @@ Break any of these and the game stops working. `src/cli/verify.ts` enforces
    the truth timeline, and the `fatalFact`. If any of that reaches the
    player, the game is solved by reading the inspect output.
 
-3. **The model acts; the engine scores.** (Was "the model judges" in V1.)
-   All Case Strength arithmetic lives in `SCORING_CONFIG`
-   (`src/engine/score.ts`), never in a prompt. Difficulty is a config-file
-   change, and the game feels fair instead of arbitrary.
+3. **The suspect acts; the invigilator judges; the engine scores.** All Case
+   Strength arithmetic lives in `SCORING_CONFIG` (`src/engine/score.ts`),
+   never in a prompt. The invigilator returns structured **signals** (not
+   deltas) — the engine applies deterministic weights. Difficulty is a
+   config-file change, and the game feels fair instead of arbitrary.
 
 4. **Structured output only.** No prose parsing, no regex over model text.
-   `SuspectResponseSchema` and `WitnessResponseSchema` (Zod) are the only
-   contract between the model and the engine. Small discrete integer scales
-   (0–3 for evidence response quality) — not 1–10, which is unstable across
-   calls.
+   Four Zod schemas define the contracts: `SuspectResponseSchema` (persona
+   agent, suspect mode), `WitnessResponseSchema` (persona agent, witness
+   mode), `SuspectInvigilatorSchema` (invigilator, suspect turn),
+   `WitnessInvigilatorSchema` (invigilator, witness turn). Small discrete
+   integer scales (0–3 for evidence response quality) — not 1–10.
 
-5. **Feed the claim ledger, never the transcript.** Each turn, the model
-   extracts its own new assertions into a compact claim record
+5. **Feed the claim ledger, never the transcript.** Each turn, the persona
+   agent extracts new assertions into a compact claim record
    (`src/engine/ledger.ts`). Suspect claims use the `c` prefix, witness
-   claims use `wc`. Context stays flat across all turns instead of growing,
-   and "does this contradict claim c3" is far more reliable than "spot the
-   inconsistency in 4,000 tokens."
+   claims use `wc`. The invigilator references claim IDs when flagging
+   contradictions — "does this contradict claim c3" is far more reliable
+   than "spot the inconsistency in 4,000 tokens."
 
 ---
 
-## The self-judging risk (read this before touching adjudicate.ts or witness.ts)
+## Information boundaries (three views of one case)
 
-The suspect model call does two jobs in one shot: it **acts** (writes
-in-character dialogue) and **self-judges** (reports its own
-`selfContradiction` and `inadvertentReveal` in the same structured response).
-This is efficient but structurally risky — a model has no particular
-incentive to flag that it just slipped, and if it's a bad judge of its own
-output, the Case Strength meter becomes meaningless.
+| Agent | Knows | Does NOT know |
+|-------|-------|---------------|
+| **Player (detective)** | Evidence claims, briefing, suspect/witness names | Truth timeline, vulnerabilities, persona, guilty knowledge, fatal fact |
+| **Persona Agent (suspect)** | Truth, persona, cover story, guilty knowledge, breaking points, fatal fact | What evidence the detective has, evidence vulnerabilities |
+| **Invigilator Agent (judge)** | Everything: truth, all evidence + vulnerabilities, persona, guilty knowledge, full claim ledger | Nothing hidden — full bird's-eye view |
 
-**Known fallback if playtesting shows this is unreliable:** split into two
-calls — Call 1 (actor: dialogue + claims only) and Call 2 (judge: given the
-dialogue, the claim ledger, and the truth, flag contradictions and reveals
-from the outside). This mirrors V1's two-role split, except the model is also
-acting in Call 1. Not implemented — do this only if the single-call version
-demonstrably misreports itself in playtesting.
+The suspect's blind spot is deliberate: it must improvise when evidence is
+presented, rather than pre-computing a perfect deflection from knowing the
+vulnerability. This makes evidence presentation meaningful as a game mechanic.
 
 ---
 
 ## Architecture
 
 ```
-seed + crime  ──>  generate()  ──>  CaseFile (server only)
-                                      │
-                                      ├─> toPublicCase()  ──>  player (evidence shown, strategy hidden)
-                                      │
-player question  ──────────────────┬─────────────────────────┐
-                                    │                         │
-                         interrogateSuspect()         interrogateWitness()
-                      (adjudicate.ts, suspect actor)  (witness.ts, separate persona)
-                                    │                         │
-                                    └───────────┬─────────────┘
-                                                 │
-                                        scoring engine (pure TS, score.ts)
-                                          ├─ claim ledger (suspect + witness)
-                                          ├─ self-contradiction / evidence quality / reveals
-                                          ├─ Case Strength (single meter)
-                                          └─ ending check
+seed  ──>  generate()  ──>  CaseFile (server only)
+                               │
+                               ├─> toPublicCase()  ──>  player (evidence shown, strategy hidden)
+                               │
+player question  ──────────────┼─────────────────────────────┐
+                               │                             │
+              ┌────────────────┴────────────────┐   ┌────────┴────────────┐
+              │ CALL 1: Persona Agent           │   │ Persona Agent       │
+              │ (adjudicate.ts — suspect mode)  │   │ (witness.ts)        │
+              │ dialogue + claims + demeanor     │   │ dialogue + claims   │
+              └────────────┬────────────────────┘   └────────┬────────────┘
+                           │                                  │
+                    update claim ledger                 update claim ledger
+                           │                                  │
+              ┌────────────┴────────────────┐   ┌────────────┴────────────┐
+              │ CALL 2: Invigilator Agent   │   │ Invigilator Agent       │
+              │ (invigilator.ts)            │   │ (invigilator.ts)        │
+              │ signals: contradictions,    │   │ signals: suspect        │
+              │   GK leak, evidence quality,│   │   contradiction         │
+              │   demeanor shift            │   │                         │
+              └────────────┬────────────────┘   └────────────┬────────────┘
+                           │                                  │
+                           └───────────┬──────────────────────┘
+                                       │
+                              scoring engine (pure TS, score.ts)
+                                ├─ SCORING_CONFIG weights
+                                ├─ validate claim IDs in signals
+                                ├─ Case Strength (single meter)
+                                └─ ending check
 ```
 
-One meter: **Case Strength** — what the detective can prove. No Suspicion
-meter in V2 (that was a V1 player-behaviour signal; doesn't apply when the
-AI is the one being pressured).
+**Two calls per turn.** Call 1 (persona) produces dialogue shown to the
+player immediately. Call 2 (invigilator) runs while the player reads the
+dialogue. If Call 2 fails after retries, the turn is zero-delta (dialogue
+shown, claims saved, no score change, warning printed).
+
+**16 model calls per game** = 6 suspect turns × 2 + 2 witness turns × 2.
+
+One meter: **Case Strength** — what the detective can prove. Starts at 15.
 
 Three endings:
 - **CHARGED_STRONG** — Case Strength ≥ 80 at any point. Clean win.
@@ -180,35 +189,52 @@ Three endings:
 
 ---
 
-## File map (V2)
+## File map (V3)
 
 ```
 src/engine/
-  types.ts              All V2 domain types — read this first, everything depends on it
+  types.ts              All domain types — SuspectResponse, WitnessResponse,
+                          InvigilatorSuspectResponse, InvigilatorWitnessResponse,
+                          GameSession, InterrogationDetail, WitnessDetail, etc.
   rng.ts                Seeded deterministic RNG (cyrb128 + sfc32) — unchanged from V1
-  generate.ts            seed + crime → CaseFile; toPublicCase() inverted security boundary
-  ledger.ts              Claim accumulation — 'c' prefix (suspect), 'wc' prefix (witness)
-  adjudicate.ts          Suspect actor: system prompt, SuspectResponseSchema, interrogateSuspect().
-                          Also exports MODEL — the one-line provider swap point.
-  witness.ts             Witness persona: system prompt, WitnessResponseSchema,
+  generate.ts           seed + crime → CaseFile; toPublicCase() inverted security boundary
+  ledger.ts             Claim accumulation — 'c' prefix (suspect), 'wc' prefix (witness)
+  adjudicate.ts         Persona agent (suspect mode): system prompt, SuspectResponseSchema,
+                          interrogateSuspect(). Exports MODEL — the one-line provider swap.
+                          Suspect prompt does NOT include evidence items or vulnerabilities.
+  witness.ts            Persona agent (witness mode): system prompt, WitnessResponseSchema,
                           interrogateWitness(). Imports MODEL from adjudicate.ts.
-  score.ts               Pure scoring — SCORING_CONFIG, scoreSuspectTurn(), scoreWitnessTurn(),
-                          checkEnding(). Tune difficulty here, never in a prompt.
-  session.ts             Orchestration — createSession(), playInterrogationTurn(),
-                          playWitnessTurn(), resolveVerdict(), parsePlayerInput()
-                          (handles "PRESENT eN: question" syntax)
+  invigilator.ts        LLM-as-judge: SuspectInvigilatorSchema, WitnessInvigilatorSchema,
+                          buildInvigilatorSystemPrompt() (full case context),
+                          evaluateSuspectTurn(), evaluateWitnessTurn(). Retry logic built in.
+  score.ts              Pure scoring — SCORING_CONFIG, scoreSuspectTurn() (reads invigilator
+                          signals, validates claim IDs), scoreWitnessTurn(), checkEnding().
+  session.ts            Orchestration — createSession(), playInterrogationTurn() (two-call
+                          flow: persona → ledger → invigilator → score), playWitnessTurn(),
+                          resolveVerdict(), parsePlayerInput()
   templates/
-    shared.ts            Template contract (TemplateBuild) + name-generation helpers
-    homicide.ts           1 template: the stairwell. 5 evidence, 1 witness, suspect persona.
-    arson.ts               1 template: the warehouse. 5 evidence, 1 witness, suspect persona.
-    embezzlement.ts        Empty array — Phase 2 placeholder, don't build against this yet.
+    shared.ts           Template contract (TemplateBuild) + name-generation helpers
+    homicide.ts         1 template: the stairwell. 5 evidence, 1 witness, suspect persona.
+    arson.ts            1 template: the warehouse. On disk for portfolio, excluded from active play.
+    embezzlement.ts     Empty array — Phase 2 placeholder.
+src/eval/
+  types.ts              EvalCase, EvalResult, GameResult, EvalReport types
+  cases.ts              18 hand-crafted invigilator accuracy cases (4 GK, 4 contradiction,
+                          3 evidence handling, 2 demeanor, 5 clean/negative)
+  detective.ts          Layer 1 runner (runLayer1, runEvalCase, compareSignals,
+                          computePrecisionRecall) + Layer 2 runner (runLayer2, runOneGame,
+                          DETECTIVE_SCRIPT with 6 interrogation + 2 witness questions)
 src/cli/
-  play.ts                Interactive terminal game: briefing → interrogation → witness →
-                          verdict → post-game breakdown (truth + hidden strategy revealed)
-  verify.ts              Determinism, inverted leak-safety, template integrity, coverage, variance
-  inspect.ts             Dump a full case file, or --public for exactly what the player sees
-  eval.ts                STUB. V1's contradiction-detection eval doesn't transfer to an actor
-                          model — prints a note and exits. New eval harness is unbuilt.
+  play.ts               Interactive terminal game: murder only, briefing → interrogation →
+                          witness → verdict → post-game breakdown with per-turn invigilator
+                          analysis (reasoning, signals, evidence quality, claim contradictions)
+  verify.ts             Determinism, leak-safety, template integrity, coverage, variance
+                          (homicide only in active checks, arson still in coverage)
+  inspect.ts            Dump a full case file, or --public for exactly what the player sees
+                          (homicide only)
+  eval.ts               Eval harness CLI: Layer 1 (invigilator accuracy, 18 cases) and
+                          Layer 2 (automated gameplay, --games N). Results to eval-results/.
+  transcript.ts         JSONL transcript logger (format 'airtight-transcript-v2')
 ```
 
 ---
@@ -217,74 +243,66 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 5 checks: determinism, leak-safety, integrity, coverage, variance
+npm run verify                        # 8 checks: determinism, leak-safety, integrity, coverage, variance, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
-npm run case test-seed-1 arson        # pin a seed to inspect the same case repeatedly
+npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
 ```
 
-Requires a model API key in `.env.local` (see `.env.example` — xAI is the
-current documented default):
+Requires a model API key in `.env.local` (see `.env.example` — GroqCloud is
+the documented default):
 ```bash
-npm run play                           # crime picker, random seed
-npm run play -- test-seed-1 homicide   # pin seed + crime, replay the same case while tuning
+npm run play                           # random seed, always homicide
+npm run play -- test-seed-1 homicide   # pin seed, replay the same case while tuning
 ```
 
 In-game commands during `npm run play`: `PRESENT e3: your question` to
 formally present an evidence item (otherwise it's just a plain question with
-no evidence attached), `/evidence` to re-print the evidence table, `/status`
-to re-print the Case Strength bar, `/quit` to end early and still see the
-breakdown.
+no evidence attached), `PRESENT e1, e3: question` to present multiple items,
+`/evidence` to re-print the evidence table, `/status` to re-print the Case
+Strength bar, `/quit` to end early and still see the breakdown.
 
-**What to actually watch for while playing** (this is the real eval right
-now, since the automated harness is deferred):
-- Does the suspect's cover story stay consistent across all 6 turns, or does
-  it drift without triggering a flagged contradiction?
-- When evidence is `PRESENT`ed, does the reported quality (0–3) in the
-  post-game breakdown match what you'd judge by reading the dialogue — does
-  a "3 — airtight" response actually sound like it used the vulnerability?
-- Does `selfContradiction` or `inadvertentReveal` ever fire honestly, or does
-  the model protect its own score by never flagging itself? (This is the
-  self-judging risk above — if this never fires across many playthroughs
-  where it obviously should have, that's the signal to build the Call 1/Call
-  2 split.)
-- Does the witness ever meaningfully contradict the suspect, or do they stay
-  too vague to matter?
-- Does Case Strength feel earned — do demeanor shifts and evidence responses
-  track with how the conversation actually went?
+Eval harness (requires API key):
+```bash
+npm run eval                           # Layer 1 only: 18 invigilator accuracy cases
+npm run eval -- --games 5              # Layer 1 + 5 automated games (quick check)
+npm run eval -- --games 50             # Layer 1 + 50 automated games (full run, ~30-45 min)
+npm run eval -- --layer2-only 10       # skip Layer 1, just run 10 games
+```
 
-`npm run eval` currently just prints a stub message and exits 0 — don't rely
-on it for anything yet.
+Results are written to `eval-results/` (gitignored) as timestamped JSON.
+
+**What to watch for while playing:**
+- Does the invigilator catch contradictions you notice in the dialogue?
+- Does the invigilator miss obvious guilty knowledge leaks? (This is the
+  signal detection problem the eval harness tests.)
+- When evidence is `PRESENT`ed, does the invigilator's quality rating (0–3)
+  match what you'd judge by reading the dialogue?
+- Does the witness ever meaningfully contradict the suspect?
+- Does Case Strength feel earned — do the per-turn deltas track with how
+  the conversation actually went?
 
 ---
 
 ## Model
 
-GroqCloud is selected automatically when `GROQ_API_KEY` is set in `.env.local`;
-the optional `GROQ_MODEL` defaults to `openai/gpt-oss-20b`. If no Groq key is
-set, the app falls back to xAI `grok-4.20-reasoning` using `XAI_API_KEY`.
-Groq keys (usually prefixed `gsk_`) belong in `GROQ_API_KEY`, not
-`XAI_API_KEY`. `witness.ts` imports the same `MODEL`, so both calls use the
-same provider.
+Anthropic Claude Haiku 4.5 (`claude-haiku-4-5`) via `@ai-sdk/anthropic`,
+selected using `ANTHROPIC_API_KEY` in `.env.local`. All four schemas (persona
+suspect/witness + invigilator suspect/witness) use the same `MODEL` export
+from `adjudicate.ts` — swapping models/providers is a one-line change there.
 
-Other provider examples remain commented out in `adjudicate.ts`: Google
-Gemini, Anthropic Claude, OpenAI, and OpenRouter (note: OpenRouter needs
-`.chat(modelId)`, not the bare call — it only implements the Chat Completions
-API, not the Responses API).
-
-No cost target has been re-validated for V2 yet — V1's "$0.05/playthrough"
-target assumed Haiku pricing and a single-meter single-call-per-turn loop.
-V2 makes 6 suspect calls + up to 2 witness calls per game, with longer system
-prompts (full persona + cover story + guilty knowledge). Check
+V3 makes **16 model calls per game** (vs 8 in V2). The invigilator's system
+prompt is large (full case context) but static/cacheable. Check
 `session.usage` (surfaced in the post-game breakdown's token summary) against
-actual provider pricing before claiming a number publicly.
+Anthropic's published Haiku 4.5 pricing ($1.00/1M input, $5.00/1M output)
+before claiming a cost number publicly.
 
 ---
 
 ## Environment
 
 - Keys live in `.env.local` (gitignored, never committed). See
-  `.env.example` for the minimal GroqCloud setup. The CLI checks for a key
+  `.env.example` for the minimal Anthropic setup. The CLI checks for a key
   before play, and model request failures are surfaced rather than replaced
   with pretend dialogue. Both `adjudicate.ts` and the CLI entry points self-load
   `.env.local` via `dotenv.config()` at module top — this matters because
@@ -292,54 +310,79 @@ actual provider pricing before claiming a number publicly.
   call runs, so provider factories that read `process.env` eagerly at import
   time need the env already loaded.
 - In production (not yet built) this would be a Vercel environment variable
-  readable only by server-side code — no UI exists yet, V2 is terminal-only
+  readable only by server-side code — no UI exists yet, V3 is terminal-only
   so far, same as V1 was before M3.
 
 ---
 
 ## Design decisions already settled — don't relitigate
 
-Carried over from V1 where still applicable, V2-specific ones added:
+Carried over from V1 where still applicable, V3-specific ones added:
 
-- **No database.** Client (or in V2's terminal-only form, the CLI process)
-  holds the seed; state is regenerated from it. Nothing to persist, nothing
-  to leak.
+- **No database.** CLI process holds the seed; state is regenerated from it.
+  Nothing to persist, nothing to leak.
 - **Post-game breakdown costs zero model calls.** Everything needed is
-  already in session state by the time the game ends — the truth timeline,
-  the full annotated claim ledgers (suspect + witness), which evidence was
-  presented and how the suspect responded to each, the turning point (largest
-  Case Strength jump), and the token usage total.
-- **Prompt injection is a mechanic, not a bug** (carried from V1, not yet
-  re-implemented for V2's suspect-actor prompt — V1 had an explicit
-  `injectionAttempt` flag and a Suspicion spike; V2's `SuspectResponseSchema`
-  doesn't have an equivalent field yet. Needs a decision: does an in-character
-  guilty suspect even have a sensible "break character" mechanic the same way
-  a detective judge did? Flag this if it comes up in testing.)
+  already in session state: truth timeline, full annotated claim ledgers
+  (with invigilator contradiction tags), which evidence was presented and the
+  invigilator's per-item quality rating, the turning point (largest CS jump),
+  per-turn invigilator reasoning, and token usage total.
+- **Two agents, one provider.** The persona and invigilator share the same
+  model. This simplifies config and keeps the portfolio story clean. If the
+  invigilator needs a stronger model than the persona, that's a future split.
+- **Invigilator returns signals, not deltas.** The invigilator's structured
+  response contains named findings (contradictions with claim IDs, guilty
+  knowledge leak descriptions, evidence quality ratings, demeanor shift
+  boolean). The engine applies `SCORING_CONFIG` weights. This preserves the
+  "model judges; engine scores" invariant.
+- **Claim ID validation.** `scoreSuspectTurn()` verifies that any
+  `againstClaimId` in an invigilator contradiction signal actually exists in
+  the claim ledger before counting it. Hallucinated claim IDs are silently
+  dropped. This prevents the invigilator from inflating the score.
 - **Evidence starts `presented: false` for all items, every game.** No item
   is ever pre-revealed — the player must choose to formally present each one
   via `PRESENT eN:`.
 - **The suspect is always guilty in Phase 1.** Hardcoded, not randomised.
   Innocent-suspect mode is an explicit Phase 2 scope item, not an oversight.
+- **Murder only for V3.** Arson template stays on disk for portfolio breadth
+  but is excluded from the active crime list, verify loops, and CLI.
+
+---
+
+## Portfolio signals (for AI Engineer / FDE interviews)
+
+This project demonstrates:
+- **Multi-agent orchestration** — two LLM calls per turn with different
+  information boundaries, error handling, and graceful degradation
+- **LLM-as-judge pattern** — invigilator evaluates model output against
+  ground truth, returning structured signals
+- **Structured output contracts** — four Zod schemas enforced via Vercel AI
+  SDK `generateObject()`, no prose parsing
+- **Deterministic scoring with LLM-detected signals** — the model finds
+  things, the engine does math
+- **Information boundary design** — three views of the same case (player,
+  suspect, judge), enforced by `toPublicCase()` and prompt construction
+- **Eval pipeline** — Layer 1 (hand-crafted precision/recall on the judge)
+  + Layer 2 (automated gameplay at scale)
+- **Seeded deterministic generation** — `generate()` is pure, every case is
+  reproducible from a seed
 
 ---
 
 ## Open items / known gaps (check before assuming something is done)
 
-- **No live playthrough has happened yet in this project's history for V2.**
-  Everything above is implemented and type/logic-verified, but unverified
-  against an actual model response. The two risks most likely to surface:
-  the self-judging problem above, and prompt-length/latency from the much
-  longer suspect system prompt (full persona + cover story + guilty
-  knowledge + every evidence vulnerability, all in one cached block).
-- **`npm run eval` is a stub.** V1's eval cases tested contradiction-detection
-  precision/recall against a judge model — that contract doesn't exist in
-  V2. A new eval needs different dimensions: suspect consistency across
-  turns, self-report honesty, evidence-response-quality calibration, witness
-  corroboration accuracy. Not designed yet.
+- **No live playthrough has happened yet for V3.** Everything is implemented
+  and type/logic-verified, but unverified against an actual model response.
+  The risks most likely to surface: invigilator accuracy on real (not
+  hand-crafted) suspect dialogue, and prompt-length/latency from the large
+  invigilator system prompt.
+- **Eval harness is built but unrun.** `npm run eval` will execute Layer 1
+  (18 invigilator accuracy cases). `npm run eval -- --games 50` will run
+  Layer 2 (50 automated games). Neither has been run against a live model.
 - **`README.md` and `AIRTIGHT-PRD.md` still describe V1 end-to-end** (player
   as suspect, Suspicion meter, 12-round structure, M0–M6 milestone table).
   Don't trust them for current behavior; this file supersedes them until
   they're rewritten.
-- **No prompt-injection handling in the V2 suspect schema** — see the design
-  decisions note above.
-- **Cost per playthrough unverified** for the new call pattern and model.
+- **No prompt-injection handling in the V3 suspect schema** — V1 had an
+  explicit `injectionAttempt` flag. Whether an in-character guilty suspect
+  needs a "break character" mechanic is an open question.
+- **Cost per playthrough unverified** for the 16-call pattern.

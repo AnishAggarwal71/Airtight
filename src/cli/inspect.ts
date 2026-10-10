@@ -32,7 +32,7 @@ const positional = args.filter((a) => !a.startsWith('--'))
 const seed = positional[0] ?? randomSeed()
 const crime = (positional[1] as CrimeType) ?? 'homicide'
 
-const valid: CrimeType[] = ['homicide', 'arson']
+const valid: CrimeType[] = ['homicide']
 if (!valid.includes(crime)) {
   console.error(`Unknown crime "${crime}". Expected one of: ${valid.join(', ')}`)
   process.exit(1)

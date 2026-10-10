@@ -1,21 +1,21 @@
 #!/usr/bin/env tsx
 /**
- * AIRTIGHT V2 — interactive terminal interrogation (detective mode).
+ * AIRTIGHT V3 — interactive terminal interrogation (detective mode).
  *
- *   npm run play                          # random seed, crime picker
- *   npm run play -- mallard-7719 arson    # specific case
+ *   npm run play                          # random seed, homicide
+ *   npm run play -- mallard-7719          # specific seed
+ *   npm run play -- test-seed-1 homicide  # explicit crime arg (only homicide active)
  *
- * Three-phase flow:
- *   1. Briefing — read the case, see your evidence
- *   2. Interrogation (6 turns) — question the suspect, optionally present evidence
- *   3. Witness (2 turns) — question the witness
- *   4. Verdict — charge or release
- *   5. Post-game breakdown — truth revealed, ledger annotated
+ * Two-agent flow per turn:
+ *   1. Persona agent generates suspect/witness dialogue
+ *   2. Invigilator agent judges the dialogue and returns scoring signals
+ *
+ * Phases: briefing -> interrogation (6 turns) -> witness (2 turns) -> verdict -> breakdown
  */
 
 import dotenv from 'dotenv'
-dotenv.config({ path: '.env.local' })  // project convention: keys live in .env.local
-dotenv.config()                        // fallback to .env if present
+dotenv.config({ path: '.env.local' })
+dotenv.config()
 import * as readline from 'node:readline'
 import {
   appendTranscriptExchange,
@@ -33,7 +33,7 @@ import {
   resolveVerdict,
 } from '../engine/session'
 import type { CrimeType, GameSession, Ending, SuspectResponse } from '../engine/types'
-import { CRIME_LABELS, CRIME_BLURBS } from '../engine/types'
+import { CRIME_LABELS } from '../engine/types'
 
 // ─── ANSI helpers ───────────────────────────────────────────────────────────
 
@@ -52,22 +52,18 @@ const C = {
 const MAX_QUESTION_LENGTH = 300
 const MAX_LOCALITY_LENGTH = 100
 const BAR_WIDTH = 20
-const CRIMES: CrimeType[] = ['homicide', 'arson']  // embezzlement deferred to Phase 2
 
 // ─── Rendering helpers ──────────────────────────────────────────────────────
 
-/** Case Strength bar — green is progress toward charging, visible to the player. */
 function renderCaseStrength(value: number, delta: number): void {
   const filled = Math.round((value / 100) * BAR_WIDTH)
   const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
 
-  // Color: low = dim, medium = yellow, high = green (high is good for the detective!)
   let coloured: string
   if (value >= 65) coloured = C.green(bar)
   else if (value >= 40) coloured = C.yellow(bar)
   else coloured = C.dim(bar)
 
-  // Delta display
   let deltaStr: string
   if (delta > 0) deltaStr = C.green(` (+${delta})`)
   else if (delta < 0) deltaStr = C.red(` (${delta})`)
@@ -76,26 +72,24 @@ function renderCaseStrength(value: number, delta: number): void {
   console.log(`  ${C.bold('Case Strength')}  [${coloured}]  ${String(value).padStart(3)}/100${deltaStr}`)
 
   if (value >= 80) {
-    console.log(`  ${C.green(C.bold('▲▲ CASE STRONG ENOUGH TO CHARGE'))}`)
+    console.log(`  ${C.green(C.bold('>> CASE STRONG ENOUGH TO CHARGE'))}`)
   } else if (value >= 65) {
-    console.log(`  ${C.yellow('▲ Getting close — keep pressing.')}`)
+    console.log(`  ${C.yellow('> Getting close — keep pressing.')}`)
   }
   console.log()
 }
 
-/** Render a demeanor indicator for the suspect. */
 function renderDemeanor(demeanor: SuspectResponse['demeanor']): string {
   const indicators: Record<SuspectResponse['demeanor'], string> = {
-    calm: C.dim('😐 calm'),
-    nervous: C.yellow('😰 nervous'),
-    defensive: C.yellow('🛡️ defensive'),
-    aggressive: C.red('😡 aggressive'),
-    evasive: C.magenta('👀 evasive'),
+    calm: C.dim('[calm]'),
+    nervous: C.yellow('[nervous]'),
+    defensive: C.yellow('[defensive]'),
+    aggressive: C.red('[aggressive]'),
+    evasive: C.magenta('[evasive]'),
   }
-  return indicators[demeanor] ?? C.dim(demeanor)
+  return indicators[demeanor] ?? C.dim(`[${demeanor}]`)
 }
 
-/** Show evidence table — what the detective has to work with. */
 function renderEvidenceTable(session: GameSession): void {
   const pub = toPublicCase(session.caseFile)
   console.log(`  ${C.bold('YOUR EVIDENCE:')}`)
@@ -108,7 +102,6 @@ function renderEvidenceTable(session: GameSession): void {
   console.log()
 }
 
-/** Render the ending banner. */
 function renderEnding(ending: Ending, session: GameSession): void {
   const divider = '═'.repeat(56)
   console.log()
@@ -150,7 +143,7 @@ function renderBreakdown(session: GameSession): void {
   console.log(`  Witness turns: ${session.witnessTurn}/${session.maxWitnessTurns}`)
   console.log()
 
-  // 2. The truth — what actually happened
+  // 2. The truth
   console.log(`  ${C.red(C.bold('THE TRUTH'))}`)
   for (const beat of session.caseFile.truth) {
     console.log(`  ${C.dim(beat.time.padEnd(7))} ${beat.fact}`)
@@ -159,7 +152,7 @@ function renderBreakdown(session: GameSession): void {
   console.log(`  ${C.red('Fatal fact:')} ${session.caseFile.fatalFact}`)
   console.log()
 
-  // 3. Turning point — largest Case Strength jump
+  // 3. Turning point
   if (session.interrogationDetails.length > 0) {
     let turningTurn = 0
     let maxDelta = 0
@@ -176,20 +169,73 @@ function renderBreakdown(session: GameSession): void {
         ? C.green(`+${maxDelta}`)
         : C.red(`-${maxDelta}`)
       console.log(`  ${C.bold('THE MOMENT IT TURNED')}`)
-      console.log(`  Interrogation turn ${turningTurn}: Case Strength ${direction} (${detail.caseStrengthBefore} → ${detail.caseStrengthAfter})`)
+      console.log(`  Interrogation turn ${turningTurn}: Case Strength ${direction} (${detail.caseStrengthBefore} -> ${detail.caseStrengthAfter})`)
       console.log(`  You asked: ${C.dim('"' + detail.playerQuestion.slice(0, 120) + '"')}`)
       console.log()
     }
   }
 
-  // 4. Case Strength trajectory (ASCII sparkline)
+  // 4. Case Strength trajectory
   if (session.caseStrengthHistory.length > 1) {
     console.log(`  ${C.bold('CASE STRENGTH OVER TIME')}`)
     console.log(`  ${sparkline(session.caseStrengthHistory)}`)
     console.log()
   }
 
-  // 5. Suspect's cover story revealed
+  // 5. Invigilator per-turn analysis
+  if (session.interrogationDetails.length > 0) {
+    console.log(`  ${C.bold('INVIGILATOR ANALYSIS — INTERROGATION')}`)
+    for (const d of session.interrogationDetails) {
+      const delta = d.caseStrengthAfter - d.caseStrengthBefore
+      const deltaStr = delta > 0 ? C.green(`+${delta}`) : delta < 0 ? C.red(`${delta}`) : C.dim('+0')
+      console.log(`  ${C.bold(`Turn ${d.turn}`)} (${deltaStr}) — "${C.dim(d.playerQuestion.slice(0, 80))}"`)
+
+      if (d.invigilatorResponse) {
+        const inv = d.invigilatorResponse
+        console.log(`    ${C.dim(inv.reasoning)}`)
+
+        for (const c of inv.signals.contradictions) {
+          console.log(`    ${C.red(`[CONTRADICTION ${c.severity}]`)} vs ${c.againstClaimId}: ${c.description}`)
+        }
+        if (inv.signals.guiltyKnowledgeLeak) {
+          console.log(`    ${C.red('[GUILTY KNOWLEDGE LEAK]')} ${inv.signals.guiltyKnowledgeLeak.description}`)
+        }
+        for (const eh of inv.signals.evidenceHandling) {
+          const qualityLabel = ['terrible lie', 'weak deflection', 'plausible', 'airtight'][eh.quality]
+          console.log(`    ${C.yellow(`[${eh.evidenceId}]`)} quality ${eh.quality} (${qualityLabel}): ${C.dim(eh.description)}`)
+        }
+        if (inv.signals.demeanorShift) {
+          console.log(`    ${C.yellow('[DEMEANOR SHIFT]')} suspect showed visible change under pressure`)
+        }
+      } else {
+        console.log(`    ${C.dim('(invigilator evaluation not available for this turn)')}`)
+      }
+      console.log()
+    }
+  }
+
+  // 6. Invigilator per-turn analysis — witness
+  if (session.witnessDetails.length > 0) {
+    console.log(`  ${C.bold('INVIGILATOR ANALYSIS — WITNESS')}`)
+    for (const d of session.witnessDetails) {
+      const delta = d.caseStrengthAfter - d.caseStrengthBefore
+      const deltaStr = delta > 0 ? C.green(`+${delta}`) : delta < 0 ? C.red(`${delta}`) : C.dim('+0')
+      console.log(`  ${C.bold(`Turn ${d.turn}`)} (${deltaStr}) — "${C.dim(d.playerQuestion.slice(0, 80))}"`)
+
+      if (d.invigilatorResponse) {
+        console.log(`    ${C.dim(d.invigilatorResponse.reasoning)}`)
+        if (d.invigilatorResponse.signals.suspectContradiction) {
+          const sc = d.invigilatorResponse.signals.suspectContradiction
+          console.log(`    ${C.green('[WITNESS CONTRADICTS SUSPECT]')} vs ${sc.againstClaimId}: ${sc.description}`)
+        }
+      } else {
+        console.log(`    ${C.dim('(invigilator evaluation not available for this turn)')}`)
+      }
+      console.log()
+    }
+  }
+
+  // 7. Suspect's cover story revealed
   console.log(`  ${C.bold('THE SUSPECT\'S STRATEGY')}`)
   console.log(`  ${C.dim('Cover story:')} ${session.caseFile.suspectPersona.coverStory}`)
   console.log(`  ${C.dim('Breaking points:')} ${session.caseFile.suspectPersona.breakingPoints.join(', ')}`)
@@ -199,40 +245,49 @@ function renderBreakdown(session: GameSession): void {
   }
   console.log()
 
-  // 6. Evidence breakdown — what was presented and what was missed
+  // 8. Evidence breakdown
   console.log(`  ${C.bold('EVIDENCE BREAKDOWN')}`)
   for (const e of session.caseFile.evidence) {
     const status = e.presented ? C.green('[presented]') : C.dim('[never used]')
     console.log(`  ${C.dim(e.id)} ${status} ${e.claim.slice(0, 80)}`)
     console.log(`    ${C.yellow('vulnerability:')} ${C.dim(e.vulnerability)}`)
 
-    // Find how the suspect responded to this evidence
-    const responseDetail = session.interrogationDetails.find(
-      (d) => d.suspectResponse.evidenceResponses.some((response) => response.evidenceId === e.id),
+    // Find invigilator quality rating for this evidence
+    const turnDetail = session.interrogationDetails.find(
+      (d) => d.invigilatorResponse?.signals.evidenceHandling.some((eh) => eh.evidenceId === e.id),
     )
-    if (responseDetail) {
-      const er = responseDetail.suspectResponse.evidenceResponses.find((response) => response.evidenceId === e.id)!
-      const qualityLabel = ['terrible lie', 'weak deflection', 'plausible', 'airtight'][er.quality]
-      console.log(`    ${C.dim(`Suspect used: ${er.strategy} (quality ${er.quality} — ${qualityLabel})`)}`)
+    if (turnDetail?.invigilatorResponse) {
+      const eh = turnDetail.invigilatorResponse.signals.evidenceHandling.find((h) => h.evidenceId === e.id)
+      if (eh) {
+        const qualityLabel = ['terrible lie', 'weak deflection', 'plausible', 'airtight'][eh.quality]
+        console.log(`    ${C.dim(`Invigilator rated: quality ${eh.quality} (${qualityLabel})`)}`)
+      }
     }
   }
   console.log()
 
-  // 7. Annotated suspect claim ledger
+  // 9. Suspect claim ledger
   if (session.suspectClaims.length > 0) {
     console.log(`  ${C.bold('SUSPECT CLAIM LEDGER')}`)
+
+    // Collect all claim IDs that were flagged as contradicted by the invigilator
+    const contradictedIds = new Set<string>()
+    for (const d of session.interrogationDetails) {
+      if (d.invigilatorResponse) {
+        for (const c of d.invigilatorResponse.signals.contradictions) {
+          contradictedIds.add(c.againstClaimId)
+        }
+      }
+    }
+
     for (const claim of session.suspectClaims) {
-      // Find contradictions against this claim
-      const contradicted = session.interrogationDetails.some(
-        (d) => d.suspectResponse.selfContradiction?.againstClaimId === claim.id,
-      )
-      const tag = contradicted ? C.red(' [CONTRADICTED]') : ''
+      const tag = contradictedIds.has(claim.id) ? C.red(' [CONTRADICTED]') : ''
       console.log(`  ${claim.id} (turn ${claim.turn}): "${claim.text}"${tag}`)
     }
     console.log()
   }
 
-  // 8. Witness claim ledger
+  // 10. Witness claim ledger
   if (session.witnessClaims.length > 0) {
     console.log(`  ${C.bold('WITNESS CLAIM LEDGER')}`)
     for (const claim of session.witnessClaims) {
@@ -241,7 +296,7 @@ function renderBreakdown(session: GameSession): void {
     console.log()
   }
 
-  // 9. Token cost summary
+  // 11. Token cost summary
   renderCostSummary(session)
 }
 
@@ -255,11 +310,9 @@ function renderCostSummary(session: GameSession): void {
   const u = session.usage
   const divider = '─'.repeat(56)
   console.log(` ${divider}`)
-  console.log(`  ${C.bold('TOKEN USAGE')} ${C.dim('(cost depends on provider — see adjudicate.ts MODEL)')}`)
+  console.log(`  ${C.bold('TOKEN USAGE')} ${C.dim('(claude-haiku-4-5 — see adjudicate.ts MODEL)')}`)
   console.log(`  Input tokens:       ${String(u.inputTokens).padStart(8)}`)
   console.log(`  Output tokens:      ${String(u.outputTokens).padStart(8)}`)
-  console.log(`  Cache creation:     ${String(u.cacheCreationTokens).padStart(8)}`)
-  console.log(`  Cache reads:        ${String(u.cacheReadTokens).padStart(8)}`)
   console.log(` ${divider}`)
 }
 
@@ -276,39 +329,13 @@ function ask(rl: readline.Interface, prompt: string): Promise<string> {
   return new Promise((resolve) => rl.question(prompt, resolve))
 }
 
-/** Show crime picker and return the chosen type. */
-async function pickCrime(rl: readline.Interface): Promise<CrimeType> {
-  console.log()
-  console.log(`  ${C.bold('CHOOSE YOUR CASE:')}`)
-  console.log()
-  for (let i = 0; i < CRIMES.length; i++) {
-    console.log(`  ${C.bold(String(i + 1))}. ${C.bold(CRIME_LABELS[CRIMES[i]])}`)
-    console.log(`     ${C.dim(CRIME_BLURBS[CRIMES[i]])}`)
-  }
-  console.log()
-
-  while (true) {
-    const answer = await ask(rl, `  Pick (1–${CRIMES.length}): `)
-    const n = parseInt(answer.trim(), 10)
-    if (n >= 1 && n <= CRIMES.length) return CRIMES[n - 1]
-    console.log(`  ${C.red(`Enter 1–${CRIMES.length}.`)}`)
-  }
-}
-
 // ─── Main game loop ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const groqApiKey = process.env.GROQ_API_KEY?.trim()
-  const xaiApiKey = process.env.XAI_API_KEY?.trim()
-  if (!groqApiKey && xaiApiKey?.startsWith('gsk_')) {
-    console.error(C.red('\n  Your key looks like a GroqCloud key. Put it in GROQ_API_KEY in .env.local.\n'))
-    process.exit(1)
-  }
-
-  if (!groqApiKey && !xaiApiKey) {
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim()
+  if (!anthropicApiKey) {
     console.error(C.red('\n  Missing API key.'))
-    console.error('  Put your GroqCloud key in .env.local as: GROQ_API_KEY=gsk_...')
-    console.error('  The game selects Groq automatically when GROQ_API_KEY is set.\n')
+    console.error('  Put your Anthropic key in .env.local as: ANTHROPIC_API_KEY=sk-ant-...\n')
     process.exit(1)
   }
 
@@ -317,32 +344,27 @@ async function main(): Promise<void> {
   // Parse CLI args: [seed] [crime] [templateId]
   const args = process.argv.slice(2)
   const seed = args[0] ?? randomSeed()
+  const crime: CrimeType = 'homicide'
   const templateId = args[2]
-  let crime: CrimeType
 
-  if (args[1] && CRIMES.includes(args[1] as CrimeType)) {
-    crime = args[1] as CrimeType
-  } else if (args[1]) {
-    console.error(C.red(`\n  Unknown crime "${args[1]}". Expected: ${CRIMES.join(', ')}\n`))
+  // Validate crime arg if provided
+  if (args[1] && args[1] !== 'homicide') {
+    console.error(C.red(`\n  Only homicide is available in this version.\n`))
     process.exit(1)
-  } else {
-    crime = await pickCrime(rl)
   }
 
   let locality: string | undefined
-  if (crime === 'homicide') {
-    while (true) {
-      const answer = await ask(
-        rl,
-        '  Case setting (optional city/region and country; no street address, Enter to skip): ',
-      )
-      const trimmed = answer.replace(/\s+/g, ' ').trim()
-      if (trimmed.length <= MAX_LOCALITY_LENGTH) {
-        locality = trimmed || undefined
-        break
-      }
-      console.log(C.yellow(`  Keep the setting under ${MAX_LOCALITY_LENGTH} characters.`))
+  while (true) {
+    const answer = await ask(
+      rl,
+      '  Case setting (optional city/region and country; no street address, Enter to skip): ',
+    )
+    const trimmed = answer.replace(/\s+/g, ' ').trim()
+    if (trimmed.length <= MAX_LOCALITY_LENGTH) {
+      locality = trimmed || undefined
+      break
     }
+    console.log(C.yellow(`  Keep the setting under ${MAX_LOCALITY_LENGTH} characters.`))
   }
 
   // Initialise session
@@ -376,16 +398,13 @@ async function main(): Promise<void> {
   console.log(`  ${C.cyan(briefing.evidenceSummary)}`)
   console.log()
 
-  // Show evidence table
   renderEvidenceTable(session)
 
-  // Show witness info
   const witness = session.caseFile.witness
   console.log(`  ${C.bold('WITNESS AVAILABLE:')} ${witness.name} — ${witness.relationship}`)
   console.log(`  ${C.dim('(You can question the witness after the interrogation — 2 questions max)')}`)
   console.log()
 
-  // Initial case strength
   renderCaseStrength(session.caseStrength, 0)
 
   console.log(`  ${C.dim('Commands: type a question, PRESENT e3: question, PRESENT e1,e3: question, /evidence, /status, /quit')}`)
@@ -474,7 +493,7 @@ async function main(): Promise<void> {
           aiRole: 'suspect',
           error: { name: error.name, message: error.message },
         },
-        [process.env.GROQ_API_KEY ?? '', process.env.XAI_API_KEY ?? ''],
+        [process.env.ANTHROPIC_API_KEY ?? ''],
       )
       throw err
     }
@@ -494,8 +513,18 @@ async function main(): Promise<void> {
     console.log(`  ${C.bold(session.caseFile.suspect.name)} ${renderDemeanor(result.suspectDemeanor)}:`)
     console.log(`  ${C.cyan('"' + result.suspectDialogue + '"')}`)
     console.log()
+
     // Show case strength update
     renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
+
+    // Show invigilator reasoning
+    if (result.invigilatorFailed) {
+      console.log(`  ${C.yellow('[Invigilator] Evaluation failed — no score change this turn.')}`)
+      console.log()
+    } else if (result.invigilatorReasoning) {
+      console.log(`  ${C.dim(`[Invigilator] ${result.invigilatorReasoning}`)}`)
+      console.log()
+    }
 
     // Show what evidence was presented
     if (result.presentedEvidenceIds.length > 0) {
@@ -537,7 +566,6 @@ async function main(): Promise<void> {
 
         if (trimmed === '/skip') {
           console.log(C.dim('  Skipping remaining witness questions.'))
-          // Force out of the witness loop
           session.witnessTurn = session.maxWitnessTurns
           question = ''
           break
@@ -562,7 +590,6 @@ async function main(): Promise<void> {
         break
       }
 
-      // /skip sets question to '' and advances witnessTurn — break out
       if (!question) break
 
       const witnessTurn = session.witnessTurn + 1
@@ -589,7 +616,7 @@ async function main(): Promise<void> {
             aiRole: 'witness',
             error: { name: error.name, message: error.message },
           },
-          [process.env.GROQ_API_KEY ?? '', process.env.XAI_API_KEY ?? ''],
+          [process.env.ANTHROPIC_API_KEY ?? ''],
         )
         throw err
       }
@@ -603,12 +630,21 @@ async function main(): Promise<void> {
       })
 
       // Show the witness's response
-      console.log(`  ${C.bold(witness.name)} ${C.dim(`(${result.witnessDemeanor})`)}:`)
+      console.log(`  ${C.bold(witness.name)} ${C.dim(`[${result.witnessDemeanor}]`)}:`)
       console.log(`  ${C.cyan('"' + result.witnessDialogue + '"')}`)
       console.log()
 
       // Show case strength update
       renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
+
+      // Show invigilator reasoning
+      if (result.invigilatorFailed) {
+        console.log(`  ${C.yellow('[Invigilator] Evaluation failed — no score change this turn.')}`)
+        console.log()
+      } else if (result.invigilatorReasoning) {
+        console.log(`  ${C.dim(`[Invigilator] ${result.invigilatorReasoning}`)}`)
+        console.log()
+      }
 
       if (result.ending) {
         renderEnding(result.ending, session)
@@ -628,7 +664,6 @@ async function main(): Promise<void> {
     console.log()
 
     if (session.caseStrength >= 80) {
-      // Should have been caught earlier, but just in case
       const ending = resolveVerdict(session, true)
       renderEnding(ending, session)
     } else {

@@ -1,13 +1,14 @@
 /**
- * Session orchestration — wires the suspect actor, witness, scoring engine,
- * and claim ledger into per-turn entry points.
+ * Session orchestration — wires the persona agent, invigilator, scoring
+ * engine, and claim ledger into per-turn entry points.
+ *
+ * Two-call flow per turn:
+ *   Call 1: Persona agent (suspect/witness) → dialogue + claims
+ *   Call 2: Invigilator agent → structured signals for scoring
  *
  * play.ts calls createSession() once, then playInterrogationTurn() for each
  * of the 6 interrogation rounds, playWitnessTurn() for each witness question,
- * and resolveVerdict() at the end. This keeps the CLI thin and makes the same
- * loop reusable for the API route in M3.
- *
- * Three-phase flow: briefing → interrogation → witness → verdict.
+ * and resolveVerdict() at the end.
  */
 
 import { generate } from './generate'
@@ -19,6 +20,12 @@ import {
   interrogateWitness,
   type InterrogateWitnessInput,
 } from './witness'
+import {
+  evaluateSuspectTurn,
+  evaluateWitnessTurn,
+  type EvaluateSuspectInput,
+  type EvaluateWitnessInput,
+} from './invigilator'
 import { addClaims } from './ledger'
 import {
   scoreSuspectTurn,
@@ -32,6 +39,8 @@ import type {
   DetectiveEvidence,
   Ending,
   GameSession,
+  InvigilatorSuspectResponse,
+  InvigilatorWitnessResponse,
   InterrogationDetail,
   SuspectResponse,
   TokenUsage,
@@ -40,10 +49,6 @@ import type {
 
 // ─── Session creation ────────────────────────────────────────────────────────
 
-/**
- * Initialise a new game session. Generates the case deterministically and
- * sets up all mutable state for the three-phase game flow.
- */
 export function createSession(
   seed: string,
   crime: CrimeType,
@@ -75,10 +80,6 @@ export function createSession(
 
 // ─── Evidence presentation parsing ──────────────────────────────────────────
 
-/**
- * Parse a player input that may include an evidence presentation prefix.
- * Formats: "PRESENT e3: ..." or "PRESENT e1,e3: ..."
- */
 export function parsePlayerInput(
   input: string,
   evidence: DetectiveEvidence[],
@@ -111,52 +112,41 @@ export type PlayInterrogationResult = {
   ending: Ending | null
   presentedEvidenceIds: string[]
   rejectedEvidenceIds: string[]
+  invigilatorReasoning: string | null
+  invigilatorFailed: boolean
 }
 
 /**
- * Orchestrate one interrogation turn. Mutates the session in place.
+ * Orchestrate one interrogation turn with two model calls:
+ *   1. Persona agent → suspect dialogue + claims
+ *   2. Invigilator agent → structured signals → scoring engine → delta
  *
- * 1. Advance turn counter, transition to interrogation phase
- * 2. Parse evidence presentation from player input
- * 3. Call suspect actor
- * 4. Update claim ledger
- * 5. Score the response
- * 6. Apply results to session state
- * 7. Check ending
- * 8. Record turn detail for breakdown
+ * If the invigilator fails after retries, the turn is zero-delta (dialogue
+ * shown, claims in ledger, no score change).
  */
 export async function playInterrogationTurn(
   session: GameSession,
   rawPlayerInput: string,
   config: ScoringConfig = SCORING_CONFIG,
 ): Promise<PlayInterrogationResult> {
-  // Transition phase on first interrogation turn
   if (session.phase === 'briefing') session.phase = 'interrogation'
 
   session.interrogationTurn++
 
-  // Parse evidence presentation
   const { presentedEvidenceIds, rejectedEvidenceIds, question } = parsePlayerInput(
     rawPlayerInput,
     session.caseFile.evidence,
   )
 
-  // Mark evidence as presented if applicable
   const presentedEvidence = session.caseFile.evidence.filter((e) =>
     presentedEvidenceIds.includes(e.id),
   )
   for (const evidence of presentedEvidence) evidence.presented = true
 
-  // Determine previous demeanor for scoring (calm on first turn)
-  const previousDemeanor: SuspectResponse['demeanor'] =
-    session.interrogationDetails.length > 0
-      ? session.interrogationDetails[session.interrogationDetails.length - 1].suspectResponse.demeanor
-      : 'calm'
-
   const csBefore = session.caseStrength
 
-  // Build suspect actor input
-  const input: InterrogateSuspectInput = {
+  // ── Call 1: Persona agent (suspect) ─────────────────────────────────────
+  const suspectInput: InterrogateSuspectInput = {
     caseFile: session.caseFile,
     turn: session.interrogationTurn,
     maxTurns: session.maxInterrogationTurns,
@@ -165,57 +155,77 @@ export async function playInterrogationTurn(
     suspectClaims: session.suspectClaims,
   }
 
-  // Call the model
-  const { response, usage } = await interrogateSuspect(input)
-
-  // Accumulate token usage
-  accumulateUsage(session.usage, usage)
+  const { response: suspectResponse, usage: suspectUsage } = await interrogateSuspect(suspectInput)
+  accumulateUsage(session.usage, suspectUsage)
 
   // Update claim ledger with suspect's new claims
   session.suspectClaims = addClaims(
     session.suspectClaims,
     session.interrogationTurn,
-    response.claims,
+    suspectResponse.claims,
     'c',
   )
 
-  // Score the turn
-  const scoreResult = scoreSuspectTurn(
-    response,
-    session.caseStrength,
-    previousDemeanor,
-    config,
-    presentedEvidenceIds,
-  )
+  // ── Call 2: Invigilator agent ───────────────────────────────────────────
+  let invigilatorResponse: InvigilatorSuspectResponse | null = null
+  let invigilatorFailed = false
 
-  // Apply scoring
-  session.caseStrength = scoreResult.newCaseStrength
-  session.caseStrengthHistory.push(session.caseStrength)
+  try {
+    const evalInput: EvaluateSuspectInput = {
+      caseFile: session.caseFile,
+      turn: session.interrogationTurn,
+      maxTurns: session.maxInterrogationTurns,
+      playerQuestion: question,
+      suspectDialogue: suspectResponse.dialogue,
+      presentedEvidence,
+      suspectClaims: session.suspectClaims,
+    }
 
-  // Check ending (CHARGED_STRONG can trigger mid-interrogation)
-  const ending = checkEnding(session.caseStrength, config)
-  if (ending) {
-    session.ending = ending
+    const { response: evalResponse, usage: evalUsage } = await evaluateSuspectTurn(evalInput)
+    accumulateUsage(session.usage, evalUsage)
+    invigilatorResponse = evalResponse
+  } catch {
+    invigilatorFailed = true
   }
 
-  // Record turn detail for post-game breakdown
+  // ── Scoring ─────────────────────────────────────────────────────────────
+  let delta = 0
+  if (invigilatorResponse) {
+    const scoreResult = scoreSuspectTurn(
+      invigilatorResponse,
+      session.caseStrength,
+      session.suspectClaims,
+      config,
+    )
+    delta = scoreResult.delta
+    session.caseStrength = scoreResult.newCaseStrength
+  }
+  session.caseStrengthHistory.push(session.caseStrength)
+
+  const ending = checkEnding(session.caseStrength, config)
+  if (ending) session.ending = ending
+
+  // Record turn detail
   const detail: InterrogationDetail = {
     turn: session.interrogationTurn,
     playerQuestion: question,
     presentedEvidenceIds,
-    suspectResponse: response,
+    suspectResponse,
+    invigilatorResponse,
     caseStrengthBefore: csBefore,
     caseStrengthAfter: session.caseStrength,
   }
   session.interrogationDetails.push(detail)
 
   return {
-    suspectDialogue: response.dialogue,
-    suspectDemeanor: response.demeanor,
-    caseStrengthDelta: scoreResult.delta,
+    suspectDialogue: suspectResponse.dialogue,
+    suspectDemeanor: suspectResponse.demeanor,
+    caseStrengthDelta: delta,
     ending,
     presentedEvidenceIds,
     rejectedEvidenceIds,
+    invigilatorReasoning: invigilatorResponse?.reasoning ?? null,
+    invigilatorFailed,
   }
 }
 
@@ -226,25 +236,28 @@ export type PlayWitnessResult = {
   witnessDemeanor: string
   caseStrengthDelta: number
   ending: Ending | null
+  invigilatorReasoning: string | null
+  invigilatorFailed: boolean
 }
 
 /**
- * Orchestrate one witness interrogation turn. Mutates the session in place.
+ * Orchestrate one witness turn with two model calls:
+ *   1. Persona agent → witness dialogue + claims
+ *   2. Invigilator agent → contradiction check → scoring
  */
 export async function playWitnessTurn(
   session: GameSession,
   playerQuestion: string,
   config: ScoringConfig = SCORING_CONFIG,
 ): Promise<PlayWitnessResult> {
-  // Transition phase on first witness turn
   if (session.phase === 'interrogation') session.phase = 'witness'
 
   session.witnessTurn++
 
   const csBefore = session.caseStrength
 
-  // Build witness input
-  const input: InterrogateWitnessInput = {
+  // ── Call 1: Persona agent (witness) ─────────────────────────────────────
+  const witnessInput: InterrogateWitnessInput = {
     caseFile: session.caseFile,
     turn: session.witnessTurn,
     maxTurns: session.maxWitnessTurns,
@@ -253,68 +266,85 @@ export async function playWitnessTurn(
     witnessClaims: session.witnessClaims,
   }
 
-  // Call the model
-  const { response, usage } = await interrogateWitness(input)
-
-  // Accumulate token usage
-  accumulateUsage(session.usage, usage)
+  const { response: witnessResponse, usage: witnessUsage } = await interrogateWitness(witnessInput)
+  accumulateUsage(session.usage, witnessUsage)
 
   // Update witness claim ledger
   session.witnessClaims = addClaims(
     session.witnessClaims,
     session.witnessTurn,
-    response.claims,
+    witnessResponse.claims,
     'wc',
   )
 
-  // Score the turn
-  const scoreResult = scoreWitnessTurn(response, session.caseStrength, config)
+  // ── Call 2: Invigilator agent ───────────────────────────────────────────
+  let invigilatorResponse: InvigilatorWitnessResponse | null = null
+  let invigilatorFailed = false
 
-  // Apply scoring
-  session.caseStrength = scoreResult.newCaseStrength
+  try {
+    const evalInput: EvaluateWitnessInput = {
+      caseFile: session.caseFile,
+      turn: session.witnessTurn,
+      maxTurns: session.maxWitnessTurns,
+      playerQuestion,
+      witnessDialogue: witnessResponse.dialogue,
+      suspectClaims: session.suspectClaims,
+      witnessClaims: session.witnessClaims,
+    }
+
+    const { response: evalResponse, usage: evalUsage } = await evaluateWitnessTurn(evalInput)
+    accumulateUsage(session.usage, evalUsage)
+    invigilatorResponse = evalResponse
+  } catch {
+    invigilatorFailed = true
+  }
+
+  // ── Scoring ─────────────────────────────────────────────────────────────
+  let delta = 0
+  if (invigilatorResponse) {
+    const scoreResult = scoreWitnessTurn(
+      invigilatorResponse,
+      session.caseStrength,
+      session.suspectClaims,
+      config,
+    )
+    delta = scoreResult.delta
+    session.caseStrength = scoreResult.newCaseStrength
+  }
   session.caseStrengthHistory.push(session.caseStrength)
 
-  // Check ending
   const ending = checkEnding(session.caseStrength, config)
-  if (ending) {
-    session.ending = ending
-  }
+  if (ending) session.ending = ending
 
   // Record turn detail
   const detail: WitnessDetail = {
     turn: session.witnessTurn,
     playerQuestion,
-    witnessResponse: response,
+    witnessResponse,
+    invigilatorResponse,
     caseStrengthBefore: csBefore,
     caseStrengthAfter: session.caseStrength,
   }
   session.witnessDetails.push(detail)
 
   return {
-    witnessDialogue: response.dialogue,
-    witnessDemeanor: response.demeanor,
-    caseStrengthDelta: scoreResult.delta,
+    witnessDialogue: witnessResponse.dialogue,
+    witnessDemeanor: witnessResponse.demeanor,
+    caseStrengthDelta: delta,
     ending,
+    invigilatorReasoning: invigilatorResponse?.reasoning ?? null,
+    invigilatorFailed,
   }
 }
 
 // ─── Verdict ────────────────────────────────────────────────────────────────
 
-/**
- * Resolve the verdict phase. Called after all interrogation + witness turns
- * if the case hasn't already ended with CHARGED_STRONG.
- *
- * If case strength < 80, the player must gamble: charge (CHARGED_WEAK — they
- * guessed correctly since the suspect is always guilty in Phase 1) or release
- * (RELEASED — the guilty suspect walks free).
- */
 export function resolveVerdict(
   session: GameSession,
   playerCharges: boolean,
 ): Ending {
   session.phase = 'verdict'
 
-  // Already ended during interrogation/witness (CHARGED_STRONG)
   if (session.ending) return session.ending
 
   const ending: Ending = playerCharges ? 'CHARGED_WEAK' : 'RELEASED'

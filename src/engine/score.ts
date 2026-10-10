@@ -1,56 +1,45 @@
 /**
  * Scoring engine — pure TypeScript, no model involvement.
  *
- * "The model acts; the engine scores." All Case Strength arithmetic lives
- * here, never in a prompt. This is what makes difficulty a config file you
- * can tune in seconds and what makes the game feel fair instead of arbitrary.
+ * "The suspect acts; the invigilator judges; the engine scores."
+ * The invigilator returns structured signals (contradictions, guilty knowledge
+ * leaks, evidence handling quality, demeanor shifts). This module converts
+ * those signals to case strength deltas using deterministic weights.
  *
- * V2 scores the ANSWER the question provoked, not the question itself.
- * Two scoring functions: one for suspect interrogation turns, one for
- * witness turns.
+ * Difficulty is a config-file change — never a prompt change.
  */
 
 import type {
-  SuspectResponse,
-  WitnessResponse,
+  InvigilatorSuspectResponse,
+  InvigilatorWitnessResponse,
   Ending,
-  GameSession,
+  Claim,
 } from './types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-/**
- * All scoring weights in one object. Tuning is a single-file change.
- */
 export const SCORING_CONFIG = {
-  // ── Starting point ─────────────────────────────────────────────────────────
   initialCaseStrength: 15,
 
-  // ── Suspect response scoring ──────────────────────────────────────────────
-  majorContradiction: 20,        // suspect contradicts their own earlier claim (major)
-  minorContradiction: 8,         // suspect contradicts their own earlier claim (minor)
+  majorContradiction: 20,
+  minorContradiction: 8,
 
-  evidenceQuality0: 12,          // terrible lie — made it worse
-  evidenceQuality1: 8,           // weak deflection — didn't address the evidence
-  evidenceQuality2: 3,           // plausible but cracked — leaves doubt
-  evidenceQuality3: 0,           // airtight — exploited the vulnerability perfectly
+  evidenceQuality0: 12,          // terrible — made it worse
+  evidenceQuality1: 8,           // weak deflection
+  evidenceQuality2: 3,           // plausible but cracked
+  evidenceQuality3: 0,           // airtight
 
-  inadvertentReveal: 15,         // accidentally revealed guilty knowledge
+  guiltyKnowledgeLeak: 15,
 
-  // ── Demeanor shifts ───────────────────────────────────────────────────────
-  demeanorShift: 3,              // shifting from calm to nervous/defensive/aggressive/evasive
+  demeanorShift: 3,
 
-  // ── Witness scoring ───────────────────────────────────────────────────────
-  witnessContradiction: 10,      // witness's honest account contradicts suspect's claim
+  witnessContradiction: 10,
 
-  // ── Turn structure ────────────────────────────────────────────────────────
   maxInterrogationTurns: 6,
   maxWitnessTurns: 2,
 
-  // ── Ending ─────────────────────────────────────────────────────────────────
   chargedThreshold: 80,
 
-  // ── Clamps ─────────────────────────────────────────────────────────────────
   caseStrengthFloor: 0,
   caseStrengthCeiling: 100,
 } as const
@@ -63,7 +52,7 @@ function clamp(min: number, max: number, val: number): number {
   return Math.max(min, Math.min(max, val))
 }
 
-// ─── Score a suspect interrogation turn ─────────────────────────────────────
+// ─── Score a suspect turn from invigilator signals ─────────────────────────
 
 export type ScoreSuspectResult = {
   delta: number
@@ -71,47 +60,40 @@ export type ScoreSuspectResult = {
 }
 
 /**
- * Score one suspect interrogation turn. Pure — reads the response and current
- * case strength, returns the delta and new value. The caller applies it.
- *
- * Tracks the previous demeanor to detect shifts. On turn 1, previousDemeanor
- * is 'calm' (the suspect hasn't spoken yet).
+ * Score one suspect turn using invigilator-detected signals.
+ * Validates claim IDs against the actual ledger before counting contradictions.
  */
 export function scoreSuspectTurn(
-  response: SuspectResponse,
+  invigilatorResponse: InvigilatorSuspectResponse,
   currentCaseStrength: number,
-  previousDemeanor: SuspectResponse['demeanor'],
+  suspectClaims: Claim[],
   config: ScoringConfig = SCORING_CONFIG,
-  presentedEvidenceIds: string[] = [],
 ): ScoreSuspectResult {
   let delta = 0
+  const claimIds = new Set(suspectClaims.map((c) => c.id))
 
-  // 1. Self-contradiction — the heaviest cost
-  if (response.selfContradiction) {
-    delta += response.selfContradiction.severity === 'major'
+  for (const contradiction of invigilatorResponse.signals.contradictions) {
+    if (!claimIds.has(contradiction.againstClaimId)) continue
+    delta += contradiction.severity === 'major'
       ? config.majorContradiction
       : config.minorContradiction
   }
 
-  // Average evidence score so presenting more items does not multiply the per-turn reward.
-  if (presentedEvidenceIds.length > 0) {
-    const evidencePoints = presentedEvidenceIds.map((id) => {
-      const quality = response.evidenceResponses.find((item) => item.evidenceId === id)?.quality ?? 1
-      if (quality === 0) return config.evidenceQuality0
-      if (quality === 1) return config.evidenceQuality1
-      if (quality === 2) return config.evidenceQuality2
-      return 0
-    })
-    delta += Math.round(evidencePoints.reduce<number>((sum, points) => sum + points, 0) / evidencePoints.length)
+  const evidencePoints: number[] = invigilatorResponse.signals.evidenceHandling.map((eh) => {
+    if (eh.quality === 0) return config.evidenceQuality0
+    if (eh.quality === 1) return config.evidenceQuality1
+    if (eh.quality === 2) return config.evidenceQuality2
+    return config.evidenceQuality3
+  })
+  if (evidencePoints.length > 0) {
+    delta += Math.round(evidencePoints.reduce((sum, p) => sum + p, 0) / evidencePoints.length)
   }
 
-  // 3. Inadvertent reveal of guilty knowledge
-  if (response.inadvertentReveal) {
-    delta += config.inadvertentReveal
+  if (invigilatorResponse.signals.guiltyKnowledgeLeak) {
+    delta += config.guiltyKnowledgeLeak
   }
 
-  // 4. Demeanor shift (calm → anything else is a signal)
-  if (previousDemeanor === 'calm' && response.demeanor !== 'calm') {
+  if (invigilatorResponse.signals.demeanorShift) {
     delta += config.demeanorShift
   }
 
@@ -124,7 +106,7 @@ export function scoreSuspectTurn(
   return { delta, newCaseStrength }
 }
 
-// ─── Score a witness turn ───────────────────────────────────────────────────
+// ─── Score a witness turn from invigilator signals ─────────────────────────
 
 export type ScoreWitnessResult = {
   delta: number
@@ -132,19 +114,22 @@ export type ScoreWitnessResult = {
 }
 
 /**
- * Score one witness interrogation turn. Simpler than suspect scoring —
- * the main signal is whether the witness contradicts a suspect claim.
+ * Score one witness turn. The invigilator checks whether the witness's
+ * testimony contradicts a suspect claim.
  */
 export function scoreWitnessTurn(
-  response: WitnessResponse,
+  invigilatorResponse: InvigilatorWitnessResponse,
   currentCaseStrength: number,
+  suspectClaims: Claim[],
   config: ScoringConfig = SCORING_CONFIG,
 ): ScoreWitnessResult {
   let delta = 0
+  const claimIds = new Set(suspectClaims.map((c) => c.id))
 
-  // Witness contradicts something the suspect claimed
-  if (response.suspectContradiction) {
-    delta += config.witnessContradiction
+  if (invigilatorResponse.signals.suspectContradiction) {
+    if (claimIds.has(invigilatorResponse.signals.suspectContradiction.againstClaimId)) {
+      delta += config.witnessContradiction
+    }
   }
 
   const newCaseStrength = clamp(
@@ -158,15 +143,6 @@ export function scoreWitnessTurn(
 
 // ─── Ending detection ────────────────────────────────────────────────────────
 
-/**
- * Check whether the game has reached an ending. Called after every scoring
- * update, during any phase.
- *
- * - CHARGED_STRONG: Case Strength ≥ 80 at any point (clean win).
- * - Verdict phase handles CHARGED_WEAK / RELEASED based on player's gamble.
- *
- * Returns null if the game continues.
- */
 export function checkEnding(
   caseStrength: number,
   config: ScoringConfig = SCORING_CONFIG,

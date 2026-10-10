@@ -132,35 +132,50 @@ export type TokenUsage = {
   cacheReadTokens: number
 }
 
-/** The AI suspect's structured response. */
+/** The AI suspect's structured response (persona agent — no self-judging). */
 export type SuspectResponse = {
   dialogue: string
   claims: { text: string; checkable: boolean }[]
-  evidenceResponses: {
-    evidenceId: string
-    strategy: 'deny' | 'explain_away' | 'deflect' | 'partial_admit'
-    quality: 0 | 1 | 2 | 3
-  }[]
-  selfContradiction: {
-    againstClaimId: string
-    quotedEarlier: string
-    quotedNow: string
-    severity: 'minor' | 'major'
-  } | null
   demeanor: 'calm' | 'nervous' | 'defensive' | 'aggressive' | 'evasive'
-  inadvertentReveal: boolean
 }
 
-/** The AI witness's structured response. */
+/** The AI witness's structured response (persona agent — no self-judging). */
 export type WitnessResponse = {
   dialogue: string
   claims: { text: string; checkable: boolean }[]
-  suspectContradiction: {
-    againstClaimId: string
-    witnessVersion: string
-    suspectVersion: string
-  } | null
   demeanor: 'cooperative' | 'reluctant' | 'nervous' | 'confused'
+}
+
+/** Invigilator's structured judgment of a suspect turn. */
+export type InvigilatorSuspectResponse = {
+  reasoning: string
+  signals: {
+    contradictions: {
+      againstClaimId: string
+      description: string
+      severity: 'minor' | 'major'
+    }[]
+    guiltyKnowledgeLeak: {
+      description: string
+    } | null
+    evidenceHandling: {
+      evidenceId: string
+      quality: 0 | 1 | 2 | 3
+      description: string
+    }[]
+    demeanorShift: boolean
+  }
+}
+
+/** Invigilator's structured judgment of a witness turn. */
+export type InvigilatorWitnessResponse = {
+  reasoning: string
+  signals: {
+    suspectContradiction: {
+      againstClaimId: string
+      description: string
+    } | null
+  }
 }
 
 export type Ending = 'CHARGED_STRONG' | 'CHARGED_WEAK' | 'RELEASED'
@@ -174,6 +189,7 @@ export type InterrogationDetail = {
   playerQuestion: string
   presentedEvidenceIds: string[]
   suspectResponse: SuspectResponse
+  invigilatorResponse: InvigilatorSuspectResponse | null
   caseStrengthBefore: number
   caseStrengthAfter: number
 }
@@ -182,6 +198,7 @@ export type WitnessDetail = {
   turn: number
   playerQuestion: string
   witnessResponse: WitnessResponse
+  invigilatorResponse: InvigilatorWitnessResponse | null
   caseStrengthBefore: number
   caseStrengthAfter: number
 }

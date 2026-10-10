@@ -3,6 +3,7 @@ node_modules/
 .env.local
 dist/
 playtest-logs/
+eval-results/
 
 # macOS filesystem metadata — this machine only, meaningless anywhere else
 .DS_Store
