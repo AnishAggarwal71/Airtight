@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIRTIGHT — Become the SME</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --surface-page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --gridline: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-blue: #2a78d6;
+    --series-orange: #eb6834;
+    --series-aqua: #1baf7a;
+    --series-yellow: #eda100;
+    --series-magenta: #e87ba4;
+    --series-violet: #4a3aa7;
+    --series-red: #e34948;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --code-bg: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --surface-page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --gridline: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-blue: #3987e5;
+      --series-orange: #d95926;
+      --series-aqua: #199e70;
+      --series-yellow: #c98500;
+      --series-magenta: #d55181;
+      --series-violet: #9085e9;
+      --series-red: #e66767;
+      --good: #0ca30c;
+      --warning: #fab219;
+      --serious: #ec835a;
+      --critical: #d03b3b;
+      --code-bg: #26262380;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --surface-page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-blue: #3987e5;
+    --series-orange: #d95926;
+    --series-aqua: #199e70;
+    --series-yellow: #c98500;
+    --series-magenta: #d55181;
+    --series-violet: #9085e9;
+    --series-red: #e66767;
+    --code-bg: #26262380;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    line-height: 1.55;
+  }
+  .shell { display: flex; min-height: 100vh; }
+
+  /* ── Sidebar nav ───────────────────────────────────────────── */
+  nav.toc {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--surface-1);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 20px 14px;
+  }
+  nav.toc h1 {
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    margin: 0 0 2px 8px;
+  }
+  nav.toc .subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 0 0 16px 8px;
+  }
+  nav.toc a {
+    display: block;
+    padding: 7px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    margin-bottom: 1px;
+  }
+  nav.toc a:hover { background: var(--code-bg); color: var(--text-primary); }
+  nav.toc a.active { background: var(--series-blue); color: white; }
+  nav.toc .progress-wrap {
+    margin: 14px 8px 18px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--gridline);
+    overflow: hidden;
+  }
+  nav.toc .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--series-aqua);
+    transition: width 0.2s;
+  }
+  nav.toc .theme-toggle {
+    margin: 10px 8px 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-align: center;
+  }
+
+  /* ── Main content ──────────────────────────────────────────── */
+  main { flex: 1; max-width: 880px; padding: 48px 56px 120px; }
+  section { margin-bottom: 76px; scroll-margin-top: 24px; }
+  section h2 {
+    font-size: 26px;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  section h2 .num {
+    color: var(--text-muted);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  section .lede {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 640px;
+  }
+  h3 { font-size: 17px; margin: 32px 0 10px; }
+  h4 { font-size: 14px; margin: 20px 0 8px; color: var(--text-secondary); }
+  p { font-size: 14.5px; color: var(--text-primary); }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+  pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    line-height: 1.5;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 14px 0;
+  }
+  .callout {
+    border-left: 3px solid var(--series-blue);
+    background: var(--surface-1);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  .callout.why { border-left-color: var(--series-orange); }
+  .callout.gotcha { border-left-color: var(--critical); }
+  .callout strong.tag {
+    display: inline-block;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  /* ── Expand/collapse "file card" ──────────────────────────── */
+  .filecard {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 10px 0;
+    background: var(--surface-1);
+    overflow: hidden;
+  }
+  .filecard > summary {
+    cursor: pointer;
+    padding: 12px 16px;
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    list-style: none;
+  }
+  .filecard > summary::-webkit-details-marker { display: none; }
+  .filecard > summary::before {
+    content: '▸';
+    color: var(--text-muted);
+    font-size: 11px;
+    transition: transform 0.15s;
+  }
+  .filecard[open] > summary::before { transform: rotate(90deg); }
+  .filecard > summary .path {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    color: var(--series-blue);
+  }
+  .filecard > summary .what {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .filecard .body { padding: 2px 16px 16px; }
+  .filecard .fn {
+    margin: 10px 0;
+    padding: 10px 12px;
+    background: var(--code-bg);
+    border-radius: 6px;
+  }
+  .filecard .fn .sig {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--series-violet);
+  }
+  .filecard .fn p { margin: 6px 0 0; font-size: 13px; color: var(--text-secondary); }
+
+  /* ── Boundary table ────────────────────────────────────────── */
+  table.boundary { width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0; }
+  table.boundary th, table.boundary td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gridline);
+    vertical-align: top;
+  }
+  table.boundary th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  table.boundary td.yes { color: var(--good); }
+  table.boundary td.no { color: var(--critical); }
+
+  /* ── Pipeline diagram ─────────────────────────────────────── */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0;
+    font-size: 12.5px;
+    flex-wrap: wrap;
+  }
+  .pipe-node {
+    background: var(--surface-1);
+    border: 1.5px solid var(--baseline);
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: center;
+    min-width: 110px;
+  }
+  .pipe-node.call1 { border-color: var(--series-blue); }
+  .pipe-node.call2 { border-color: var(--series-orange); }
+  .pipe-node.engine { border-color: var(--series-aqua); }
+  .pipe-arrow { color: var(--text-muted); padding: 0 10px; font-size: 16px; }
+  .pipe-label { font-size: 10px; color: var(--text-muted); display:block; margin-top:3px; }
+
+  /* ── Turn simulator ────────────────────────────────────────── */
+  .sim {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 20px 22px;
+    margin: 20px 0;
+  }
+  .sim-steps { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+  .sim-step-dot {
+    flex: 1;
+    min-width: 70px;
+    text-align: center;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    padding: 6px 4px;
+    border-radius: 6px;
+    border: 1px solid var(--gridline);
+    cursor: pointer;
+  }
+  .sim-step-dot.active { background: var(--series-blue); color: white; border-color: var(--series-blue); }
+  .sim-step-dot.done { color: var(--good); }
+  .sim-content { min-height: 170px; }
+  .sim-content .speaker { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 4px; }
+  .sim-content .bubble {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    margin-bottom: 10px;
+  }
+  .sim-nav { display: flex; justify-content: space-between; margin-top: 14px; }
+  .sim-nav button {
+    font-family: inherit;
+    font-size: 12.5px;
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--baseline);
+    background: var(--surface-1);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .sim-nav button:hover { background: var(--code-bg); }
+  .sim-nav button:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── Scoring calculator ───────────────────────────────────── */
+  .calc { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; }
+  @media (max-width: 760px) { .calc { grid-template-columns: 1fr; } }
+  .calc-controls .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--gridline);
+    font-size: 13px;
+  }
+  .calc-controls select, .calc-controls input[type=checkbox] { cursor: pointer; }
+  .calc-result {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .cs-bar-track {
+    width: 100%;
+    height: 22px;
+    background: var(--gridline);
+    border-radius: 11px;
+    overflow: hidden;
+    margin: 10px 0;
+  }
+  .cs-bar-fill {
+    height: 100%;
+    background: var(--series-blue);
+    transition: width 0.3s ease;
+    border-radius: 11px;
+  }
+  .cs-number { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cs-delta { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .cs-ending { font-size: 12px; margin-top: 8px; padding: 4px 10px; border-radius: 12px; }
+  .cs-ending.strong { background: var(--good); color: white; }
+  .cs-ending.pending { background: var(--gridline); color: var(--text-muted); }
+
+  /* ── Quiz / cheat sheet ───────────────────────────────────── */
+  .quiz-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 12px 0;
+    background: var(--surface-1);
+  }
+  .quiz-card .q { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .quiz-card .reveal-btn {
+    font-size: 12px;
+    color: var(--series-blue);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+  }
+  .quiz-card .answer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--gridline);
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: none;
+  }
+  .quiz-card .answer.shown { display: block; }
+
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+  .badge {
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+
+  .terminal {
+    background: #0d0d0d;
+    color: #d8d8d4;
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+  .terminal .prompt { color: var(--series-aqua); }
+  .terminal .comment { color: #898781; }
+  .terminal .out { color: #d8d8d4; }
+  .terminal .green { color: #4ad24a; }
+  .terminal .red { color: #e66767; }
+
+  .step-list { margin: 0; padding-left: 0; list-style: none; counter-reset: step; }
+  .step-list li {
+    counter-increment: step;
+    position: relative;
+    padding: 10px 0 10px 36px;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .step-list li:last-child { border-bottom: none; }
+  .step-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--series-blue);
+    color: white;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .step-list li strong { display: block; margin-bottom: 2px; }
+  .step-list li span.detail { color: var(--text-secondary); }
+
+  .end-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--gridline);
+  }
+  .end-nav a { font-size: 13px; color: var(--series-blue); text-decoration: none; }
+
+  ::selection { background: var(--series-yellow); color: #0b0b0b; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="toc" id="toc">
+    <h1>AIRTIGHT</h1>
+    <p class="subtitle">Interview SME Builder</p>
+    <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    <a href="#pitch">0. The elevator pitch</a>
+    <a href="#journey">1. V1 → V2 → V3</a>
+    <a href="#commands">2. What each command does</a>
+    <a href="#boundaries">3. Three views of one case</a>
+    <a href="#turn">4. Anatomy of a turn</a>
+    <a href="#files">5. File-by-file tour</a>
+    <a href="#scoring">6. Scoring, live</a>
+    <a href="#eval">7. The eval harness</a>
+    <a href="#cheatsheet">8. Interview cheat sheet</a>
+    <div class="theme-toggle" id="themeToggle">Toggle theme</div>
+  </nav>
+
+  <main>
+
+    <!-- ============================================================ -->
+    <section id="pitch">
+      <h2><span class="num">00</span> What is this thing, in one breath?</h2>
+      <p class="lede">The sentence you say first, before anyone asks a follow-up.</p>
+
+      <div class="card">
+        <p style="font-size:16px; margin:0;">
+          AIRTIGHT is a text-based interrogation game. <strong>You play the detective.</strong>
+          An AI plays a suspect who is <em>always guilty</em> and will lie to you convincingly.
+          A second, independent AI — invisible to the player — watches the conversation from
+          a God's-eye view and silently scores how well you're actually dismantling the lie.
+          A third piece of plain code turns that score into a number you can watch rise and fall:
+          <strong>Case Strength</strong>. Get it to 80, you've built an airtight case.
+        </p>
+      </div>
+
+      <p>
+        The reason this is a <em>portfolio piece</em> and not just a toy is the architecture
+        decision baked into that one sentence: <strong>one model acts, a different model
+        judges, and neither of them does math.</strong> That split — and the reasons it exists —
+        is 80% of what you need to be able to defend in an interview.
+      </p>
+
+      <div class="badge-row">
+        <span class="badge">Multi-agent orchestration</span>
+        <span class="badge">LLM-as-judge</span>
+        <span class="badge">Structured output (Zod)</span>
+        <span class="badge">Deterministic scoring engine</span>
+        <span class="badge">Information-boundary design</span>
+        <span class="badge">Eval pipeline</span>
+        <span class="badge">Seeded procedural generation</span>
+      </div>
+
+      <div class="callout why">
+        <strong class="tag">Why this matters for the interview</strong>
+        Nobody will ask "what does <code>ledger.ts</code> do" cold. They'll ask
+        "walk me through a design decision you made and why." This doc is built
+        backwards from that question — every section ends with the "why," not just the "what."
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="journey">
+      <h2><span class="num">01</span> The journey: V1 → V2 → V3</h2>
+      <p class="lede">
+        This project went through two full redesigns. Knowing <em>why</em> each one happened —
+        and being able to say "I tried X, it broke in Y way, so I did Z instead" — is the single
+        most interview-proof thing in this whole repo. It shows iteration, not a plan that
+        arrived fully formed.
+      </p>
+
+      <h3>V1 — the thin version</h3>
+      <p>
+        The player was the <strong>guilty suspect</strong>, being interrogated by an AI
+        detective. The AI's job was to judge the player's answers, extract claims, and flag
+        contradictions. It worked, but as a portfolio piece it's a flat classification task —
+        "AI reads text, decides good or bad." Not much of a story to tell.
+      </p>
+
+      <h3>V2 — flip the roles</h3>
+      <p>
+        Roles flipped: <strong>the player becomes the detective</strong>, and the AI now has to
+        <em>act</em> — play a lying suspect (and a separate witness) under adversarial
+        questioning. This is a much richer problem: the model has to perform a consistent lie,
+        stay in character, and a second persona (witness) can independently corroborate or
+        contradict it. Much better AI-engineering story.
+      </p>
+      <p>
+        But V2 had <strong>one model call per turn</strong> doing two jobs: writing the suspect's
+        dialogue <em>and</em> self-reporting whether it had just contradicted itself or let
+        something slip (<code>selfContradiction</code>, <code>inadvertentReveal</code> fields on
+        its own structured output).
+      </p>
+
+      <div class="callout gotcha">
+        <strong class="tag">The failure that forced V3</strong>
+        Playtesting proved this doesn't work. The suspect model reported
+        <code>selfContradiction: false</code> and <code>inadvertentReveal: null</code> on
+        <em>every single turn</em>, across multiple full games — even in turns where it
+        obviously contradicted itself in the dialogue a human could read right there on screen.
+        Case Strength never moved off its starting value. The model will not reliably rat
+        itself out while it's busy performing the lie. Self-judging doesn't work.
+      </div>
+
+      <h3>V3 — split the brain in two</h3>
+      <p>
+        The fix: stop asking one model to both perform and grade its own performance.
+        V3 introduces a second, independent agent — the <strong>Invigilator</strong> — that
+        sees everything (the truth, all evidence, the suspect's hidden strategy) and judges the
+        dialogue from the outside, the same way a reader could. It returns structured
+        <em>signals</em>, not opinions, and a third component — plain deterministic TypeScript —
+        turns those signals into the actual score.
+      </p>
+
+      <table class="boundary">
+        <tr><th></th><th>V1</th><th>V2</th><th>V3 (current)</th></tr>
+        <tr><td>Player plays</td><td>Suspect</td><td>Detective</td><td>Detective</td></tr>
+        <tr><td>AI plays</td><td>Detective/judge</td><td>Suspect + witness, self-judged</td><td>Suspect + witness (actor) <strong>and</strong> an independent judge</td></tr>
+        <tr><td>Who catches contradictions</td><td>The AI, directly</td><td>The suspect, about itself — unreliable</td><td>A separate Invigilator agent with full case knowledge</td></tr>
+        <tr><td>Score math</td><td>n/a</td><td>From self-report</td><td>Deterministic engine reading judge signals</td></tr>
+        <tr><td>Model calls/game</td><td>8</td><td>8</td><td>16 (two per turn)</td></tr>
+      </table>
+
+      <div class="callout why">
+        <strong class="tag">The one-liner to say out loud</strong>
+        "The suspect acts; the invigilator judges; the engine scores." That's the whole V3
+        thesis in six words, and it's the literal phrase used in the codebase's own
+        documentation (<code>CLAUDE.md</code>) as the non-negotiable architecture rule.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="commands">
+      <h2><span class="num">02</span> What actually happens when you run a command</h2>
+      <p class="lede">
+        You said you run <code>npm run play</code> and things happen, but you don't know what.
+        Let's fix that for every command you have.
+      </p>
+
+      <h3><code>npx tsc --noEmit</code></h3>
+      <p>
+        <code>tsc</code> is the TypeScript compiler. <code>--noEmit</code> means
+        "don't actually produce any JavaScript files — just check whether the types line up."
+        Nothing runs, nothing is written to disk. It's a pure correctness check: did you call a
+        function with the wrong shape of object, forget a field a type requires, typo a property
+        name? If this command prints nothing, your code type-checks cleanly. If it fails, every
+        line is a place where what you wrote doesn't match what a type definition promised.
+      </p>
+      <div class="terminal">
+<span class="prompt">$</span> npx tsc --noEmit
+<span class="comment">(no output = success — silence is the pass condition)</span>
+      </div>
+
+      <h3><code>npm run verify</code></h3>
+      <p>
+        Runs <code>src/cli/verify.ts</code>. This is a <strong>zero-cost, zero-API-call</strong>
+        sanity suite — it never talks to a model. It calls the pure case-generation function
+        (<code>generate()</code>) over and over with different seeds and checks eight invariants
+        about the <em>engine itself</em>, not about any AI's behavior:
+      </p>
+      <ol class="step-list">
+        <li><strong>Determinism</strong><span class="detail">Same seed in → byte-identical case file out, every time (checked across 40 seed/crime pairs, plus a locality variant, plus the whole truth timeline staying internally consistent).</span></li>
+        <li><strong>Leak-safety</strong><span class="detail">Serialize the "public" version of a case (what the player would actually see) to a string, then grep that string for every truth-timeline fact, every evidence vulnerability, the fatal fact, the suspect's cover story/personality/guilty knowledge, and the witness's hidden fields. None of them should appear. Evidence <em>claims</em>, on the other hand, must appear — the player is supposed to see those.</span></li>
+        <li><strong>Template integrity</strong><span class="detail">Every generated case has 4–5 evidence items with unique IDs, none pre-presented, every item has a vulnerability and valid linked timeline beats, a fatal fact, a full suspect persona, a detective briefing, and a complete witness profile.</span></li>
+        <li><strong>Coverage</strong><span class="detail">Generate 400 cases and confirm every active template actually gets picked at least once — no template is unreachable dead code.</span></li>
+        <li><strong>Variance</strong><span class="detail">The same template, fed 120 different seeds, should produce at least 10 meaningfully distinct cases (different names, different victim, different start time) — otherwise the "randomisation" is cosmetic.</span></li>
+      </ol>
+      <div class="terminal">
+<span class="prompt">$</span> npm run verify
+  <span class="green">ok</span>   generate() is deterministic across 40 seed/crime pairs
+  <span class="green">ok</span>   homicide locality context is included deterministically
+  <span class="green">ok</span>   homicide timeline keeps the suspect inside until before their exit
+  <span class="green">ok</span>   multiple evidence input parses lists and rejects already-presented items
+  <span class="green">ok</span>   toPublicCase() hides strategy, shows evidence — inverted boundary correct
+  <span class="green">ok</span>   all templates produce well-formed V2 case files
+  <span class="green">ok</span>   all 2 active templates reachable
+  <span class="green">ok</span>   slot randomisation produces high variance within each template
+
+  <span class="green">V2 green.</span>
+      </div>
+      <div class="callout gotcha">
+        <strong class="tag">A wrinkle worth knowing about, in case it comes up</strong>
+        That final banner literally prints <code>"V2 green."</code> even though the codebase is
+        architecturally on V3 now — it's a leftover label nobody has gone back to rename. It's
+        harmless (the checks it runs are still exactly right for V3), but if you're demoing this
+        live and someone sharp-eyed asks "wait, V2?" — you now have the honest answer: cosmetic
+        drift in a console message, not a versioning bug.
+      </div>
+
+      <h3><code>npm run case homicide</code> and <code>npm run case:public homicide</code></h3>
+      <p>
+        Both run <code>src/cli/inspect.ts</code>, which calls <code>generate()</code> once and
+        dumps the result as JSON to your terminal — no model call, instant. The first command
+        dumps the <strong>full</strong> case file: the truth, every vulnerability, the suspect's
+        entire hidden persona, the fatal fact — everything. The <code>:public</code> variant runs
+        the exact same case through <code>toPublicCase()</code> first, so you see <em>exactly</em>
+        what the player sees: evidence claims, the briefing, names — nothing else. Running both
+        side-by-side on the same seed is the fastest way to literally see the information
+        boundary with your own eyes.
+      </p>
+      <div class="terminal">
+<span class="prompt">$</span> npm run case test-seed-1 homicide     <span class="comment"># pin a seed — same case every time</span>
+<span class="prompt">$</span> npm run case:public test-seed-1 homicide   <span class="comment"># same seed, player's view only</span>
+      </div>
+
+      <h3><code>npm run play</code></h3>
+      <p>
+        Runs <code>src/cli/play.ts</code> — the actual game, and the <em>only</em> command here
+        that spends API calls / money. Full flow: check for an API key → (optionally) ask for a
+        locality → <code>createSession()</code> generates the case → print the detective
+        briefing and evidence table → 6 rounds of suspect interrogation → 2 rounds of witness
+        questioning → you decide whether to charge → a full post-game breakdown that costs zero
+        extra model calls because everything needed is already sitting in session state. Section
+        4 below walks through exactly what happens inside <em>one</em> of those rounds.
+      </p>
+
+      <h3><code>npm run eval</code> and <code>npm run eval -- --games N</code></h3>
+      <p>
+        Runs <code>src/cli/eval.ts</code>. This is the calibration harness — see section 7 for
+        the full breakdown. Short version: with no flags it runs 18 hand-written test cases
+        against the Invigilator to measure how accurate the judge is. With <code>--games N</code>
+        it <em>also</em> plays N full automated games against a hardcoded detective script and
+        reports aggregate stats (ending distribution, average score, how often signals fire).
+      </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="boundaries">
+      <h2><span class="num">03</span> Three views of one case file</h2>
+      <p class="lede">
+        One <code>CaseFile</code> object exists on the server. Three different "readers" of it
+        are allowed to see three different slices. This is the security model of the whole game —
+        if any of these boundaries break, the game is "solved" by reading debug output instead
+        of by playing it.
+      </p>
+
+      <table class="boundary">
+        <tr><th>Agent</th><th>Sees</th><th>Must never see</th></tr>
+        <tr>
+          <td><strong>Player</strong> (you, the detective)</td>
+          <td>Evidence claims, the briefing, suspect/witness names</td>
+          <td>Truth timeline, evidence vulnerabilities, suspect persona, guilty knowledge, fatal fact</td>
+        </tr>
+        <tr>
+          <td><strong>Persona Agent</strong> (plays the suspect)</td>
+          <td>The truth, its own persona, cover story, guilty knowledge, breaking points, fatal fact</td>
+          <td>What evidence the detective is holding, and <em>any</em> evidence vulnerability</td>
+        </tr>
+        <tr>
+          <td><strong>Invigilator</strong> (the judge)</td>
+          <td>Literally everything — truth, every vulnerability, persona, full claim ledger</td>
+          <td>Nothing is hidden from it</td>
+        </tr>
+      </table>
+
+      <div class="callout why">
+        <strong class="tag">Why the suspect is deliberately kept blind to evidence</strong>
+        If the suspect model knew which evidence item had which weakness, it would always find
+        the perfect deflection — it's an LLM, it's extremely good at that if you just hand it the
+        answer key. By hiding evidence from the suspect's prompt entirely, it has to
+        <em>improvise</em> a reaction in character, the same way a real guilty person would be
+        caught off guard. That's what makes presenting evidence a meaningful game mechanic
+        instead of a formality.
+      </div>
+
+      <h3>Try it yourself, right here</h3>
+      <p>Click each role to see what it's handed about the same single piece of information — the fact that a wine bottle is missing and ended up in a canal.</p>
+
+      <div class="card" id="boundaryDemo">
+        <div style="display:flex; gap:10px; margin-bottom:14px;">
+          <button class="bd-btn" data-role="player">Player</button>
+          <button class="bd-btn" data-role="suspect">Persona Agent</button>
+          <button class="bd-btn" data-role="judge">Invigilator</button>
+        </div>
+        <div id="bdOutput" style="font-size:13.5px; min-height: 70px;"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="turn">
+      <h2><span class="num">04</span> Anatomy of one interrogation turn</h2>
+      <p class="lede">
+        This is the core loop, 6 times per game for suspect questions and 2 more for the witness.
+        Step through it below exactly the way <code>playInterrogationTurn()</code> in
+        <code>session.ts</code> executes it.
+      </p>
+
+      <div class="pipeline">
+        <div class="pipe-node">Player types a question<span class="pipe-label">optionally: PRESENT e3: ...</span></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node call1">CALL 1<br>Persona Agent<span class="pipe-label">adjudicate.ts</span></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node">Claim ledger updated<span class="pipe-label">ledger.ts</span></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node call2">CALL 2<br>Invigilator<span class="pipe-label">invigilator.ts</span></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node engine">Scoring engine<span class="pipe-label">score.ts, pure math</span></div>
+      </div>
+
+      <div class="sim" id="turnSim">
+        <div class="sim-steps" id="simSteps"></div>
+        <div class="sim-content" id="simContent"></div>
+        <div class="sim-nav">
+          <button id="simPrev" disabled>← Back</button>
+          <button id="simNext">Next →</button>
+        </div>
+      </div>
+
+      <div class="callout gotcha">
+        <strong class="tag">The one subtlety worth remembering</strong>
+        Call 1's dialogue is shown to the player <em>immediately</em> — the game doesn't make you
+        wait for Call 2. The invigilator runs in the background while the player is still reading
+        what the suspect said. If Call 2 fails even after retries, the turn becomes a
+        <strong>zero-delta turn</strong>: the dialogue stays on screen, the claims still get
+        logged to the ledger, but Case Strength doesn't move and a warning prints. The game never
+        pretends a failed judgment call succeeded.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="files">
+      <h2><span class="num">05</span> File-by-file, function-by-function</h2>
+      <p class="lede">
+        Click any file to expand it. These are grouped the way the engine actually flows:
+        generation → acting → judging → scoring → orchestration → CLI.
+      </p>
+
+      <h3>Generation</h3>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/rng.ts</span><span class="what">— seeded, deterministic randomness</span></summary>
+        <div class="body">
+          <p>
+            Nothing about this file touches the network or an LLM. It exists because
+            <code>generate()</code> is required to be <strong>pure</strong>: same seed in,
+            byte-identical case out, forever. <code>Math.random()</code> can't do that —
+            it's different every call. So this file hand-rolls a deterministic generator.
+          </p>
+          <div class="fn"><span class="sig">cyrb128(str) → [number,number,number,number]</span><p>Hashes a seed string into four 32-bit integers. Pure string → number mixing, no randomness involved yet.</p></div>
+          <div class="fn"><span class="sig">sfc32(a,b,c,d) → () => number</span><p>A fast, well-distributed PRNG algorithm seeded by those four integers. Returns a function you call repeatedly to get the next pseudo-random float.</p></div>
+          <div class="fn"><span class="sig">class Rng { float(), int(min,max), pick(arr), sample(arr,n), shuffle(arr), chance(p) }</span><p>The actual API the rest of the engine uses. Constructed from a seed string; discards its first 12 draws on purpose so that similar seeds (like <code>"abc1"</code> vs <code>"abc2"</code>) don't produce correlated early numbers.</p></div>
+          <div class="fn"><span class="sig">randomSeed() → string</span><p>The <em>only</em> function in this file that touches real <code>Math.random()</code> — used once, to generate a fresh human-readable seed like <code>"mallard-7719"</code> when you don't pin one yourself.</p></div>
+        </div>
+      </details>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/templates/homicide.ts</span><span class="what">— "the stairwell": the one active crime scenario</span></summary>
+        <div class="body">
+          <p>
+            A template is a function that takes an <code>Rng</code> and returns a fully-formed
+            case. "The stairwell" randomizes: victim/suspect/witness names, the time window,
+            a debt amount, two offset times (when the suspect's phone drops off wifi, and when
+            their keycard opens an exit door), their relationship to the victim, their
+            occupation, and the building name. Everything else — the plot — is fixed:
+          </p>
+          <p>Argument about a debt → victim refuses to pay → suspect grabs a wine bottle →
+          strikes the victim twice → stages the body to look like a fall → goes back for the
+          bottle (phone still connects to wifi during this) → exits through the bin store →
+          dumps the bottle and jacket in a canal.</p>
+          <p>5 evidence items, each with a player-visible <code>claim</code> and a hidden
+          <code>vulnerability</code> only the Invigilator sees — e.g. the keycard log
+          (vulnerability: cards get lent out to other people) or the wifi log (vulnerability:
+          the router covers the whole east side of the building, not just the flat).</p>
+        </div>
+      </details>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/generate.ts</span><span class="what">— seed + crime → CaseFile, and the security boundary itself</span></summary>
+        <div class="body">
+          <div class="fn"><span class="sig">generate(opts: {seed, crime, locality?}) → CaseFile</span><p>Builds an <code>Rng</code> from <code>seed::crime</code>, picks a template for that crime, calls its <code>build()</code>, and stamps every evidence item <code>presented: false</code>. <strong>Must stay pure</strong> — no <code>Date.now()</code>, no module-level mutable state. The server calls this fresh every turn instead of saving the case anywhere.</p></div>
+          <div class="fn"><span class="sig">toPublicCase(file: CaseFile) → PublicCase</span><p>The actual security boundary. Strips a full <code>CaseFile</code> down to only what the player is allowed to see. This is the function verify.ts's leak-safety check is protecting.</p></div>
+        </div>
+      </details>
+
+      <h3>Acting (Persona Agent)</h3>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/ledger.ts</span><span class="what">— claim bookkeeping, not a transcript</span></summary>
+        <div class="body">
+          <div class="callout why" style="margin-top:0;">
+            <strong class="tag">Why this file exists at all</strong>
+            Feeding a growing wall of raw transcript back to a model every turn gets expensive
+            and unreliable fast. Instead, every turn the model's own structured output includes
+            1–3 short, normalized claims ("The suspect left the building before half past.").
+            The invigilator can then say "this contradicts claim <code>c3</code>" — a far more
+            reliable check than "spot the inconsistency in 4,000 tokens of dialogue."
+          </div>
+          <div class="fn"><span class="sig">addClaims(existing, turn, newClaims, prefix='c') → Claim[]</span><p>Appends new claims with sequential IDs. Suspect claims get prefix <code>c</code> (c1, c2...), witness claims get <code>wc</code> (wc1, wc2...) — two separate ledgers, never mixed.</p></div>
+          <div class="fn"><span class="sig">serializeLedger(claims) → string</span><p>Formats the ledger as plain text for a model prompt. Returns <code>"No prior claims."</code> on turn 1.</p></div>
+        </div>
+      </details>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/adjudicate.ts</span><span class="what">— the suspect's brain, and the one-line model swap</span></summary>
+        <div class="body">
+          <p>Despite the historical name (it judged things in V1), this file is now purely the
+          <strong>actor</strong>. It exports <code>MODEL</code> — a single constant every other
+          agent file imports, so switching providers (Groq, xAI, Anthropic, OpenAI, Gemini,
+          OpenRouter) is a one-line change here and nowhere else.</p>
+          <div class="fn"><span class="sig">SuspectResponseSchema (Zod)</span><p><code>{ dialogue: string, claims: {text, checkable}[], demeanor: enum }</code>. Deliberately has <strong>no self-judging fields</strong> anymore — that's the whole V2→V3 fix.</p></div>
+          <div class="fn"><span class="sig">buildSuspectSystemPrompt(caseFile) → string</span><p>Static per case file (so it can be prompt-cached). Includes the suspect's identity, cover story, the real truth timeline, guilty knowledge, breaking points, and the fatal fact. Explicitly tells the model: "You do NOT know what evidence the detective has."</p></div>
+          <div class="fn"><span class="sig">interrogateSuspect(input) → {response, usage}</span><p>The actual API call via Vercel AI SDK's <code>generateObject()</code>, capped at 2048 output tokens. Throws (doesn't fake a response) if the request fails.</p></div>
+        </div>
+      </details>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/witness.ts</span><span class="what">— the second persona</span></summary>
+        <div class="body">
+          <p>Same shape as <code>adjudicate.ts</code> but for the witness character (an elderly
+          neighbour, in the stairwell template). Imports <code>MODEL</code> from
+          <code>adjudicate.ts</code> rather than redefining it. The schema used to carry a
+          <code>suspectContradiction</code> field (self-reported) — removed in V3, because that
+          judgment now belongs to the Invigilator too.</p>
+        </div>
+      </details>
+
+      <h3>Judging (Invigilator Agent)</h3>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/invigilator.ts</span><span class="what">— new in V3. The LLM-as-judge.</span></summary>
+        <div class="body">
+          <p>
+            A completely separate model call with a completely different system prompt — one
+            that includes <em>everything</em> the suspect's prompt deliberately leaves out:
+            every evidence vulnerability, the full persona, the fatal fact. It never writes
+            dialogue; it only ever evaluates dialogue that already happened.
+          </p>
+          <div class="fn"><span class="sig">SuspectInvigilatorSchema (Zod)</span><p><code>{ reasoning: string, signals: { contradictions[], guiltyKnowledgeLeak | null, evidenceHandling[], demeanorShift } }</code>. Each contradiction references a specific claim ID and a severity (<code>minor</code>/<code>major</code>). Evidence handling is scored 0–3 per presented item. Notice: <strong>signals, not points</strong> — the model never decides the score.</p></div>
+          <div class="fn"><span class="sig">buildInvigilatorSystemPrompt(caseFile) → string</span><p>The "sees everything" prompt — truth, fatal fact, full persona + guilty knowledge + breaking points, every evidence item <em>with</em> its vulnerability, witness profile and known suspect-contradictions, plus 8 explicit judging rules (be conservative, quote claim IDs, judge only what was said, not what was "implied").</p></div>
+          <div class="fn"><span class="sig">evaluateSuspectTurn(input) / evaluateWitnessTurn(input)</span><p>The calls themselves. Retries up to 2 extra times (<code>MAX_INVIGILATOR_RETRIES = 2</code>) before giving up and throwing — which is what triggers the zero-delta-turn fallback in <code>session.ts</code>.</p></div>
+        </div>
+      </details>
+
+      <h3>Scoring (deterministic engine)</h3>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/score.ts</span><span class="what">— plain TypeScript. No model calls. No randomness.</span></summary>
+        <div class="body">
+          <p>Everything here is ordinary arithmetic reading the Invigilator's structured signals.
+          See section 6 for a live, clickable version of this exact logic.</p>
+          <div class="fn"><span class="sig">scoreSuspectTurn(invigilatorResponse, currentCS, suspectClaims) → {delta, newCaseStrength}</span><p>Sums weighted points for every contradiction, averages points across all presented-evidence quality ratings, adds a flat bonus for a guilty-knowledge leak and for a demeanor shift. <strong>Validates every <code>againstClaimId</code> against the real ledger first</strong> — a hallucinated claim ID from the model is silently dropped, so the Invigilator can't inflate the score by inventing contradictions against claims that don't exist.</p></div>
+          <div class="fn"><span class="sig">scoreWitnessTurn(...) → {delta, newCaseStrength}</span><p>Same claim-ID-validation pattern, but only one possible signal: did the witness contradict a specific suspect claim.</p></div>
+          <div class="fn"><span class="sig">checkEnding(caseStrength) → Ending | null</span><p>Returns <code>'CHARGED_STRONG'</code> the instant Case Strength reaches 80, else <code>null</code>.</p></div>
+        </div>
+      </details>
+
+      <h3>Orchestration & CLI</h3>
+
+      <details class="filecard">
+        <summary><span class="path">src/engine/session.ts</span><span class="what">— wires the two calls together, turn by turn</span></summary>
+        <div class="body">
+          <div class="fn"><span class="sig">createSession(seed, crime, config?, templateId?, locality?) → GameSession</span><p>Calls <code>generate()</code> once and sets up the mutable game state — Case Strength starts at the configured 15, with a history array seeded with that starting value.</p></div>
+          <div class="fn"><span class="sig">parsePlayerInput(input, evidence) → {presentedEvidenceIds, rejectedEvidenceIds, question}</span><p>Regex-parses the <code>PRESENT e1, e3: question text</code> syntax, de-dupes evidence IDs, and rejects any ID that's already been presented in a prior turn.</p></div>
+          <div class="fn"><span class="sig">playInterrogationTurn(session, rawInput) → Promise&lt;...&gt;</span><p>The full two-call flow from section 4, wrapped in a try/catch around Call 2 specifically — if the Invigilator throws, the turn is marked <code>invigilatorFailed: true</code> and scoring is skipped, but the dialogue and claims are kept.</p></div>
+          <div class="fn"><span class="sig">playWitnessTurn(session, question) → Promise&lt;...&gt;</span><p>Identical pattern, witness mode.</p></div>
+          <div class="fn"><span class="sig">resolveVerdict(session, playerCharges) → Ending</span><p>If Case Strength already hit 80 mid-game, that ending stands regardless. Otherwise: charging below 80 is <code>CHARGED_WEAK</code> (a gamble — always correct since the suspect is always guilty in this phase), not charging is <code>RELEASED</code> — the losing ending.</p></div>
+        </div>
+      </details>
+
+      <details class="filecard">
+        <summary><span class="path">src/cli/play.ts</span><span class="what">— the terminal game itself</span></summary>
+        <div class="body">
+          <p>~700 lines, murder-only. Flow: check for an API key → optional locality prompt →
+          <code>createSession()</code> → print briefing + evidence table → 6 interrogation turns →
+          2 witness turns → verdict → an 11-section post-game breakdown (final score, the real
+          truth timeline revealed, the single biggest turning-point turn, a Case-Strength
+          sparkline over time, the Invigilator's per-turn reasoning, the suspect's strategy
+          revealed, every evidence item's quality rating, the full annotated claim ledger with
+          contradictions tagged, token usage totals). In-game commands: <code>/evidence</code>,
+          <code>/status</code>, <code>/quit</code>.</p>
+          <div class="callout why">
+            <strong class="tag">Why the breakdown is free</strong>
+            Nothing in the breakdown calls a model. Every fact it prints — the truth, the
+            vulnerabilities, every Invigilator verdict — was already generated and stored during
+            play. Post-game analysis is just re-reading session state, which is why it's
+            instant and costs $0.
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="scoring">
+      <h2><span class="num">06</span> Scoring, live — play with the real weights</h2>
+      <p class="lede">
+        This panel runs the <em>exact</em> arithmetic from <code>SCORING_CONFIG</code> in
+        <code>score.ts</code>. Flip signals on and off and watch Case Strength move the same way
+        it would mid-game.
+      </p>
+
+      <div class="calc">
+        <div class="calc-controls">
+          <div class="row">
+            <span>Starting Case Strength</span>
+            <input type="range" id="startCS" min="0" max="100" value="15" style="width:140px;">
+            <span id="startCSVal">15</span>
+          </div>
+          <div class="row">
+            <span>Contradiction</span>
+            <select id="contraSelect">
+              <option value="none">None</option>
+              <option value="minor">Minor (+8)</option>
+              <option value="major">Major (+20)</option>
+            </select>
+          </div>
+          <div class="row">
+            <span>Evidence quality (if presented)</span>
+            <select id="evidenceSelect">
+              <option value="none">Not presented this turn</option>
+              <option value="0">0 — terrible (+12)</option>
+              <option value="1">1 — weak deflection (+8)</option>
+              <option value="2">2 — plausible but cracked (+3)</option>
+              <option value="3">3 — airtight (+0)</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="gkLeak">Guilty knowledge leak (+15)</label>
+            <input type="checkbox" id="gkLeak">
+          </div>
+          <div class="row">
+            <label for="demeanor">Demeanor shift (+3)</label>
+            <input type="checkbox" id="demeanor">
+          </div>
+          <div class="row">
+            <label for="witnessContra">Witness contradicts suspect (+10)</label>
+            <input type="checkbox" id="witnessContra">
+          </div>
+        </div>
+        <div class="calc-result">
+          <div class="cs-number" id="csNumber">15</div>
+          <div class="cs-bar-track"><div class="cs-bar-fill" id="csFill" style="width:15%;"></div></div>
+          <div class="cs-delta" id="csDelta">Δ +0 this turn</div>
+          <div class="cs-ending pending" id="csEnding">Below 80 — case still open</div>
+        </div>
+      </div>
+
+      <div class="callout why">
+        <strong class="tag">Notice what's missing</strong>
+        There is no slider for "how convincing was the lie" or "how clever was the question."
+        Those judgment calls already happened upstream, inside the Invigilator's reasoning.
+        Everything on this panel is a <em>signal</em> — a yes/no or a 0–3 rating — and every
+        number next to it is a fixed constant in a config object. Change the difficulty of the
+        whole game by editing <code>SCORING_CONFIG</code>; the prompts never need to know a
+        number.
+      </div>
+
+      <h4>The real code this panel runs</h4>
+      <pre><code>export const SCORING_CONFIG = {
+  initialCaseStrength: 15,
+  majorContradiction: 20,
+  minorContradiction: 8,
+  evidenceQuality0: 12,   // terrible — made it worse for the suspect
+  evidenceQuality1: 8,    // weak deflection
+  evidenceQuality2: 3,    // plausible but cracked
+  evidenceQuality3: 0,    // airtight — helps the suspect, costs the case nothing... AND gains nothing
+  guiltyKnowledgeLeak: 15,
+  demeanorShift: 3,
+  witnessContradiction: 10,
+  chargedThreshold: 80,
+  caseStrengthFloor: 0,
+  caseStrengthCeiling: 100,
+}</code></pre>
+      <div class="callout gotcha">
+        <strong class="tag">A detail worth having ready</strong>
+        If evidence is presented, it's not added on top of everything else raw — the engine
+        averages the quality points across every item presented <em>that turn</em>
+        (<code>Math.round(sum / count)</code>). Present three items in one turn and get ratings
+        0, 2, 3 → that's an average of ~2 points, not 12+3+0. This stops players from farming
+        points by dumping every evidence item in a single turn.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="eval">
+      <h2><span class="num">07</span> The eval harness — how you'd know if the judge is any good</h2>
+      <p class="lede">
+        The entire V3 architecture rests on one assumption: the Invigilator is a trustworthy
+        judge. The eval harness is how that assumption gets tested instead of just hoped for.
+      </p>
+
+      <h3>Layer 1 — Invigilator accuracy (18 hand-crafted cases)</h3>
+      <p>
+        18 scenarios were hand-written specifically to plant a known signal in made-up suspect
+        dialogue, then paired with the finding a careful human reader would expect. The harness
+        feeds each scenario to the real Invigilator and checks: did it catch what we planted?
+        Did it <em>avoid</em> inventing findings that aren't there?
+      </p>
+      <table class="boundary">
+        <tr><th>Category</th><th>Count</th><th>Tests</th></tr>
+        <tr><td>Guilty knowledge</td><td>4</td><td>Does the suspect's dialogue reveal something only the killer would know (the bottle, the staged fall, the exit route, the weapon) before the detective ever says it?</td></tr>
+        <tr><td>Contradiction</td><td>4</td><td>Does new dialogue conflict with a specific earlier claim (time, visit length, exit route, whether money was discussed)?</td></tr>
+        <tr><td>Evidence handling</td><td>3</td><td>One deliberately terrible response (quality 0), one decent deflection (quality 2), one airtight explanation (quality 3) — does the judge rate them the way a human would?</td></tr>
+        <tr><td>Demeanor</td><td>2</td><td>One visibly rattled response, one calm routine answer.</td></tr>
+        <tr><td>Clean / negative</td><td>5</td><td>Good answers that should trigger <em>nothing</em> — grief, a reasonable "why am I a suspect," vague-but-honest answers. This is the false-positive check.</td></tr>
+      </table>
+      <div class="callout why">
+        <strong class="tag">Why the 5 clean cases matter the most</strong>
+        It's easy to build a judge that over-flags everything — high recall, terrible precision,
+        constantly accusing an innocent-sounding answer. The clean cases are the only thing that
+        catches that failure mode. A judge that's too trigger-happy is just as broken as one
+        that's self-judging and silent.
+      </div>
+
+      <h3>Layer 2 — automated full-game runner</h3>
+      <p>
+        Instead of a human playing, a <strong>hardcoded detective script</strong>
+        (<code>DETECTIVE_SCRIPT</code> in <code>src/eval/detective.ts</code>) asks the same 6
+        interrogation questions and 2 witness questions, parameterized against whatever case
+        got generated (it fills in the actual wifi-drop time, the actual debt amount, etc. for
+        that seed). This removes "a human asked a bad question" as a variable, so if N games are
+        run, the only thing that varies is the model's behavior — making results reproducible
+        and genuinely comparable across runs.
+      </p>
+      <div class="terminal">
+<span class="prompt">$</span> npm run eval                      <span class="comment"># Layer 1 only — 18 cases, no games</span>
+<span class="prompt">$</span> npm run eval -- --games 5         <span class="comment"># Layer 1 + 5 full automated games</span>
+<span class="prompt">$</span> npm run eval -- --layer2-only 10  <span class="comment"># skip Layer 1, just 10 games</span>
+      </div>
+      <p>Results land as timestamped JSON under <code>eval-results/</code> (gitignored, not
+      committed) — precision/recall per signal type for Layer 1, and ending distribution /
+      average Case Strength / signal-firing frequency for Layer 2.</p>
+
+      <div class="callout gotcha">
+        <strong class="tag">Status to be honest about if asked</strong>
+        As of this writing, the eval harness is built and type-checked, but has <strong>not yet
+        been run against a live model</strong>. If an interviewer asks "so what did the eval
+        show," the honest answer is: "the harness exists and is designed to measure precision
+        and recall per signal type — I haven't executed it against the live API yet, that's the
+        next step." That's a perfectly good answer. Claiming numbers that don't exist is not.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="cheatsheet">
+      <h2><span class="num">08</span> Interview cheat sheet</h2>
+      <p class="lede">
+        Click to reveal the answer you'd actually want to give. Try answering from memory first.
+      </p>
+
+      <div class="quiz-card">
+        <div class="q">"Walk me through the architecture."</div>
+        <button class="reveal-btn" data-target="a1">Show answer</button>
+        <div class="answer" id="a1">
+          Two LLM agents plus a deterministic scorer. The Persona Agent plays a guilty suspect
+          (and separately a witness) and only knows the truth and its own cover story — not what
+          evidence exists. The Invigilator is a second, independent LLM call that sees
+          everything, including evidence vulnerabilities, and judges the dialogue the Persona
+          Agent just produced, returning structured signals: contradictions tied to specific
+          claim IDs, a guilty-knowledge-leak flag, 0–3 evidence-handling ratings, a demeanor-shift
+          boolean. A third component — plain TypeScript, no model call — reads those signals and
+          applies fixed weights from a config object to move a single "Case Strength" meter.
+        </div>
+      </div>
+
+      <div class="quiz-card">
+        <div class="q">"Why two models instead of one doing both jobs?"</div>
+        <button class="reveal-btn" data-target="a2">Show answer</button>
+        <div class="answer" id="a2">
+          Because I tried the single-model version first (V2) and it failed in a specific,
+          measurable way: the suspect model was asked to both perform a lie <em>and</em> grade
+          its own performance in one structured response, and it reported "no contradiction, no
+          leak" on literally every turn across multiple playtests — even in turns a human reader
+          could see it slip. A model mid-performance will not reliably self-report its own
+          mistakes. Splitting into actor + independent judge fixed it.
+        </div>
+      </div>
+
+      <div class="quiz-card">
+        <div class="q">"What's an information boundary, concretely, in this project?"</div>
+        <button class="reveal-btn" data-target="a3">Show answer</button>
+        <div class="answer" id="a3">
+          Three different views of the exact same underlying case object. The player sees
+          evidence claims but never vulnerabilities or the truth. The suspect-playing model sees
+          the truth and its own strategy but never what evidence the player is holding. The judge
+          sees literally everything. One function, <code>toPublicCase()</code>, is the only place
+          that performs the player-facing redaction, and an automated check
+          (<code>npm run verify</code>) serializes the public case to a string and greps it for
+          every secret field to make sure none of them leaked through.
+        </div>
+      </div>
+
+      <div class="quiz-card">
+        <div class="q">"Why does the scoring engine not just let the model output a score directly?"</div>
+        <button class="reveal-btn" data-target="a4">Show answer</button>
+        <div class="answer" id="a4">
+          Two reasons. One: determinism and tunability — difficulty becomes a config-file edit
+          (change a weight in <code>SCORING_CONFIG</code>) instead of a prompt-engineering
+          problem, and the same signals always produce the same score. Two: safety against a
+          hallucinating judge — the engine validates that every claim ID the Invigilator
+          references in a contradiction actually exists in the real ledger before counting it;
+          a model that invents a contradiction against a nonexistent claim gets silently ignored,
+          not scored.
+        </div>
+      </div>
+
+      <div class="quiz-card">
+        <div class="q">"How do you know the judge itself is any good?"</div>
+        <button class="reveal-btn" data-target="a5">Show answer</button>
+        <div class="answer" id="a5">
+          That's exactly what the eval harness is for — it's an LLM-as-judge pattern, so the
+          judge itself needs calibration like any other model component. Layer 1 is 18
+          hand-written scenarios with a planted signal and a known expected finding, run through
+          the real judge to measure precision/recall per signal type — crucially including
+          clean/negative cases to catch a judge that over-flags. Layer 2 runs full automated
+          games with a scripted detective to see aggregate behavior at scale (does Case Strength
+          ever move, what's the ending distribution).
+        </div>
+      </div>
+
+      <div class="quiz-card">
+        <div class="q">"Why is case generation seeded instead of just random?"</div>
+        <button class="reveal-btn" data-target="a6">Show answer</button>
+        <div class="answer" id="a6">
+          Two reasons: reproducibility and statelessness. There's no database — the server holds
+          only the seed and regenerates the full case from scratch on every single turn, so
+          <code>generate()</code> has to be a pure function (no <code>Date.now()</code>, no
+          <code>Math.random()</code>, nothing module-level and mutable) or the session would
+          desync mid-game. The same seed also makes the eval harness possible at all — a fixed
+          seed is a fixed, reproducible test scenario, and a human can pin a seed during
+          development to replay the exact same case while tuning prompts.
+        </div>
+      </div>
+
+      <h3 style="margin-top:40px;">If you only remember one sentence</h3>
+      <div class="card" style="text-align:center; font-size:17px; padding:28px;">
+        "The suspect acts; the invigilator judges; the engine scores."
+      </div>
+    </section>
+
+    <div class="end-nav">
+      <a href="#pitch">↑ Back to top</a>
+      <span style="color:var(--text-muted); font-size:12px;">AIRTIGHT — V3 architecture — built for interview prep</span>
+    </div>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Theme toggle ────────────────────────────────────────── */
+  var themeToggle = document.getElementById('themeToggle');
+  themeToggle.addEventListener('click', function () {
+    var root = document.documentElement;
+    var cur = root.getAttribute('data-theme');
+    if (cur === 'dark') root.setAttribute('data-theme', 'light');
+    else if (cur === 'light') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', 'dark');
+  });
+
+  /* ── Scrollspy + progress bar ───────────────────────────── */
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var progressBar = document.getElementById('progressBar');
+
+  function onScroll() {
+    var scrollTop = window.scrollY;
+    var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (docHeight > 0 ? (scrollTop / docHeight) * 100 : 0) + '%';
+
+    var activeIdx = 0;
+    for (var i = 0; i < sections.length; i++) {
+      var rect = sections[i].getBoundingClientRect();
+      if (rect.top <= 140) activeIdx = i;
+    }
+    links.forEach(function (a) { a.classList.remove('active'); });
+    if (links[activeIdx]) links[activeIdx].classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ── Section 3: boundary demo ───────────────────────────── */
+  var bdOutput = document.getElementById('bdOutput');
+  var bdButtons = document.querySelectorAll('.bd-btn');
+  var bdContent = {
+    player: '<p style="margin:0;"><strong>Sees:</strong> "<code>e5</code> — a wine bottle appears to be missing from the kitchen rack."</p><p style="margin-top:8px; color:var(--text-muted);">That\'s it. No hint about the canal, no hint it\'s a weak piece of evidence. Just the claim.</p>',
+    suspect: '<p style="margin:0;"><strong>Sees:</strong> Nothing about evidence at all — the suspect\'s prompt never mentions evidence items. But it DOES know, in its own hidden "truth" and "guilty knowledge" sections: "You dumped the bottle and your jacket in the canal after returning for them."</p><p style="margin-top:8px; color:var(--text-muted);">So if the detective presents e5, the model has to improvise a denial using knowledge it has but must hide — which is exactly how a real guilty person getting caught off guard would behave.</p>',
+    judge: '<p style="margin:0;"><strong>Sees everything:</strong> the claim ("bottle missing"), the hidden vulnerability ("victim drank, so a missing bottle alone is unremarkable — weak evidence on its own"), AND the ground truth that the bottle is actually in the canal because the suspect put it there.</p><p style="margin-top:8px; color:var(--text-muted);">This is why only the judge can reliably say "the suspect mentioning a canal here is a guilty-knowledge leak" — it is the only reader holding all three facts at once.</p>'
+  };
+  bdButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      bdOutput.innerHTML = bdContent[btn.getAttribute('data-role')];
+    });
+  });
+  bdOutput.innerHTML = '<p style="color:var(--text-muted); margin:0;">Click a role above to see what it\'s given about the missing wine bottle.</p>';
+
+  /* ── Section 4: turn simulator ──────────────────────────── */
+  var simSteps = [
+    {
+      label: 'Player asks',
+      render: function () {
+        return '<div class="speaker">Detective (you)</div>' +
+          '<div class="bubble">"PRESENT e3: Your phone was on the building wifi well past when you say you left."</div>' +
+          '<p style="color:var(--text-secondary); font-size:12.5px;">session.ts: <code>parsePlayerInput()</code> extracts evidence ID <code>e3</code> and the question text, then marks e3 as presented.</p>';
+      }
+    },
+    {
+      label: 'Call 1: Persona',
+      render: function () {
+        return '<div class="speaker">Suspect (Persona Agent — knows the truth, NOT the vulnerability of e3)</div>' +
+          '<div class="bubble">"That\'s impossible. I wasn\'t anywhere near the building at that time. Your records must be wrong — I was already driving home."</div>' +
+          '<p style="color:var(--text-secondary); font-size:12.5px;">Structured output also includes 1–3 new <code>claims</code> and a <code>demeanor</code> (e.g. <code>defensive</code>). This is shown to the player immediately — Call 2 hasn\'t run yet.</p>';
+      }
+    },
+    {
+      label: 'Ledger updated',
+      render: function () {
+        return '<div class="speaker">ledger.ts</div>' +
+          '<div class="bubble">c7: "The suspect was already driving home before the wifi timestamp." (turn 3, checkable)</div>' +
+          '<p style="color:var(--text-secondary); font-size:12.5px;"><code>addClaims()</code> appends this with the next sequential ID. It will now be checked against in every future turn.</p>';
+      }
+    },
+    {
+      label: 'Call 2: Invigilator',
+      render: function () {
+        return '<div class="speaker">Invigilator (sees the truth, the vulnerability of e3, AND the full ledger)</div>' +
+          '<div class="bubble">reasoning: "The suspect flatly denies being in the building, but the truth timeline places them there until after the wifi drop. This also weakly contradicts claim c2 (left before half past)."<br><br>signals: contradictions: [{against: c2, severity: minor}], evidenceHandling: [{id: e3, quality: 0}], guiltyKnowledgeLeak: null, demeanorShift: false</div>' +
+          '<p style="color:var(--text-secondary); font-size:12.5px;">Quality 0 — denying hard evidence outright with no explanation is the worst possible response, per the Invigilator\'s rubric.</p>';
+      }
+    },
+    {
+      label: 'Engine scores',
+      render: function () {
+        return '<div class="speaker">score.ts — pure arithmetic, zero model calls</div>' +
+          '<div class="bubble">minorContradiction (+8) + evidenceQuality0 (+12) = <strong>+20 this turn</strong><br>Case Strength: 15 → 35</div>' +
+          '<p style="color:var(--text-secondary); font-size:12.5px;"><code>scoreSuspectTurn()</code> first checks that claim <code>c2</code> actually exists in the ledger (it does) before counting the contradiction. checkEnding(35) → still null, below the 80 threshold.</p>';
+      }
+    }
+  ];
+  var simIdx = 0;
+  var simStepsEl = document.getElementById('simSteps');
+  var simContentEl = document.getElementById('simContent');
+  var simPrev = document.getElementById('simPrev');
+  var simNext = document.getElementById('simNext');
+
+  simSteps.forEach(function (s, i) {
+    var dot = document.createElement('div');
+    dot.className = 'sim-step-dot';
+    dot.textContent = (i + 1) + '. ' + s.label;
+    dot.addEventListener('click', function () { simIdx = i; renderSim(); });
+    simStepsEl.appendChild(dot);
+  });
+
+  function renderSim() {
+    simContentEl.innerHTML = simSteps[simIdx].render();
+    var dots = simStepsEl.querySelectorAll('.sim-step-dot');
+    dots.forEach(function (d, i) {
+      d.classList.remove('active', 'done');
+      if (i < simIdx) d.classList.add('done');
+      if (i === simIdx) d.classList.add('active');
+    });
+    simPrev.disabled = simIdx === 0;
+    simNext.disabled = simIdx === simSteps.length - 1;
+    simNext.textContent = simIdx === simSteps.length - 1 ? 'Done' : 'Next →';
+  }
+  simPrev.addEventListener('click', function () { if (simIdx > 0) { simIdx--; renderSim(); } });
+  simNext.addEventListener('click', function () { if (simIdx < simSteps.length - 1) { simIdx++; renderSim(); } });
+  renderSim();
+
+  /* ── Section 6: scoring calculator ──────────────────────── */
+  var startCS = document.getElementById('startCS');
+  var startCSVal = document.getElementById('startCSVal');
+  var contraSelect = document.getElementById('contraSelect');
+  var evidenceSelect = document.getElementById('evidenceSelect');
+  var gkLeak = document.getElementById('gkLeak');
+  var demeanor = document.getElementById('demeanor');
+  var witnessContra = document.getElementById('witnessContra');
+  var csNumber = document.getElementById('csNumber');
+  var csFill = document.getElementById('csFill');
+  var csDelta = document.getElementById('csDelta');
+  var csEnding = document.getElementById('csEnding');
+
+  var WEIGHTS = {
+    minor: 8, major: 20,
+    ev0: 12, ev1: 8, ev2: 3, ev3: 0,
+    gk: 15, demeanorShift: 3, witnessContradiction: 10,
+  };
+
+  function recalc() {
+    var start = parseInt(startCS.value, 10);
+    startCSVal.textContent = start;
+
+    var delta = 0;
+    var c = contraSelect.value;
+    if (c === 'minor') delta += WEIGHTS.minor;
+    if (c === 'major') delta += WEIGHTS.major;
+
+    var ev = evidenceSelect.value;
+    if (ev !== 'none') {
+      var evKey = 'ev' + ev;
+      delta += WEIGHTS[evKey];
+    }
+
+    if (gkLeak.checked) delta += WEIGHTS.gk;
+    if (demeanor.checked) delta += WEIGHTS.demeanorShift;
+    if (witnessContra.checked) delta += WEIGHTS.witnessContradiction;
+
+    var result = Math.max(0, Math.min(100, start + delta));
+
+    csNumber.textContent = result;
+    csFill.style.width = result + '%';
+    csDelta.textContent = 'Δ ' + (delta >= 0 ? '+' : '') + delta + ' this turn';
+
+    if (result >= 80) {
+      csEnding.textContent = 'CHARGED_STRONG — threshold reached';
+      csEnding.className = 'cs-ending strong';
+    } else {
+      csEnding.textContent = 'Below 80 — case still open';
+      csEnding.className = 'cs-ending pending';
+    }
+  }
+  [startCS, contraSelect, evidenceSelect, gkLeak, demeanor, witnessContra].forEach(function (el) {
+    el.addEventListener('input', recalc);
+    el.addEventListener('change', recalc);
+  });
+  recalc();
+
+  /* ── Section 8: quiz reveal ─────────────────────────────── */
+  document.querySelectorAll('.reveal-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.getElementById(btn.getAttribute('data-target'));
+      var shown = target.classList.toggle('shown');
+      btn.textContent = shown ? 'Hide answer' : 'Show answer';
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

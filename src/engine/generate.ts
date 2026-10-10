@@ -1,5 +1,5 @@
 import { Rng } from './rng'
-import type { CaseFile, CrimeType, Evidence, PublicCase } from './types'
+import type { CaseFile, CrimeType, DetectiveEvidence, PublicCase } from './types'
 import { TEMPLATES } from './templates'
 import { DETECTIVE_NAMES } from './templates/shared'
 
@@ -20,41 +20,35 @@ import { DETECTIVE_NAMES } from './templates/shared'
 export type GenerateOptions = {
   seed: string
   crime: CrimeType
+  templateId?: string
+  locality?: string
 }
 
-export function generate({ seed, crime }: GenerateOptions): CaseFile {
+export function generate({ seed, crime, templateId, locality }: GenerateOptions): CaseFile {
   const r = new Rng(`${seed}::${crime}`)
 
   const pool = TEMPLATES[crime]
   if (!pool?.length) throw new Error(`No templates for crime type: ${crime}`)
 
-  const template = r.pick(pool)
-  const detective = r.pick(DETECTIVE_NAMES)
-  const built = template.build(r, detective)
-
-  // Anchors always start revealed — they're the reason you're in the room.
-  // One or two more open at random so the same template doesn't always present
-  // the same face, then everything else stays latent and surfaces when the
-  // player contradicts themselves.
-  const anchors = built.evidence.filter((e) => e.anchor)
-  const rest = built.evidence.filter((e) => !e.anchor)
-  const extraRevealed = new Set(
-    r.sample(rest, r.int(0, 1)).map((e) => e.id),
-  )
-
-  const evidence: Evidence[] = built.evidence.map((e) => {
-    const { anchor, ...rest } = e
-    const revealed = Boolean(anchor) || extraRevealed.has(e.id)
-    return {
-      ...rest,
-      weight: e.baseWeight,
-      state: revealed ? 'revealed' : 'latent',
-    }
-  })
-
-  if (anchors.length === 0) {
-    throw new Error(`Template ${template.id} has no anchor evidence`)
+  const eligible = templateId ? pool.filter((t) => t.id === templateId) : pool
+  if (templateId && eligible.length === 0) {
+    throw new Error(`Unknown template "${templateId}" for crime ${crime}`)
   }
+
+  const template = r.pick(eligible)
+  const detective = r.pick(DETECTIVE_NAMES)
+  const built = template.build(r, detective, locality?.trim() || undefined)
+
+  // All evidence starts unpresented — the player sees claims upfront but
+  // must explicitly deploy each item during interrogation.
+  const evidence: DetectiveEvidence[] = built.evidence.map((e) => ({
+    id: e.id,
+    type: e.type,
+    claim: e.claim,
+    presented: false,
+    vulnerability: e.vulnerability,
+    linkedBeats: e.linkedBeats,
+  }))
 
   return {
     seed,
@@ -66,20 +60,21 @@ export function generate({ seed, crime }: GenerateOptions): CaseFile {
     window: built.window,
     truth: built.truth,
     evidence,
-    witnesses: built.witnesses,
+    witness: built.witness,
     fatalFact: built.fatalFact,
-    detective: { name: detective.name, rank: detective.rank },
-    opener: built.opener,
+    suspectPersona: built.suspectPersona,
+    detectiveBriefing: built.detectiveBriefing,
   }
 }
 
 /**
- * Strip the case file down to what the browser is allowed to know.
+ * Strip the case file down to what the player-detective is allowed to see.
  *
- * This function is a security boundary. Everything it drops — the truth
- * timeline, vulnerabilities, latent evidence, witness flaws, the fatal fact —
- * is the game. If any of it reaches the client, the game is over before it
- * starts. Never serialise a CaseFile to a response; always route through here.
+ * V2 security boundary is INVERTED from V1: the player now sees evidence
+ * upfront (they need it to interrogate), but the suspect's strategy — persona,
+ * cover story, breaking points, guilty knowledge, evidence vulnerabilities —
+ * stays hidden. The truth timeline and fatal fact are also hidden (revealed
+ * only in the post-game breakdown).
  */
 export function toPublicCase(file: CaseFile): PublicCase {
   return {
@@ -89,10 +84,16 @@ export function toPublicCase(file: CaseFile): PublicCase {
     victim: file.victim,
     location: file.location,
     window: file.window,
-    detective: file.detective,
-    opener: file.opener,
-    evidence: file.evidence
-      .filter((e) => e.state !== 'latent')
-      .map((e) => ({ id: e.id, type: e.type, claim: e.claim })),
+    briefing: file.detectiveBriefing,
+    evidence: file.evidence.map((e) => ({
+      id: e.id,
+      type: e.type,
+      claim: e.claim,
+      presented: e.presented,
+    })),
+    witness: {
+      name: file.witness.name,
+      relationship: file.witness.relationship,
+    },
   }
 }

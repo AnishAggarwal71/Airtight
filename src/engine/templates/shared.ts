@@ -1,5 +1,11 @@
 import type { Rng } from '../rng'
-import type { CrimeType, Evidence, TimelineBeat, Witness } from '../types'
+import type {
+  CrimeType,
+  DetectiveBriefing,
+  EvidenceType,
+  SuspectPersona,
+  TimelineBeat,
+} from '../types'
 
 /**
  * Shared contract and helpers for crime templates.
@@ -10,16 +16,25 @@ import type { CrimeType, Evidence, TimelineBeat, Witness } from '../types'
  * relies on it for determinism.
  */
 
-/** The interviewing detective's identity — randomised per case, fixed for the session. */
 export type DetectiveIdentity = { name: string; rank: string }
 
-/**
- * Evidence as authored by a template. `anchor` marks evidence that always
- * starts revealed (the reason the suspect is in the room) — generate() strips
- * it before returning the real Evidence and derives `weight`/`state` instead.
- */
-export type TemplateEvidence = Omit<Evidence, 'weight' | 'state'> & {
-  anchor?: boolean
+/** Evidence as authored by a template — generate() adds `presented: false`. */
+export type TemplateEvidence = {
+  id: string
+  type: EvidenceType
+  claim: string
+  vulnerability: string
+  linkedBeats: string[]
+}
+
+/** Witness as authored by a template. */
+export type TemplateWitness = {
+  id: string
+  name: string
+  relationship: string
+  personality: string
+  knowledgeBoundary: string
+  suspectContradictions: string[]
 }
 
 export type TemplateBuild = {
@@ -29,16 +44,17 @@ export type TemplateBuild = {
   window: { start: string; end: string }
   truth: TimelineBeat[]
   evidence: TemplateEvidence[]
-  witnesses: Witness[]
+  witness: TemplateWitness
   fatalFact: string
-  opener: string
+  suspectPersona: SuspectPersona
+  detectiveBriefing: DetectiveBriefing
 }
 
 export type Template = {
   id: string
   crime: CrimeType
   title: string
-  build: (r: Rng, detective: DetectiveIdentity) => TemplateBuild
+  build: (r: Rng, detective: DetectiveIdentity, locality?: string) => TemplateBuild
 }
 
 /** Build a timeline from `[id, time, fact]` tuples, in narrative order. */
@@ -62,12 +78,28 @@ const LAST_NAMES = [
   'Farrow', 'Kimura', 'Redgrave', 'Onyeka', 'Stavros', 'Linton', 'Bellamy',
 ] as const
 
-/** A random "First Last" name, distinct enough across a small cast that collisions are rare. */
 export function fullName(r: Rng): string {
   return `${r.pick(FIRST_NAMES)} ${r.pick(LAST_NAMES)}`
 }
 
-/** Detective identities — one is drawn per case and stays fixed for the session. */
+const MALE_FIRST_NAMES = [
+  'Michael', 'David', 'James', 'Daniel', 'Robert', 'Andrew', 'Mark', 'Paul',
+  'Christopher', 'Simon', 'Thomas', 'Richard', 'Adam', 'Peter', 'Stephen',
+  'Neil', 'Craig', 'Ian', 'Gary', 'Kevin',
+] as const
+
+const FEMALE_FIRST_NAMES = [
+  'Sarah', 'Emma', 'Olivia', 'Sophie', 'Chloe', 'Hannah', 'Rebecca', 'Laura',
+  'Charlotte', 'Amelia', 'Grace', 'Lucy', 'Megan', 'Katie', 'Jessica', 'Zoe',
+  'Natalie', 'Rachel', 'Louise', 'Amy',
+] as const
+
+export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
+  const isMale = r.chance(0.5)
+  const first = r.pick(isMale ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES)
+  return { name: `${first} ${r.pick(LAST_NAMES)}`, pronoun: isMale ? 'he' : 'she' }
+}
+
 export const DETECTIVE_NAMES: DetectiveIdentity[] = [
   { name: 'Aisha Okonkwo', rank: 'Detective Inspector' },
   { name: 'Callum Reid', rank: 'Detective Sergeant' },
