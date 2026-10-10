@@ -35,6 +35,49 @@ Newest entries at the top.
 
 <!-- Add entries below this line -->
 
+## 2026-10-11 — First successful human playtests and five-game eval
+
+**Ran:** Two real-player playthroughs of `test-seed-1` / homicide with
+locality `Banglore`, plus `npm run eval -- --games 5`, using the configured
+Claude Haiku 4.5 model. Tester reports combined spend of about $0.45; this
+could not be independently confirmed from local files because billing data is
+not available here.
+
+**What happened / feedback:**
+
+- The concept is interesting, but the evidence items and murder scene need to
+  be more intuitive and engaging. Revisit evidence clarity, variety, and how
+  the murder scene is introduced.
+- Let players choose when to question the witness: before the suspect, after
+  the suspect, or between suspect turns. If between, keep the two witness
+  questions together as one block.
+- The CLI truncates long evidence claims, making the table hard to read. For
+  example, the wine-rack and debt items ended with `...none fou` and
+  `...repayment d`. Show complete evidence text (possibly wrapped across lines).
+- Both latest human transcripts are present under gitignored `playtest-logs/`:
+  `2026-10-10T21-04-52-462Z-test-seed-1-12936.jsonl` has six suspect turns
+  and one witness turn; `2026-10-10T21-35-10-996Z-test-seed-1-13400.jsonl`
+  has six suspect turns and two witness turns. Both logged all exchanges
+  without a request failure.
+- The latest saved five-game eval report is
+  `eval-results/eval-2026-10-10T22-30-31-026Z.json`. It records Claude
+  Haiku 4.5, all 5 Layer 2 games completed (4 `CHARGED_STRONG`, 1
+  `CHARGED_WEAK`), mean Case Strength 84, and Layer 1 at 7/18 passed
+  (precision 0.36, recall 0.90). Total Layer 2 usage was 141,821 input and
+  16,490 output tokens; this report does not include provider billing totals.
+  A preceding report,
+  `eval-results/eval-2026-10-10T22-21-24-293Z.json`, records Layer 1 at
+  5/18 passed (precision 0.36, recall 0.90).
+- The local eval report identifies `claude-haiku-4-5` as the model. The
+  reported $0.45 is plausible but cannot be verified from the transcript or
+  eval JSON alone; reconcile against the provider console for an exact spend.
+  For cheaper iteration, consider a controlled small A/B run on the same
+  seeds using a lower-cost model/provider, but retain the target model for
+  final evals because structured-output reliability and judge accuracy may
+  change with the model.
+
+**Category:** tuning | UX | question
+
 ## 2026-10-02 — Turn-six guilty-knowledge leak not scored; witness JSON validation failed
 
 **Ran:** `test-seed-1` / homicide / locality `banglore` against GroqCloud.
