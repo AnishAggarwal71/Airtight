@@ -1,0 +1,2 @@
+{"type":"session","createdAt":"2026-10-01T20:35:50.196Z","seed":"test-seed-1","crime":"homicide","locality":"banglore","format":"airtight-transcript-v1"}
+{"type":"exchange","phase":"interrogation","turn":1,"detectiveMessage":"Miss Chloe, would you like to tell me your wareabouts of last night","aiRole":"suspect","aiMessage":"I... I need a moment. Can you repeat that?"}

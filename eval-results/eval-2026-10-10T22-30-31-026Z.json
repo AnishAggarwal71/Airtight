@@ -1,0 +1,585 @@
+{
+  "timestamp": "2026-10-10T22:30:31.023Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 18,
+    "passed": 7,
+    "precision": 0.36,
+    "recall": 0.9,
+    "results": [
+      {
+        "caseId": "gk-bottle-canal",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e5": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e5": 0
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect maintains denial about the bottle and deflects by suggesting it ended up in the canal—a detail that reveals guilty knowledge, since the detective has never mentioned the canal as a location. This is a critical leak. The response doesn't contradict prior claims but the spontaneous mention of the canal is a major red flag that only the killer would know.\n  Mismatches: demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "gk-bin-store-exit",
+        "passed": true,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect has now contradicted their explicit prior claim (c2) that they left through the main entrance. They've shifted to claiming routine use of the bin store as a shortcut, which is a plausible explanation given the card-sharing vulnerability in e1. However, this is a direct contradiction of a core logistical claim about how they departed. The answer is measured and deflective — pivoting to normalizing the bin store access rather than directly addressing why their card was used at 23:15 specifically. They didn't flinch or show obvious stress, maintaining their quiet, measured tone."
+      },
+      {
+        "caseId": "gk-staged-fall",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect answered a direct time question with vague language ('that evening,' 'quick chat') rather than a specific time, which is evasive given the detective's precision. More concerning: they volunteered specific knowledge about the stairwell layout and darkness without being prompted, and assumed the victim died from a fall—information the detective has not yet disclosed. This is a guilty knowledge leak. The claim remains consistent with c1 but the unsolicited detail about 'those stairs are steep and the lighting is awful' suggests defensive knowledge of the location and method.\n  Mismatches: demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "gk-weapon-bottle",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect made a critical error by spontaneously suggesting 'a bottle' as the weapon before the detective mentioned it. This is a textbook guilty knowledge leak — only the killer would know the wine bottle was involved. The suspect maintained their core alibi (home by then) but their unprompted reference to the specific weapon severely undermines their credibility. No contradictions with prior claims, but the demeanor likely shifted given the severity of this slip.\n  Mismatches: demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "contra-time-discrepancy",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect acknowledges staying later than their original timeline—now admitting they left 'around quarter to' (23:15) instead of 'before half past' (23:30)—but frames it as a memory lapse rather than a lie. They haven't directly addressed the wifi data yet; instead, they've conceded time without explaining why their phone was still connected at 23:14. The response is measured and defensive but lacks specificity about what caused them to lose track of time, leaving the inconsistency hanging.\n  Mismatches: demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "contra-visit-length",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            },
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect has just made a critical error. They claimed the visit lasted 'over an hour' when they previously stated it was 'about twenty minutes' — a direct contradiction of their own narrative. They also contradicted their earlier claim that they didn't argue about money by now acknowledging they 'talked' about unspecified topics for an extended period, which opens the door to the money discussion they'd denied. This shift is particularly damaging because it moves them closer to the wifi evidence (23:14) without explaining it, and the extended timeline makes the neighbour's 23:05 door slam more plausible as their departure rather than their arrival.\n  Mismatches: spurious contradiction: flagged c2 (major), not expected; demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "contra-location-flip",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            },
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect has now contradicted two core claims from Turn 2 — they previously stated they left through the main entrance and walked directly to the car park, but now admit they took the stairs down and went through the bin area. This is a direct contradiction of c1 and c2. However, the suspect frames this as a simple lapse in memory ('I forgot') rather than a deliberate lie, and they provide a plausible innocent explanation (the lift was broken, it's a quicker route). The explanation is credible given the evidence presented, but the fact that they 'forgot' a material detail about their exit route under pressure is a significant red flag. No guilty knowledge leaks in this response — they don't reveal anything the detective hasn't already presented via the key card log. Demeanor appears to shift slightly: the suspect is now offering quick, practical justifications rather than expressing concern about Robert Osei, suggesting they are moving into defensive mode.\n  Mismatches: spurious contradiction: flagged c2 (major), not expected; demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "contra-relationship-detail",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            },
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            },
+            {
+              "againstClaimId": "c3",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 1
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect has now directly contradicted their prior claim that money was not discussed (c2). They admit to having 'words' about it, which also undermines their claim of a 'friendly chat' (c1) and 'good relationship' (c3). This is a significant reversal under pressure—they've shifted from denying the topic entirely to acknowledging a heated argument about the debt. However, they provide a reasonable defensive frame ('people argue about money all the time') that doesn't inherently prove guilt. Their handling of e4 is weak because they don't actually address the substance of the motive—why a dead debtor benefits them—they just normalize argument.\n  Mismatches: spurious contradiction: flagged c1 (major), not expected; spurious contradiction: flagged c3 (major), not expected; demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "ev-wifi-terrible",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "minor"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 0
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "The suspect flatly denies the wifi evidence and claims the records are wrong, but this creates a direct contradiction with their own prior claim (c2) that they left 'before half past'—which implicitly accepts they were at the building around 22:43–23:30. By now insisting they 'weren't anywhere near the building at that time' (23:14), they've shifted from 'I was there but left early' to 'I wasn't there at all,' which is a major fracture in their cover story. The suspect also failed to use the obvious innocent explanation available to them: the router covers the car park and towpath, so their phone could have stayed connected while they were leaving or already outside. Instead, they went on offense and attacked the evidence itself, which reads as defensive panic rather than composed problem-solving.\n  Mismatches: contradiction missed: expected against c1 (minor); spurious contradiction: flagged c2 (major), not expected; demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "ev-debt-decent",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 3
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "Kevin demonstrated strong logical reasoning here, accurately articulating why the debt actually undermines motive rather than supporting it. He stayed in character—measured, calm, and thoughtful—and directly addressed the evidence without deflection. The response is internally consistent with his prior claim that he visited to discuss repayment (c1), and he showed no nervous demeanor shift; instead, he appeared confident in his argument. This is one of his strongest turns so far."
+      },
+      {
+        "caseId": "ev-pathology-airtight",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e2": 3
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e2": 2
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect demonstrated excellent evidence handling by immediately seizing on the pathologist's hedged language ('less consistent with' vs. 'impossible') and weaponizing the prior fall history. However, they revealed knowledge that should have been unavailable to them: they cited a specific hospital record of Robert Osei's fall two months ago without being prompted by the detective. An innocent visitor would not have access to Robert Osei's medical records, and the detective never mentioned this prior fall. This is a guilty knowledge leak—the suspect is reaching for an explanation that requires information they shouldn't possess.\n  Mismatches: guiltyKnowledgeLeak: expected false, got true"
+      },
+      {
+        "caseId": "dem-shift-nervous",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "Kevin Osei has been caught in a significant timing discrepancy and is now backing away from his original claim without offering a concrete alternative. He admits uncertainty about when he left ('I don't know exactly') while simultaneously implying he already stated it ('I think I said before'), then deflects with defensiveness ('Why does the exact minute matter so much?'). This is classic guilty behavior under pressure — the measured confidence from his profile is cracking, replaced by evasiveness. He has not provided any explanation for the 23:14 wifi timestamp yet, only expressed frustration at being pressed.\n  Mismatches: spurious contradiction: flagged c1 (major), not expected"
+      },
+      {
+        "caseId": "dem-stays-calm",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "This is the suspect's initial statement establishing their alibi. They claim arrival around 22:00 (\"around ten\"), a brief twenty-minute visit with tea and casual conversation, departure before 22:30, and arrival home before midnight. Notably, they describe the visit as relaxed (tea, talking about how things were going) and avoid mentioning the debt dispute at all—a significant omission given what actually happened. The account is delivered with measured confidence and positions them as a concerned family member. No contradictions exist yet since there are no prior claims to contradict."
+      },
+      {
+        "caseId": "clean-good-deflection",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Kevin Osei maintained his composed cover story, claiming the visit was normal with casual conversation—but this directly contradicts what the neighbour heard (raised voices, shouting). The suspect's denial is measured and confident, and he added a defensive flourish ('You're looking at me like I should be nervous') that suggests he's monitoring the detective's demeanor closely. He didn't contradict his prior timeline claims, but he's now on record denying an argument that physical evidence (the neighbour's testimony) will undermine."
+      },
+      {
+        "caseId": "clean-expressing-grief",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect maintained emotional control and stayed consistent with the 'brief visit' claim while pivoting to personal grief. However, the response is evasive—the detective asked about the relationship quality, not a recap of the final goodbye. The suspect deflected by dwelling on emotional impact rather than clarifying whether they were actually close or simply professional acquaintances managing a debt. This is good emotional deflection but lacks substantive detail about the relationship itself."
+      },
+      {
+        "caseId": "clean-why-suspect",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": true
+        },
+        "reasoning": "Kevin maintained his cover story without adding new factual claims this turn. He deflected the detective's framing ('one of the last people to see') by recontextualizing the visit as routine family behaviour and questioning whether other visitors are also suspects. Emotionally, he shifted from measured to slightly indignant—defensive language ('Are you treating every person...') suggests pressure is registering. He didn't contradict prior claims, but he also didn't substantively address why he's being questioned, which is a deflection tactic rather than a slip.\n  Mismatches: demeanorShift: expected false, got true"
+      },
+      {
+        "caseId": "clean-vague-nonanswer",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Kevin handles the direct question about his exit route with vague deflection—claiming inattention and inability to recall specifics. This is a high-risk manoeuvre given the evidence of the key card opening the bin store at 23:15. He's not contradicting his prior claims (c1, c2, c3 all survive), but his refusal to specify a route when pressed is characteristic of someone choosing words carefully to avoid committing to a lie that can be disproven. No demeanor shift is evident yet; he maintains his measured, defensive posture."
+      },
+      {
+        "caseId": "clean-redirect-to-victim",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Kevin deflects pressure by introducing a vague third party and questioning the detective's investigative work—a classic innocent-act repositioning. He stays in character as the concerned family member gathering information rather than as a defensive suspect. The response doesn't directly contradict his prior claims about civility or brevity, and he avoids committing to specific details about this mysterious visitor. However, his suggestion that Robert 'lent money to people' subtly undermines his own motive (the £21,000 debt becomes one of many financial entanglements), which is tactically sound."
+      }
+    ]
+  },
+  "layer2": {
+    "gamesRequested": 5,
+    "gamesCompleted": 5,
+    "gamesAbandoned": 0,
+    "endingDistribution": {
+      "CHARGED_STRONG": 4,
+      "CHARGED_WEAK": 1
+    },
+    "caseStrength": {
+      "mean": 84,
+      "median": 85,
+      "min": 66,
+      "max": 100
+    },
+    "signalFrequency": {
+      "contradictions/game": 2,
+      "guiltyKnowledgeLeaks/game": 0.2,
+      "demeanorShifts/game": 3,
+      "witnessContradictions/game": 1
+    },
+    "games": [
+      {
+        "seed": "eval-game-0-1791671145872",
+        "completed": true,
+        "finalCaseStrength": 85,
+        "ending": "CHARGED_STRONG",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 4,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          11,
+          19,
+          11,
+          6,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 35169,
+          "outputTokens": 4050
+        }
+      },
+      {
+        "seed": "eval-game-1-1791671214671",
+        "completed": true,
+        "finalCaseStrength": 66,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 0,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 3,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          0,
+          6,
+          3,
+          11,
+          11,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 35181,
+          "outputTokens": 3769
+        }
+      },
+      {
+        "seed": "eval-game-2-1791671281829",
+        "completed": true,
+        "finalCaseStrength": 100,
+        "ending": "CHARGED_STRONG",
+        "turns": 5,
+        "signalCounts": {
+          "contradictions": 4,
+          "guiltyKnowledgeLeaks": 1,
+          "demeanorShifts": 4,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          26,
+          26,
+          11,
+          66
+        ],
+        "tokenUsage": {
+          "inputTokens": 22216,
+          "outputTokens": 2944
+        }
+      },
+      {
+        "seed": "eval-game-3-1791671333286",
+        "completed": true,
+        "finalCaseStrength": 80,
+        "ending": "CHARGED_STRONG",
+        "turns": 4,
+        "signalCounts": {
+          "contradictions": 3,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          39,
+          23
+        ],
+        "tokenUsage": {
+          "inputTokens": 17656,
+          "outputTokens": 2195
+        }
+      },
+      {
+        "seed": "eval-game-4-1791671369713",
+        "completed": true,
+        "finalCaseStrength": 89,
+        "ending": "CHARGED_STRONG",
+        "turns": 7,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 3,
+          "witnessContradictions": 1
+        },
+        "perTurnDeltas": [
+          0,
+          0,
+          11,
+          31,
+          11,
+          11,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 31599,
+          "outputTokens": 3532
+        }
+      }
+    ]
+  }
+}
