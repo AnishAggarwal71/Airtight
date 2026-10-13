@@ -20,12 +20,11 @@ original design doc — **both still describe V1 (player-as-suspect) and are
 stale.** Treat this file as the current-state source of truth until they're
 rewritten.
 
-**Status: V3 two-agent architecture implemented, type-checked, and passing
-`npm run verify`.** The self-judging risk from V2 is resolved — the suspect
-no longer evaluates itself. Eval harness (Layer 1: 18 hand-crafted invigilator
-accuracy cases, Layer 2: automated full-game runner) is built. What hasn't
-happened yet: a live playthrough against a real API, and running the eval
-harness to calibrate the invigilator.
+**Status: V3 two-agent architecture implemented, tuned, and verified.** 10
+homicide templates, invigilator prompt tuning landed and measured (precision
+0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
+`docs/eval-v3-results.md`). `npm run verify` green (8/8 checks). What hasn't
+happened yet: the web UI (Area B in the plan).
 
 ---
 
@@ -46,6 +45,9 @@ instead — check there before relitigating something that was already tried.
   once incorporated. Don't edit `CLAUDE.md`/`decisions.md` from the testing
   side directly — write here instead, to avoid both machines colliding on
   the same file across a `git pull`.
+- [`docs/eval-v3-results.md`](docs/eval-v3-results.md) — V3 invigilator
+  tuning results: Layer 1 precision/recall and Layer 2 gameplay balance,
+  before/after comparison, per-game breakdown.
 
 New file per topic when a topic grows past a few paragraphs (e.g. a future
 `docs/eval-v3-results.md` once the eval has been run); index it here with a
@@ -214,7 +216,10 @@ src/engine/
                           resolveVerdict(), parsePlayerInput()
   templates/
     shared.ts           Template contract (TemplateBuild) + name-generation helpers
-    homicide.ts         1 template: the stairwell. 5 evidence, 1 witness, suspect persona.
+    homicide.ts         Aggregator — imports 10 templates from homicide/ subfolder
+    homicide/           10 distinct scenario files: stairwell, allotment, night-shift,
+                          allergy, open-water, overdose, lock-in, hiking-trail,
+                          smart-garage, charity-gala. Each exports one Template const.
     arson.ts            1 template: the warehouse. On disk for portfolio, excluded from active play.
     embezzlement.ts     Empty array — Phase 2 placeholder.
 src/eval/
@@ -370,14 +375,10 @@ This project demonstrates:
 
 ## Open items / known gaps (check before assuming something is done)
 
-- **No live playthrough has happened yet for V3.** Everything is implemented
-  and type/logic-verified, but unverified against an actual model response.
-  The risks most likely to surface: invigilator accuracy on real (not
-  hand-crafted) suspect dialogue, and prompt-length/latency from the large
-  invigilator system prompt.
-- **Eval harness is built but unrun.** `npm run eval` will execute Layer 1
-  (18 invigilator accuracy cases). `npm run eval -- --games 50` will run
-  Layer 2 (50 automated games). Neither has been run against a live model.
+- **Web UI not yet built.** The game is terminal-only (`npm run play`).
+  Plan calls for an Express + vanilla JS/HTML/CSS front-end with 5 API
+  endpoints and a dark/noir visual design, self-hosted on the user's own
+  domain.
 - **`README.md` and `AIRTIGHT-PRD.md` still describe V1 end-to-end** (player
   as suspect, Suspicion meter, 12-round structure, M0–M6 milestone table).
   Don't trust them for current behavior; this file supersedes them until
