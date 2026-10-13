@@ -1,0 +1,299 @@
+{
+  "timestamp": "2026-10-13T03:50:41.271Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 0,
+    "passed": 0,
+    "precision": 0,
+    "recall": 0,
+    "results": []
+  },
+  "layer2": {
+    "gamesRequested": 10,
+    "gamesCompleted": 10,
+    "gamesAbandoned": 0,
+    "endingDistribution": {
+      "CHARGED_WEAK": 4,
+      "CHARGED_STRONG": 6
+    },
+    "caseStrength": {
+      "mean": 77,
+      "median": 82,
+      "min": 58,
+      "max": 93
+    },
+    "signalFrequency": {
+      "contradictions/game": 1.7,
+      "guiltyKnowledgeLeaks/game": 0.1,
+      "demeanorShifts/game": 0.7,
+      "witnessContradictions/game": 1.2
+    },
+    "games": [
+      {
+        "seed": "eval-game-0-1791862749663",
+        "completed": true,
+        "finalCaseStrength": 79,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 0,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          8,
+          3,
+          0,
+          8,
+          25,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 40949,
+          "outputTokens": 4049
+        }
+      },
+      {
+        "seed": "eval-game-1-1791862820374",
+        "completed": true,
+        "finalCaseStrength": 59,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 2,
+          "witnessContradictions": 1
+        },
+        "perTurnDeltas": [
+          0,
+          14,
+          3,
+          11,
+          3,
+          3,
+          10,
+          0
+        ],
+        "tokenUsage": {
+          "inputTokens": 41669,
+          "outputTokens": 4557
+        }
+      },
+      {
+        "seed": "eval-game-2-1791862897919",
+        "completed": true,
+        "finalCaseStrength": 60,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 0,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 0,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          8,
+          8,
+          8,
+          8,
+          0,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 41954,
+          "outputTokens": 4108
+        }
+      },
+      {
+        "seed": "eval-game-3-1791862970025",
+        "completed": true,
+        "finalCaseStrength": 80,
+        "ending": "CHARGED_STRONG",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 0,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          8,
+          3,
+          23,
+          3,
+          8,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 42245,
+          "outputTokens": 4265
+        }
+      },
+      {
+        "seed": "eval-game-4-1791863044975",
+        "completed": true,
+        "finalCaseStrength": 82,
+        "ending": "CHARGED_STRONG",
+        "turns": 6,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          23,
+          8,
+          25,
+          8
+        ],
+        "tokenUsage": {
+          "inputTokens": 31185,
+          "outputTokens": 3380
+        }
+      },
+      {
+        "seed": "eval-game-5-1791863102173",
+        "completed": true,
+        "finalCaseStrength": 87,
+        "ending": "CHARGED_STRONG",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          8,
+          25,
+          8,
+          8,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 42105,
+          "outputTokens": 3980
+        }
+      },
+      {
+        "seed": "eval-game-6-1791863172819",
+        "completed": true,
+        "finalCaseStrength": 86,
+        "ending": "CHARGED_STRONG",
+        "turns": 7,
+        "signalCounts": {
+          "contradictions": 3,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 0,
+          "witnessContradictions": 1
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          25,
+          0,
+          8,
+          25,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 37533,
+          "outputTokens": 3778
+        }
+      },
+      {
+        "seed": "eval-game-7-1791863236964",
+        "completed": true,
+        "finalCaseStrength": 58,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 1
+        },
+        "perTurnDeltas": [
+          0,
+          8,
+          0,
+          16,
+          3,
+          6,
+          0,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 42094,
+          "outputTokens": 4197
+        }
+      },
+      {
+        "seed": "eval-game-8-1791863311078",
+        "completed": true,
+        "finalCaseStrength": 87,
+        "ending": "CHARGED_STRONG",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 1,
+          "demeanorShifts": 0,
+          "witnessContradictions": 1
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          3,
+          23,
+          25,
+          8,
+          0,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 41379,
+          "outputTokens": 4150
+        }
+      },
+      {
+        "seed": "eval-game-9-1791863383056",
+        "completed": true,
+        "finalCaseStrength": 93,
+        "ending": "CHARGED_STRONG",
+        "turns": 6,
+        "signalCounts": {
+          "contradictions": 3,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 2,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          25,
+          25,
+          0,
+          25
+        ],
+        "tokenUsage": {
+          "inputTokens": 32983,
+          "outputTokens": 3411
+        }
+      }
+    ]
+  }
+}
