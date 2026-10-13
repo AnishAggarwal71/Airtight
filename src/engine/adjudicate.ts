@@ -15,7 +15,7 @@
  */
 
 import { generateObject } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
 import type {
   CaseFile,
@@ -37,7 +37,15 @@ dotenv.config()
 // ─── Model ───────────────────────────────────────────────────────────────────
 // Claude Haiku 4.5 — cheapest current Anthropic model, used for both the
 // persona agent and the invigilator (see CLAUDE.md "Model" section).
-export const MODEL = anthropic('claude-haiku-4-5')
+//
+// Uses an explicit provider instance (not the default `anthropic` export)
+// pinned to the real Anthropic API — the default export falls back to
+// ANTHROPIC_BASE_URL, which on this machine is already set by Claude Code
+// itself to its own corporate LLM gateway. Left on the default, the game's
+// own API key gets silently sent to that gateway instead of api.anthropic.com
+// and fails with an opaque 500.
+const anthropicProvider = createAnthropic({ baseURL: 'https://api.anthropic.com/v1' })
+export const MODEL = anthropicProvider('claude-haiku-4-5')
 
 // ─── Structured output schema ─────────────────────────────────────────────────
 
