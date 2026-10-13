@@ -2,6 +2,8 @@
  * Eval harness types — Layer 1 (invigilator accuracy) and Layer 2 (gameplay).
  */
 
+import type { SuspectResponse } from '../engine/types'
+
 /** A hand-crafted test case for the invigilator's signal detection. */
 export type EvalCase = {
   id: string
@@ -13,6 +15,8 @@ export type EvalCase = {
   presentedEvidenceIds: string[]
   playerQuestion: string
   suspectDialogue: string
+  /** Demeanor the suspect was reading as going into this turn — null only on turn 1. */
+  previousDemeanor: SuspectResponse['demeanor'] | null
   expectedSignals: {
     contradictions: { againstClaimId: string; severity: 'minor' | 'major' }[]
     guiltyKnowledgeLeak: boolean

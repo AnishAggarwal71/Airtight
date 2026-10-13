@@ -58,17 +58,35 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
     pass('homicide locality context is included deterministically')
   }
 
+  // Beats are authored in narrative order (opportunity -> ... -> exit), but
+  // some templates' windows cross midnight — compare elapsed minutes since
+  // window.start (wrapping forward) rather than raw "HH:MM" strings, which
+  // sort wrong across the midnight boundary (e.g. "23:57" >= "00:12").
+  // One template (overdose) has a legitimate prequel beat days before
+  // window.start (an early prescription refill) — order-checking starts
+  // from the first beat whose time equals window.start, so that beat is
+  // exempt without weakening the check for anything inside the window.
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number)
+    return h * 60 + m
+  }
   let timelineOrderValid = true
   for (const seed of SEEDS) {
     const file = generate({ seed, crime: 'homicide' })
-    const wifiDrop = file.truth.find((beat) => beat.id === 't5')?.time
-    const exit = file.truth.find((beat) => beat.id === 't6')?.time
-    if (!wifiDrop || !exit || wifiDrop >= exit) {
-      fail(`homicide exit precedes or coincides with final building activity (${seed})`)
-      timelineOrderValid = false
+    const startMinutes = toMinutes(file.window.start)
+    const windowStartIndex = file.truth.findIndex((beat) => beat.time === file.window.start)
+    let prevElapsed = -1
+    for (const beat of file.truth.slice(Math.max(windowStartIndex, 0))) {
+      const elapsed = (toMinutes(beat.time) - startMinutes + 1440) % 1440
+      if (elapsed < prevElapsed) {
+        fail(`${file.templateId} truth beat ${beat.id} precedes an earlier beat (${seed})`)
+        timelineOrderValid = false
+        break
+      }
+      prevElapsed = elapsed
     }
   }
-  if (timelineOrderValid) pass('homicide timeline keeps the suspect inside until before their exit')
+  if (timelineOrderValid) pass('homicide truth timelines stay in chronological order, including midnight-crossing windows')
 
   const evidence = generate({ seed: 'verify-evidence-input', crime: 'homicide' }).evidence
   evidence[1].presented = true
@@ -90,7 +108,8 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
   for (const seed of SEEDS) {
     for (const crime of CRIMES) {
       const file = generate({ seed, crime })
-      const pub = JSON.stringify(toPublicCase(file))
+      const publicCase = toPublicCase(file)
+      const pub = JSON.stringify(publicCase)
 
       // Truth timeline must stay hidden
       for (const beat of file.truth) {
@@ -140,9 +159,13 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
         clean = false
       }
 
-      // Evidence claims SHOULD be visible (inverted from V1)
+      // Evidence claims SHOULD be visible (inverted from V1) — compare the
+      // structured public evidence array directly rather than substring-matching
+      // a JSON.stringify()'d blob, since claims containing literal `"` characters
+      // are escaped to `\"` in that blob and can never match a raw substring.
       for (const e of file.evidence) {
-        if (!pub.includes(e.claim)) {
+        const pe = publicCase.evidence.find((x) => x.id === e.id)
+        if (!pe || pe.claim !== e.claim) {
           fail(`evidence ${e.id} claim not visible in public case (${seed}/${crime})`)
           clean = false
         }
@@ -273,9 +296,13 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
 }
 
 // 5. Variance — the same template shouldn't produce the same case twice
+// 400 draws (not 120) so that splitting across 10 homicide templates still
+// gives each one enough samples to clear the distinct-fingerprint floor —
+// at 120 draws, ~12 land per template on average, too tight a margin against
+// a floor of 10 distinct fingerprints.
 {
   const byTemplate = new Map<string, Set<string>>()
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 400; i++) {
     for (const crime of CRIMES) {
       const f = generate({ seed: `var-${i}`, crime })
       const fingerprint = `${f.suspect.name}|${f.victim.name}|${f.window.start}`

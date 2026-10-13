@@ -35,6 +35,11 @@ export const SCORING_CONFIG = {
 
   witnessContradiction: 10,
 
+  // Backstop against invigilator over-firing (stacked contradictions +
+  // GK leak + demeanor shift all landing on one turn) — caps any single
+  // turn's swing regardless of how many signals fired. See docs/decisions.md.
+  maxTurnDelta: 25,
+
   maxInterrogationTurns: 6,
   maxWitnessTurns: 2,
 
@@ -96,6 +101,8 @@ export function scoreSuspectTurn(
   if (invigilatorResponse.signals.demeanorShift) {
     delta += config.demeanorShift
   }
+
+  delta = clamp(-config.maxTurnDelta, config.maxTurnDelta, delta)
 
   const newCaseStrength = clamp(
     config.caseStrengthFloor,

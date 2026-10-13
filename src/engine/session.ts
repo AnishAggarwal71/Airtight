@@ -171,6 +171,10 @@ export async function playInterrogationTurn(
   let invigilatorFailed = false
 
   try {
+    const previousDemeanor = session.interrogationDetails.length > 0
+      ? session.interrogationDetails[session.interrogationDetails.length - 1].suspectResponse.demeanor
+      : null
+
     const evalInput: EvaluateSuspectInput = {
       caseFile: session.caseFile,
       turn: session.interrogationTurn,
@@ -179,6 +183,7 @@ export async function playInterrogationTurn(
       suspectDialogue: suspectResponse.dialogue,
       presentedEvidence,
       suspectClaims: session.suspectClaims,
+      previousDemeanor,
     }
 
     const { response: evalResponse, usage: evalUsage } = await evaluateSuspectTurn(evalInput)

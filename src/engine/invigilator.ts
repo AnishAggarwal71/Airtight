@@ -18,6 +18,7 @@ import type {
   DetectiveEvidence,
   InvigilatorSuspectResponse,
   InvigilatorWitnessResponse,
+  SuspectResponse,
   TokenUsage,
 } from './types'
 
@@ -33,16 +34,33 @@ export const SuspectInvigilatorSchema = z.object({
       againstClaimId: z.string().describe('Claim ID from the ledger that was contradicted, e.g. "c3"'),
       description: z.string().describe('What the suspect said now vs what they claimed before'),
       severity: z.enum(['minor', 'major']).describe(
-        'minor: inconsistency in detail (times off by a bit). ' +
-        'major: direct contradiction of a core claim.',
+        'minor: a detail is off (a time, a sequence, a minor fact) but the suspect\'s overall ' +
+        'account of what happened is still intact. ' +
+        'major: the suspect\'s new statement makes their PRIOR claim impossible to be true — not ' +
+        'just inconsistent in flavor, but logically incompatible. If a prior claim and the new ' +
+        'statement could BOTH be true with a charitable reading (vague phrasing, a different but ' +
+        'compatible way of describing the same event), it is NOT a contradiction at all — do not ' +
+        'flag it, not even as minor.',
       ),
-    })).describe('All contradictions between this turn\'s dialogue and prior claims. Empty array if none.'),
+    })).describe(
+      'All contradictions between this turn\'s dialogue and prior claims. Empty array if none. ' +
+      'One admission can only break the SINGLE prior claim it most directly contradicts — do not ' +
+      'also flag other claims that are merely adjacent or related to the same topic. For example, ' +
+      'admitting "we argued about money" contradicts a specific prior claim that money was not ' +
+      'discussed, but it does NOT also separately contradict a general claim like "it was a friendly ' +
+      'visit" or "we had a good relationship" — those are opinions/framing, not separate factual breaks.',
+    ),
     guiltyKnowledgeLeak: z.object({
       description: z.string().describe('What was leaked and why only the guilty party would know this'),
     }).nullable().describe(
       'Non-null ONLY if the suspect revealed something they shouldn\'t know if innocent. ' +
       'Examples: mentioning the murder weapon before the detective did, knowing where the body ' +
-      'was found, referencing details only the killer would have. Null if nothing leaked.',
+      'was found, referencing details only the killer would have. A leak requires a SPECIFIC fact ' +
+      'that was never stated by the detective, never visible in evidence claims the detective ' +
+      'presented, and that an innocent person constructing an alibi would have no way to guess ' +
+      'correctly. Generic or vague references to the scene/victim that could be inferred from ' +
+      'common sense or from what the detective has already said out loud this game are NOT leaks. ' +
+      'Null if nothing leaked.',
     ),
     evidenceHandling: z.array(z.object({
       evidenceId: z.string().describe('The evidence item ID'),
@@ -50,14 +68,18 @@ export const SuspectInvigilatorSchema = z.object({
         '0 = terrible (contradicts known facts, makes it worse). ' +
         '1 = weak (doesn\'t address the evidence, obvious deflection). ' +
         '2 = plausible but cracked (addresses it but leaves doubt). ' +
-        '3 = airtight (provides a convincing innocent explanation).',
+        '3 = airtight (provides a convincing innocent explanation). ' +
+        'Example: flatly denying the evidence exists is quality 1. Offering an explanation that ' +
+        'technically accounts for the evidence but requires an unlikely coincidence is quality 2.',
       ),
       description: z.string().describe('How the suspect handled this evidence and why you gave this rating'),
     })).describe('One entry per evidence item presented this turn. Empty array if none presented.'),
     demeanorShift: z.boolean().describe(
-      'True if the suspect\'s emotional state noticeably changed this turn compared to ' +
-      'their prior behaviour — becoming more nervous, defensive, aggressive, or evasive ' +
-      'under pressure. False if they maintained composure.',
+      'True ONLY if the suspect\'s emotional state this turn is actually different from their ' +
+      'PREVIOUS DEMEANOR given below — e.g. previous was "calm" and this turn reads nervous or ' +
+      'defensive. False if demeanor is the same as previous, even under pressure — composed ' +
+      'hedging or a calm admission is not a shift. There is no prior turn to compare against ' +
+      'on turn 1, so this must be false on turn 1.',
     ),
   }),
 })
@@ -131,10 +153,11 @@ export function buildInvigilatorSystemPrompt(caseFile: CaseFile): string {
   lines.push('## JUDGING RULES')
   lines.push('1. You are NOT the suspect or witness. You are an outside observer with full knowledge.')
   lines.push('2. Judge the DIALOGUE — what was actually said — against the truth and prior claims.')
-  lines.push('3. A contradiction means the suspect said something NOW that conflicts with a SPECIFIC prior claim in the ledger. Quote the claim ID.')
+  lines.push('3. A contradiction means the suspect said something NOW that conflicts with a SPECIFIC prior claim in the ledger. Quote the claim ID. One admission breaks at most one claim — the single most specific one it conflicts with — never a whole cluster of loosely related claims.')
+  lines.push('3b. Before flagging any contradiction, state the exact two statements in tension in your reasoning field. If you cannot quote both sides precisely, you are inferring a contradiction that isn\'t there — do not flag it.')
   lines.push('4. A guilty knowledge leak means the suspect mentioned something only the killer would know — something the detective has not revealed. Be strict: if the detective asked about it first, it\'s not a leak.')
   lines.push('5. Evidence handling quality: how well did the suspect address each presented item? Did they provide a convincing innocent explanation, or did they fumble?')
-  lines.push('6. Demeanor shift: did the suspect\'s emotional state change noticeably under pressure this turn?')
+  lines.push('6. Demeanor shift: compare this turn\'s demeanor to the PREVIOUS DEMEANOR given in the user message — only true if it actually changed. A calm admission is not a shift. False on turn 1 always.')
   lines.push('7. Be precise and conservative. Only flag what you can point to in the dialogue. Do not infer what was "implied" — flag what was SAID.')
   lines.push('8. Return ONLY the structured JSON matching the schema.')
 
@@ -151,6 +174,7 @@ export type EvaluateSuspectInput = {
   suspectDialogue: string
   presentedEvidence: DetectiveEvidence[]
   suspectClaims: Claim[]
+  previousDemeanor: SuspectResponse['demeanor'] | null
 }
 
 function buildSuspectEvalMessage(input: EvaluateSuspectInput): string {
@@ -174,6 +198,11 @@ function buildSuspectEvalMessage(input: EvaluateSuspectInput): string {
 
   lines.push('THE SUSPECT RESPONDED:')
   lines.push(`"${input.suspectDialogue}"`)
+  lines.push('')
+
+  lines.push(
+    `PREVIOUS DEMEANOR (for demeanorShift comparison): ${input.previousDemeanor ?? 'none — this is turn 1'}`,
+  )
   lines.push('')
 
   lines.push('SUSPECT\'S PRIOR CLAIMS (check for contradictions):')

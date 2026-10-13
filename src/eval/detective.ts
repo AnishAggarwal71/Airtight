@@ -142,6 +142,7 @@ export async function runEvalCase(
     suspectDialogue: evalCase.suspectDialogue,
     presentedEvidence,
     suspectClaims,
+    previousDemeanor: evalCase.previousDemeanor,
   }
 
   onProgress?.(`  Running ${evalCase.id}...`)

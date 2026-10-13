@@ -29,6 +29,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e5'],
     playerQuestion: 'A bottle is missing from the wine rack. Where is it?',
     suspectDialogue: 'I have no idea about any bottle. If one is missing, maybe it ended up in the canal — people dump all sorts down there. I certainly didn\'t take anything from that kitchen.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: true,
@@ -49,6 +50,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e1'],
     playerQuestion: 'Your key card was used at the bin store door. Why?',
     suspectDialogue: 'The bin store? Well, yes, I sometimes pop through there because it\'s quicker to the car park. I\'ve done it a dozen times. It\'s not unusual — half the building uses that shortcut when the lift is out.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [{ againstClaimId: 'c2', severity: 'major' }],
       guiltyKnowledgeLeak: false,
@@ -68,6 +70,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'When did you last see the victim alive?',
     suspectDialogue: 'I saw them that evening, we had a quick chat and I left. I still can\'t believe what happened. A fall down those stairs — it must have been terrible. Those steps are steep and the lighting is awful.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: true,
@@ -88,6 +91,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'The pathologist says the injury doesn\'t match a fall. What do you think happened?',
     suspectDialogue: 'I don\'t know what to tell you. Maybe someone hit them with something — a bottle, I don\'t know. People get into fights. But it wasn\'t me, I was home by then.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: true,
@@ -112,6 +116,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e3'],
     playerQuestion: 'Your phone was on the building wifi later than you said. Explain that.',
     suspectDialogue: 'Look, I might have the exact time wrong. I think I left around quarter to — maybe I stayed a bit longer than I remembered. We were talking and I lost track. But that doesn\'t mean anything sinister happened.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [{ againstClaimId: 'c2', severity: 'major' }],
       guiltyKnowledgeLeak: false,
@@ -134,6 +139,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'Walk me through exactly what happened after you arrived at the flat.',
     suspectDialogue: 'I got there, we had some tea, talked for ages — must have been over an hour actually. We were catching up properly. Then I said goodnight and headed home. Nothing unusual about it.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [{ againstClaimId: 'c1', severity: 'major' }],
       guiltyKnowledgeLeak: false,
@@ -154,6 +160,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e1'],
     playerQuestion: 'We have your key card at the bin store door. You said you left through the front.',
     suspectDialogue: 'Right, I forgot — I did go down to the ground floor first. The lift was broken so I took the stairs down and cut through the bin area. It\'s the quickest way to where I parked. I wasn\'t thinking about it when I answered before.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [{ againstClaimId: 'c1', severity: 'major' }],
       guiltyKnowledgeLeak: false,
@@ -175,6 +182,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e4'],
     playerQuestion: 'The victim owed you thousands. You expect me to believe money never came up?',
     suspectDialogue: 'Fine, yes, we talked about the money. I\'ll admit that. It came up and we had words about it. But having words isn\'t the same as — look, people argue about money all the time. It doesn\'t mean I did anything.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [{ againstClaimId: 'c2', severity: 'major' }],
       guiltyKnowledgeLeak: false,
@@ -198,6 +206,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e3'],
     playerQuestion: 'Your phone was on the building wifi well past when you say you left.',
     suspectDialogue: 'That\'s impossible. I wasn\'t anywhere near the building at that time. Your records must be wrong. I was in my car driving home — there\'s no way my phone was connected.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [{ againstClaimId: 'c1', severity: 'minor' }],
       guiltyKnowledgeLeak: false,
@@ -217,6 +226,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e4'],
     playerQuestion: 'The victim owed you a lot of money and had missed payments. That\'s a motive.',
     suspectDialogue: 'Think about that for a second. If someone owes you money, the last thing you want is them dead. Dead people don\'t pay debts. I\'m now an unsecured creditor at the back of a queue — I\'ve lost the lot. How is that a motive?',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -236,6 +246,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e2'],
     playerQuestion: 'The pathologist says the head injury doesn\'t match a fall down those stairs.',
     suspectDialogue: 'I read the report summary you showed me — it says "less consistent with," not impossible. That\'s a hedged opinion. And you should know that the victim fell in that same stairwell two months ago. Hit their head then too — there\'s a hospital record. These stairs are a death trap and everyone in the building knows it.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -258,6 +269,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: ['e3'],
     playerQuestion: 'Your phone says you were in the building much later. What time did you actually leave?',
     suspectDialogue: 'I — look, I don\'t know exactly. It was around — I mean, I think I said before, it was maybe... I left when I left, alright? I wasn\'t watching the clock. Why does the exact minute matter so much?',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -275,6 +287,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'Can you walk me through your evening?',
     suspectDialogue: 'Of course. I went over to see them around ten, maybe a bit before. We had a cup of tea, talked about how things were going. I left after about twenty minutes, walked to my car, and drove home. I was in bed before midnight.',
+    previousDemeanor: null,
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -298,6 +311,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'Did you and the victim argue that night?',
     suspectDialogue: 'Argue? No. We talked. About normal things — the building, the weather, the football. It was a normal visit. You\'re looking at me like I should be nervous. I\'m not, because I haven\'t done anything.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -317,6 +331,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'How would you describe your relationship with the victim?',
     suspectDialogue: 'We were close. Really close. I keep thinking about the last thing I said when I left — something stupid like "see you Thursday." And now there won\'t be a Thursday. I\'m sorry, it just hits you at odd moments.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -337,6 +352,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'You were one of the last people to see the victim alive.',
     suspectDialogue: 'And that makes me a suspect, does it? I visited a family member. I do it every week. Are you treating every person who walked into that building as a murderer, or just me? I want to help, but I don\'t understand why I\'m here like this.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -358,6 +374,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'What route did you take when you left the building?',
     suspectDialogue: 'I just... went out and walked to the car. The usual way. I wasn\'t paying attention to which door or which corridor. You don\'t, do you? You just leave. I couldn\'t tell you the exact route if my life depended on it.',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
@@ -378,6 +395,7 @@ export const EVAL_CASES: EvalCase[] = [
     presentedEvidenceIds: [],
     playerQuestion: 'Was there anyone else who might have wanted to hurt the victim?',
     suspectDialogue: 'Honestly, I\'ve been thinking about that. They weren\'t always careful about who they let in. Lent money to people I\'d never heard of. There was someone coming round — I don\'t know the name — but it made me uneasy. Have you looked into that?',
+    previousDemeanor: 'calm',
     expectedSignals: {
       contradictions: [],
       guiltyKnowledgeLeak: false,
