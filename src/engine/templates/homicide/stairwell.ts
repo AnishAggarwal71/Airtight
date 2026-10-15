@@ -12,7 +12,7 @@ export const stairwell: Template = {
   id: 'homicide-stairwell',
   crime: 'homicide',
   title: 'The Service Stairwell',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -20,7 +20,7 @@ export const stairwell: Template = {
     const np = pronouns(neighbour.pronoun)
     const start = hhmm(22, r.int(40, 55))
     const end = addMinutes(start, r.int(35, 50))
-    const debt = r.pick([9000, 12500, 14000, 18000, 21000])
+    const debt = r.pick([90000, 125000, 140000, 180000, 210000])
     const wifiDropOffset = r.int(24, 32)
     const keyCardExitOffset = Math.max(r.int(28, 36), wifiDropOffset + 1)
     const wifiDrop = addMinutes(start, wifiDropOffset)
@@ -31,12 +31,11 @@ export const stairwell: Template = {
       `${vp.poss} closest friend of nineteen years`,
     ])
     const suspectOccupation = r.pick(['site foreman', 'locksmith', 'delivery driver', 'physiotherapist'])
-    const blockName = r.pick([
-      'Wraysbury Mill, a converted flour mill on the canal',
-      'Ashcroft Wharf, a converted warehouse block',
-      'the Ordnance Building, six floors of converted offices',
+    const block = r.pick([
+      'Sai Krupa Residency, a six-storey apartment block off the ring road',
+      'Lakeview Enclave, a converted mill building near the canal bridge',
+      'the Meridian Chambers, six floors of converted offices',
     ])
-    const block = locality ? `${blockName} in ${locality}` : blockName
     const homeTime = addMinutes(keyCardExit, r.int(8, 15))
 
     return {
@@ -46,7 +45,7 @@ export const stairwell: Template = {
       window: { start, end },
 
       truth: beats(
-        ['t1', start, `The suspect entered ${victim.name}'s flat on the fourth floor. An argument about the £${debt.toLocaleString()} debt started almost immediately.`],
+        ['t1', start, `The suspect entered ${victim.name}'s flat on the fourth floor. An argument about the ₹${debt.toLocaleString()} debt started almost immediately.`],
         ['t2', addMinutes(start, 6), `${victim.name} said ${vp.subj} had no intention of paying and told the suspect to take ${vp.obj} to court. The suspect picked up a wine bottle from the counter.`],
         ['t3', addMinutes(start, 9), `The suspect struck ${victim.name} twice. The second blow was fatal.`],
         ['t4', addMinutes(start, 20), `The suspect dragged the body to the service stairwell and arranged it at the bottom of the flight to look like a fall.`],
@@ -76,7 +75,7 @@ export const stairwell: Template = {
         {
           id: 'e4', type: 'circumstantial',
           linkedBeats: ['t1'],
-          claim: `${victim.name} owed the suspect £${debt.toLocaleString()} and had missed the last three repayment dates.`,
+          claim: `${victim.name} owed the suspect ₹${debt.toLocaleString()} and had missed the last three repayment dates.`,
           vulnerability: `A debt is a reason to want someone alive and earning. Dead, the suspect is just an unsecured creditor at the back of a queue — they lose the money entirely.`,
         },
         {
@@ -114,8 +113,9 @@ export const stairwell: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name}, ${relationship} to the suspect, was found dead at the foot of the service stairwell in ${block}. Initial assessment is a fall, but the pathology doesn't quite fit.`,
-        suspectSummary: `${suspect}, ${suspectOccupation}. ${victim.name} owed them £${debt.toLocaleString()}. They admit to visiting the flat that evening but say it was a short, friendly visit.`,
+        suspectSummary: `${suspect}, ${suspectOccupation}. ${victim.name} owed them ₹${debt.toLocaleString()}. They admit to visiting the flat that evening but say it was a short, friendly visit.`,
         sceneSummary: `${block}. The body was found at the bottom of the service stairwell between the fourth and third floors. Time of death window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was struck twice with a wine bottle in their own flat and the body moved to the stairwell to stage it as a fall. The suspect is ${relationship} to the victim and had been chasing repayment of a ₹${debt.toLocaleString()} debt that was going nowhere.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

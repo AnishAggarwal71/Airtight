@@ -54,7 +54,7 @@ export type Template = {
   id: string
   crime: CrimeType
   title: string
-  build: (r: Rng, detective: DetectiveIdentity, locality?: string) => TemplateBuild
+  build: (r: Rng, detective: DetectiveIdentity) => TemplateBuild
 }
 
 /** Build a timeline from `[id, time, fact]` tuples, in narrative order. */
@@ -63,19 +63,19 @@ export function beats(...rows: [string, string, string][]): TimelineBeat[] {
 }
 
 const FIRST_NAMES = [
-  'Michael', 'Sarah', 'David', 'Emma', 'James', 'Olivia', 'Daniel', 'Sophie',
-  'Robert', 'Chloe', 'Andrew', 'Hannah', 'Mark', 'Rebecca', 'Paul', 'Laura',
-  'Christopher', 'Charlotte', 'Simon', 'Amelia', 'Thomas', 'Grace', 'Richard',
-  'Lucy', 'Adam', 'Megan', 'Peter', 'Katie', 'Stephen', 'Jessica', 'Neil',
-  'Zoe', 'Craig', 'Natalie', 'Ian', 'Rachel', 'Gary', 'Louise', 'Kevin', 'Amy',
+  'Arjun', 'Priya', 'Rohan', 'Ananya', 'Vikram', 'Divya', 'Karan', 'Neha',
+  'Aditya', 'Pooja', 'Rahul', 'Sneha', 'Varun', 'Kavya', 'Siddharth', 'Riya',
+  'Nikhil', 'Shreya', 'Amit', 'Isha', 'Rajesh', 'Meera', 'Sanjay', 'Nisha',
+  'Vivek', 'Anjali', 'Suresh', 'Deepa', 'Manish', 'Lakshmi', 'Arvind', 'Kriti',
+  'Harish', 'Swati', 'Gaurav', 'Tanvi', 'Ashok', 'Radha', 'Naveen', 'Simran',
 ] as const
 
 const LAST_NAMES = [
-  'Whitfield', 'Okafor', 'Marsh', 'Delaney', 'Pemberton', 'Voss', 'Ainsley',
-  'Corcoran', 'Hollis', 'Fenwick', 'Bramwell', 'Sadowski', 'Trent', 'Kaczmarek',
-  'Ellery', 'Duffield', 'Northcote', 'Regis', 'Wickham', 'Osei', 'Callaghan',
-  'Petrie', 'Alderton', 'Yusuf', 'Marchetti', 'Sheahan', 'Blackwood', 'Nazari',
-  'Farrow', 'Kimura', 'Redgrave', 'Onyeka', 'Stavros', 'Linton', 'Bellamy',
+  'Sharma', 'Verma', 'Iyer', 'Nair', 'Reddy', 'Gupta', 'Menon', 'Rao',
+  'Mehta', 'Kapoor', 'Chatterjee', 'Bose', 'Pillai', 'Desai', 'Joshi', 'Agarwal',
+  'Krishnan', 'Pillay', 'Khanna', 'Malhotra', 'Chawla', 'Bhatt', 'Shetty', 'Varma',
+  'Nambiar', 'Subramaniam', 'Banerjee', 'Mukherjee', 'Patel', 'Trivedi', 'Hegde',
+  'Chandran', 'Rangan', 'Kulkarni', 'Suri',
 ] as const
 
 export function fullName(r: Rng): string {
@@ -83,15 +83,15 @@ export function fullName(r: Rng): string {
 }
 
 const MALE_FIRST_NAMES = [
-  'Michael', 'David', 'James', 'Daniel', 'Robert', 'Andrew', 'Mark', 'Paul',
-  'Christopher', 'Simon', 'Thomas', 'Richard', 'Adam', 'Peter', 'Stephen',
-  'Neil', 'Craig', 'Ian', 'Gary', 'Kevin',
+  'Arjun', 'Rohan', 'Vikram', 'Karan', 'Aditya', 'Rahul', 'Varun', 'Siddharth',
+  'Nikhil', 'Amit', 'Rajesh', 'Sanjay', 'Vivek', 'Suresh', 'Manish', 'Arvind',
+  'Harish', 'Gaurav', 'Ashok', 'Naveen',
 ] as const
 
 const FEMALE_FIRST_NAMES = [
-  'Sarah', 'Emma', 'Olivia', 'Sophie', 'Chloe', 'Hannah', 'Rebecca', 'Laura',
-  'Charlotte', 'Amelia', 'Grace', 'Lucy', 'Megan', 'Katie', 'Jessica', 'Zoe',
-  'Natalie', 'Rachel', 'Louise', 'Amy',
+  'Priya', 'Ananya', 'Divya', 'Neha', 'Pooja', 'Sneha', 'Kavya', 'Riya',
+  'Shreya', 'Isha', 'Meera', 'Nisha', 'Anjali', 'Deepa', 'Lakshmi', 'Kriti',
+  'Swati', 'Tanvi', 'Radha', 'Simran',
 ] as const
 
 export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
@@ -101,12 +101,12 @@ export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
 }
 
 export const DETECTIVE_NAMES: DetectiveIdentity[] = [
-  { name: 'Aisha Okonkwo', rank: 'Detective Inspector' },
-  { name: 'Callum Reid', rank: 'Detective Sergeant' },
-  { name: 'Priya Chandran', rank: 'Detective Inspector' },
-  { name: 'Marcus Devlin', rank: 'Detective Chief Inspector' },
-  { name: 'Fiona Blackwell', rank: 'Detective Sergeant' },
-  { name: 'Tomasz Nowak', rank: 'Detective Inspector' },
-  { name: 'Grace Ellery', rank: 'Detective Sergeant' },
-  { name: 'Owen Kavanagh', rank: 'Detective Inspector' },
+  { name: 'Aisha Khan', rank: 'Inspector' },
+  { name: 'Rohit Kulkarni', rank: 'Sub-Inspector' },
+  { name: 'Priya Chandran', rank: 'Inspector' },
+  { name: 'Marcus D\'Souza', rank: 'Deputy Commissioner' },
+  { name: 'Fiona Pinto', rank: 'Sub-Inspector' },
+  { name: 'Tanvi Nair', rank: 'Inspector' },
+  { name: 'Grace Fernandes', rank: 'Sub-Inspector' },
+  { name: 'Owen Kurian', rank: 'Inspector' },
 ]

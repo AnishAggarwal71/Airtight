@@ -12,7 +12,7 @@ export const overdose: Template = {
   id: 'homicide-overdose',
   crime: 'homicide',
   title: 'The Overdose',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -20,19 +20,18 @@ export const overdose: Template = {
     const cp = pronouns(carer.pronoun)
     const start = hhmm(20, r.int(0, 30))
     const end = addMinutes(start, r.int(60, 90))
-    const estate = r.pick([95000, 140000, 165000, 220000])
+    const estate = r.pick([9500000, 14000000, 16500000, 22000000])
     const medication = r.pick(['morphine', 'diazepam', 'digoxin'])
-    const streetName = r.pick([
-      'the house on Linden Close',
-      'the bungalow on Hartside Road',
-      'the house on Fenchurch Row',
+    const house = r.pick([
+      'the house in Basavanagudi',
+      'the bungalow in RT Nagar',
+      'the house in Banashankari',
     ])
-    const house = locality ? `${streetName} in ${locality}` : streetName
     const refillOffset = r.int(-4, -1)
 
     return {
       suspect: { name: suspect, occupation: r.pick(['registered carer', 'part-time nurse', 'none — full-time family carer']) },
-      victim: { name: victim.name, relationship: `the suspect's elderly, dependent parent, cared for at home since a diagnosis two years prior` },
+      victim: { name: victim.name, relationship: `the suspect's elderly, dependent parent` },
       location: `${house} — found unresponsive in the bedroom`,
       window: { start, end },
 
@@ -67,7 +66,7 @@ export const overdose: Template = {
         {
           id: 'e4', type: 'financial',
           linkedBeats: ['t2'],
-          claim: `${victim.name}'s will leaves the bulk of a £${estate.toLocaleString()} estate to the suspect in recognition of years of caregiving, over objections from a sibling.`,
+          claim: `${victim.name}'s will leaves the bulk of a ₹${estate.toLocaleString()} estate to the suspect in recognition of years of caregiving, over objections from a sibling.`,
           vulnerability: `The will predates the death by years and reflects an existing, long-settled family arrangement — it's evidence of motive in the abstract, not of anything done this particular evening.`,
         },
         {
@@ -105,8 +104,9 @@ export const overdose: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name}, cared for at home by the suspect, was found unresponsive in the bedroom at ${house} and later pronounced dead. Initial assessment leaned toward a dosing accident given the long-term medication regime.`,
-        suspectSummary: `${suspect}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a £${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
+        suspectSummary: `${suspect}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
         sceneSummary: `${house}, bedroom. Time window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was given a dose of ${medication} well beyond the prescribed amount during the evening medication round, and help was delayed afterward. The suspect is ${victim.name}'s child and full-time carer, who stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected a prescription refill days early.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

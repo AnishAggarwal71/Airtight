@@ -36,7 +36,6 @@ export type TranscriptTurnFailed = {
 export async function createTranscriptLog(
   seed: string,
   crime: CrimeType,
-  locality?: string,
 ): Promise<string> {
   const directory = path.resolve(process.cwd(), 'playtest-logs')
   await mkdir(directory, { recursive: true })
@@ -52,7 +51,6 @@ export async function createTranscriptLog(
     createdAt: new Date().toISOString(),
     seed,
     crime,
-    ...(locality ? { locality } : {}),
     format: 'airtight-transcript-v2',
   }
 

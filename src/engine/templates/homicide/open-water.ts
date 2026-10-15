@@ -12,7 +12,7 @@ export const openWater: Template = {
   id: 'homicide-open-water',
   crime: 'homicide',
   title: 'The Open Water',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -21,18 +21,17 @@ export const openWater: Template = {
     const start = hhmm(18, r.int(15, 45))
     const end = addMinutes(start, r.int(45, 65))
     const lover = r.pick(['a colleague', 'a university friend', 'someone from the gym'])
-    const lakeName = r.pick([
-      'Harting Reservoir',
-      'the lake at Colworth Park',
-      'Siltmere Water',
+    const lake = r.pick([
+      'Hesaraghatta Lake',
+      'the lake at Hebbal',
+      'Byramangala reservoir',
     ])
-    const lake = locality ? `${lakeName} outside ${locality}` : lakeName
     const pingOffset = r.int(35, 45)
     const pingTime = addMinutes(start, pingOffset)
 
     return {
       suspect: { name: suspect, occupation: r.pick(['solicitor', 'surveyor', 'IT consultant', 'nurse']) },
-      victim: { name: victim.name, relationship: `the suspect's spouse of several years, who had just discovered the suspect's affair with ${lover}` },
+      victim: { name: victim.name, relationship: `the suspect's spouse of several years` },
       location: `${lake} — found in the shallows near the eastern jetty`,
       window: { start, end },
 
@@ -107,6 +106,7 @@ export const openWater: Template = {
         victimSummary: `${victim.name} was found dead in the shallows of ${lake}, near the eastern jetty. Initial assessment leaned toward an accidental drowning, but pre-death bruising complicates that.`,
         suspectSummary: `${suspect}, ${victim.name}'s spouse, had been having an affair with ${lover}, recently discovered by ${victim.name}, who was pushing for a divorce and a full asset split.`,
         sceneSummary: `${lake}, eastern jetty and shoreline. Time of death window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was pushed from the jetty during an argument, struck their head on a submerged post, and was held under rather than pulled out. The suspect is ${victim.name}'s spouse, who was recently discovered to be having an affair with ${lover} and was facing a demand for divorce and a full asset split.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

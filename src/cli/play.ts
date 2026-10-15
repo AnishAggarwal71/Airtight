@@ -50,7 +50,6 @@ const C = {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const MAX_QUESTION_LENGTH = 300
-const MAX_LOCALITY_LENGTH = 100
 const BAR_WIDTH = 20
 
 // ─── Rendering helpers ──────────────────────────────────────────────────────
@@ -353,30 +352,16 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  let locality: string | undefined
-  while (true) {
-    const answer = await ask(
-      rl,
-      '  Case setting (optional city/region and country; no street address, Enter to skip): ',
-    )
-    const trimmed = answer.replace(/\s+/g, ' ').trim()
-    if (trimmed.length <= MAX_LOCALITY_LENGTH) {
-      locality = trimmed || undefined
-      break
-    }
-    console.log(C.yellow(`  Keep the setting under ${MAX_LOCALITY_LENGTH} characters.`))
-  }
-
   // Initialise session
   let session: ReturnType<typeof createSession>
   try {
-    session = createSession(seed, crime, undefined, templateId, locality)
+    session = createSession(seed, crime, undefined, templateId)
   } catch (err) {
     console.error(C.red(`\n  ${(err as Error).message}\n`))
     process.exit(1)
   }
 
-  const transcriptPath = await createTranscriptLog(seed, crime, locality)
+  const transcriptPath = await createTranscriptLog(seed, crime)
 
   // ── Phase 1: Briefing ──────────────────────────────────────────────────
   const divider = '═'.repeat(56)

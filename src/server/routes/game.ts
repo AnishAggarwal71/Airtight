@@ -18,7 +18,7 @@ import type { GameSession } from '../../engine/types'
 import { buildBreakdown, buildTranscript } from '../breakdown'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
 import { getSession, createSessionId, putSession } from '../sessions'
-import { validateLocality, validateQuestionInput } from '../validation'
+import { validateQuestionInput } from '../validation'
 
 export const gameRouter = Router()
 
@@ -78,8 +78,6 @@ gameRouter.post(
       throw badRequest('Only homicide is available in this version.')
     }
 
-    const locality = validateLocality(body.locality)
-
     const seed =
       typeof body.seed === 'string' && body.seed.trim().length > 0
         ? body.seed.trim()
@@ -89,7 +87,7 @@ gameRouter.post(
 
     let session: GameSession
     try {
-      session = createSession(seed, 'homicide', undefined, templateId, locality)
+      session = createSession(seed, 'homicide', undefined, templateId)
     } catch (err) {
       throw badRequest(err instanceof Error ? err.message : String(err))
     }
@@ -139,6 +137,9 @@ gameRouter.post(
     if (session.ending || session.phase === 'verdict') {
       throw conflict('This case is already resolved; no further interrogation turns are accepted.')
     }
+    if (session.phase === 'witness') {
+      throw conflict('You have moved on to questioning the witness; the suspect interrogation is closed.')
+    }
     if (session.interrogationTurn >= session.maxInterrogationTurns) {
       throw conflict('No interrogation turns remaining.')
     }
@@ -165,9 +166,6 @@ gameRouter.post(
 
     if (session.ending) {
       throw conflict('This case is already resolved; no further witness turns are accepted.')
-    }
-    if (session.interrogationTurn < session.maxInterrogationTurns) {
-      throw conflict('Finish the interrogation before questioning the witness.')
     }
     if (session.witnessTurn >= session.maxWitnessTurns) {
       throw conflict('No witness turns remaining.')
@@ -196,7 +194,12 @@ gameRouter.post(
       throw badRequest('"charges" must be a boolean.')
     }
 
-    const interrogationDone = session.interrogationTurn >= session.maxInterrogationTurns
+    // Switching to the witness is one-way (see /interrogate's phase guard
+    // above), so a player who left interrogation early has permanently
+    // closed it out below the 6-turn max — treat phase === 'witness' as
+    // "interrogation resolved" rather than requiring the full turn count.
+    const interrogationDone =
+      session.interrogationTurn >= session.maxInterrogationTurns || session.phase === 'witness'
     const witnessDone = session.witnessTurn >= session.maxWitnessTurns
     if (!session.ending && !(interrogationDone && witnessDone)) {
       throw conflict("The interrogation/witness phase isn't finished yet.")

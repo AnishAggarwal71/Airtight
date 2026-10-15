@@ -12,7 +12,7 @@ export const charityGala: Template = {
   id: 'homicide-charity-gala',
   crime: 'homicide',
   title: 'The Charity Gala',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -21,18 +21,17 @@ export const charityGala: Template = {
     const start = hhmm(21, r.int(20, 50))
     const end = addMinutes(start, r.int(70, 90))
     const promotion = r.pick(['Head of Development', 'Regional Director', 'Chief Marketing Officer'])
-    const venueName = r.pick([
-      'the Marchbanks Hotel ballroom',
-      'the Guildhall function suite',
-      'the Oriel House ballroom',
+    const venue = r.pick([
+      'the Taj Vivanta ballroom',
+      'the Chancery Pavilion banquet hall',
+      'the ITC Gardenia ballroom',
     ])
-    const venue = locality ? `${venueName} in ${locality}` : venueName
     const serviceStairOffset = r.int(30, 40)
     const fallTime = addMinutes(start, serviceStairOffset)
 
     return {
       suspect: { name: suspect, occupation: r.pick(['fundraising manager', 'events director', 'communications lead', 'account director']) },
-      victim: { name: victim.name, relationship: `the suspect's professional rival, competing for the same ${promotion} role being decided that quarter` },
+      victim: { name: victim.name, relationship: `the suspect's professional rival` },
       location: `${venue} — found at the base of the service stairwell behind the kitchen`,
       window: { start, end },
 
@@ -107,6 +106,7 @@ export const charityGala: Template = {
         victimSummary: `${victim.name} was found dead at the base of the service stairwell at ${venue} during a charity gala. Initial assessment leaned toward an intoxicated accidental fall.`,
         suspectSummary: `${suspect}, a colleague of ${victim.name}'s, was the other finalist for the same ${promotion} role, with a decision due the following week.`,
         sceneSummary: `${venue}, service stairwell behind the kitchen. Time window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was sedated via a drink at the open bar, then pushed down the service stairwell while too impaired to catch themselves. The suspect is a colleague of ${victim.name}'s, the other finalist for the same ${promotion} role with a decision due the following week.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

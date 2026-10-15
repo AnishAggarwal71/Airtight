@@ -12,7 +12,7 @@ export const hikingTrail: Template = {
   id: 'homicide-hiking-trail',
   crime: 'homicide',
   title: 'The Hiking Trail',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -21,17 +21,16 @@ export const hikingTrail: Template = {
     const start = hhmm(14, r.int(10, 40))
     const end = addMinutes(start, r.int(50, 70))
     const affairPartner = r.pick(["the suspect's spouse", "the suspect's business partner", "the suspect's sister-in-law"])
-    const trailName = r.pick([
-      'Harrow Edge',
-      'the Beacon Ridge path',
-      'Caldbury Scar',
+    const trail = r.pick([
+      'the Nandi Hills ridge trail',
+      'the Skandagiri hiking path',
+      'the Savandurga trail',
     ])
-    const trail = locality ? `${trailName} above ${locality}` : trailName
     const gpsOffset = r.int(3, 6)
 
     return {
       suspect: { name: suspect, occupation: r.pick(['architect', 'personal trainer', 'graphic designer', 'veterinary nurse']) },
-      victim: { name: victim.name, relationship: `the suspect's close friend of many years, who had just found out about the suspect's affair with ${affairPartner} and was about to tell everyone` },
+      victim: { name: victim.name, relationship: `the suspect's close friend of many years` },
       location: `${trail} — found at the base of a cliff section known locally as the Scar`,
       window: { start, end },
 
@@ -60,7 +59,7 @@ export const hikingTrail: Template = {
         {
           id: 'e3', type: 'circumstantial',
           linkedBeats: ['t2'],
-          claim: `Messages from ${victim.name} to a mutual friend the night before say "I'm telling everyone this weekend, I can't carry this anymore."`,
+          claim: `Messages from ${victim.name} to a mutual friend the night before say "I'm telling everyone this weekend, I can't carry this anymore about [the suspect] and ${affairPartner}."`,
           vulnerability: `The message doesn't name what ${victim.name} intended to reveal — the detective is inferring it was the affair, but ${victim.name} may have meant something else entirely unrelated to the suspect.`,
         },
         {
@@ -106,6 +105,7 @@ export const hikingTrail: Template = {
         victimSummary: `${victim.name} was found dead at the base of a cliff section known as the Scar on ${trail}, while hiking with the suspect. Initial assessment leaned toward a fall on unstable scree.`,
         suspectSummary: `${suspect}, ${victim.name}'s close friend of many years, was about to be exposed by ${victim.name} for an ongoing affair with ${affairPartner}.`,
         sceneSummary: `${trail}, the Scar viewpoint and cliff base. Time window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was pushed from the cliff edge at the Scar during a confrontation and left there while the suspect walked on. The suspect is ${victim.name}'s close friend of many years, who was about to be exposed for an ongoing affair with ${affairPartner}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

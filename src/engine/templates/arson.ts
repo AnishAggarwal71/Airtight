@@ -18,18 +18,18 @@ const warehouse: Template = {
     const start = hhmm(r.int(2, 4), r.int(0, 55))
     const alarm = addMinutes(start, r.int(18, 34))
     const end = addMinutes(alarm, 40)
-    const cover = r.pick([620000, 840000, 1150000, 1400000])
-    const debt = r.pick([190000, 265000, 320000])
+    const cover = r.pick([62000000, 84000000, 115000000, 140000000])
+    const debt = r.pick([19000000, 26500000, 32000000])
     const trade = r.pick(['reclaimed furniture', 'commercial flooring', 'garden machinery', 'shopfitting supplies'])
 
     return {
       suspect: { name: suspect, occupation: `owner of a ${trade} business` },
-      victim: { name: 'Unit 14, Brennan Industrial Park', relationship: 'the suspect\'s own premises' },
-      location: `Unit 14, Brennan Industrial Park — total loss`,
+      victim: { name: 'Unit 14, Jigani Industrial Area', relationship: 'the suspect\'s own premises' },
+      location: `Unit 14, Jigani Industrial Area — total loss`,
       window: { start, end },
 
       truth: beats(
-        ['t1', addMinutes(start, -90), `The suspect moved the valuable stock into a rented lock-up on Tyle Road.`],
+        ['t1', addMinutes(start, -90), `The suspect moved the valuable stock into a rented lock-up off Mysore Road.`],
         ['t2', start, `The suspect laid a trail of white spirit from the rear racking to the office partition and lit it at the racking end.`],
         ['t3', addMinutes(start, 6), `The suspect left through the rear fire door, which they had wedged earlier so it wouldn't lock behind them.`],
         ['t4', alarm, `The alarm triggered when the smoke reached the office sensor. The rear of the unit had no working detector.`],
@@ -51,7 +51,7 @@ const warehouse: Template = {
         {
           id: 'e3', type: 'circumstantial',
           linkedBeats: ['t1'],
-          claim: `The suspect rented a lock-up on Tyle Road eleven days before the fire and moved stock into it.`,
+          claim: `The suspect rented a lock-up off Mysore Road eleven days before the fire and moved stock into it.`,
           vulnerability: `The unit's roof had been leaking since February and a water-damage claim had already been refused. Moving stock somewhere dry is what a reasonable person does.`,
         },
         {
@@ -73,10 +73,10 @@ const warehouse: Template = {
         name: bookkeeper,
         relationship: `the suspect's bookkeeper for the business`,
         personality: `Nervous, doesn't want to get anyone in trouble, but honest when directly asked a specific question. Won't volunteer information unprompted — needs to be led.`,
-        knowledgeBoundary: `Knows the suspect asked twice in the last month what the insurance policy actually covered. Knows the business was carrying about £${debt.toLocaleString()} of debt and had been refused a credit extension six weeks earlier. Was not present at the warehouse the night of the fire. Has no knowledge of the lock-up on Tyle Road.`,
+        knowledgeBoundary: `Knows the suspect asked twice in the last month what the insurance policy actually covered. Knows the business was carrying about ₹${debt.toLocaleString()} of debt and had been refused a credit extension six weeks earlier. Was not present at the warehouse the night of the fire. Has no knowledge of the lock-up off Mysore Road.`,
         suspectContradictions: [
           `If the suspect claims the insurance payout never crossed their mind, the bookkeeper knows they asked about coverage twice.`,
-          `If the suspect downplays the business's financial trouble, the bookkeeper knows about the £${debt.toLocaleString()} debt and the refused credit extension.`,
+          `If the suspect downplays the business's financial trouble, the bookkeeper knows about the ₹${debt.toLocaleString()} debt and the refused credit extension.`,
         ],
       },
 
@@ -94,9 +94,10 @@ const warehouse: Template = {
       },
 
       detectiveBriefing: {
-        victimSummary: `Unit 14, Brennan Industrial Park — a ${trade} warehouse. Total loss. No casualties but the building is destroyed.`,
+        victimSummary: `Unit 14, Jigani Industrial Area — a ${trade} warehouse. Total loss. No casualties but the building is destroyed.`,
         suspectSummary: `${suspect}, owner of the business operating from Unit 14. The business was in financial trouble — significant debt, refused credit extension. Insurance cover was doubled nine weeks before the fire.`,
         sceneSummary: `The fire started at the rear racking, sometime between ${start} and ${alarm}. The fire investigator found a pour pattern and traces of white spirit. The rear fire door was wedged open.`,
+        crimeSummary: `A trail of white spirit was laid from the rear racking to the office partition and set alight, with the rear fire door wedged open as an escape route and the only working smoke detector left to catch the fire late. The suspect is the business's own owner, who had moved the valuable stock out eleven days earlier and was carrying ₹${debt.toLocaleString()} of debt against a recently doubled insurance payout of ₹${cover.toLocaleString()}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. The fire evidence is strong but every item has a plausible innocent explanation. The suspect doesn't know which items you have — deploy them strategically.`,
       },
     }

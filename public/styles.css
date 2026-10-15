@@ -1,0 +1,362 @@
+/* AIRTIGHT — Noir Procedural visual design */
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #14141f;
+  --surface-raised: #1e1e2e;
+  --border: #2a2a3a;
+  --text-primary: #e8e6e3;
+  --text-secondary: #9a9aab;
+  --accent: #d4a843;
+  --success: #4ade80;
+  --danger: #f87171;
+  --suspect-blue: #93c5fd;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  line-height: 1.5;
+}
+
+/* ─── Phase visibility ──────────────────────────────────────────────── */
+/* All sections exist in the DOM at all times; only the one matching
+   body[data-phase] is shown. Avoids hand-rolled DOM diffing. */
+
+main > section[data-section] { display: none; }
+body[data-phase="setup"] main > section[data-section="setup"],
+body[data-phase="briefing"] main > section[data-section="briefing"],
+body[data-phase="interrogation"] main > section[data-section="interrogation"],
+body[data-phase="witness"] main > section[data-section="witness"],
+body[data-phase="verdict"] main > section[data-section="verdict"],
+body[data-phase="breakdown"] main > section[data-section="breakdown"] {
+  display: block;
+}
+
+/* Case Strength header hidden until a session exists */
+.cs-header { display: none; }
+body:not([data-phase="setup"]) .cs-header { display: flex; }
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+h1, h2, h3 { font-weight: 700; letter-spacing: 0.02em; }
+h1 { font-size: 2rem; color: var(--accent); margin-bottom: 4px; }
+.tagline { color: var(--text-secondary); margin-bottom: 24px; }
+
+.panel { animation: fade-in 0.25s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+label { display: block; margin-bottom: 14px; color: var(--text-secondary); font-size: 0.85rem; }
+input, textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border-radius: 4px;
+}
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button {
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 10px 18px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+button:hover:not(:disabled) { background: var(--accent); color: var(--bg); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hidden { display: none !important; }
+
+/* ─── Case Strength bar ─────────────────────────────────────────────── */
+
+.cs-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+}
+.cs-label { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+.cs-bar-track {
+  flex: 1;
+  height: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.cs-bar-fill {
+  height: 100%;
+  width: 15%;
+  background: var(--danger);
+  transition: width 0.4s ease-out, background-color 0.4s ease-out;
+}
+.cs-bar-fill.mid { background: var(--accent); }
+.cs-bar-fill.high { background: var(--success); }
+.cs-value { font-weight: 700; min-width: 2.5em; text-align: right; }
+.cs-flash {
+  position: absolute;
+  right: 20px;
+  top: 44px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  opacity: 0;
+}
+.cs-flash.show-up { color: var(--success); animation: flash-fade 1.5s ease-out; }
+.cs-flash.show-down { color: var(--danger); animation: flash-fade 1.5s ease-out; }
+@keyframes flash-fade {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* ─── Briefing ───────────────────────────────────────────────────────── */
+
+.briefing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.briefing-field { display: flex; flex-direction: column; }
+.field-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; }
+.briefing-prose p { margin: 0 0 12px; }
+
+/* ─── Evidence chips ─────────────────────────────────────────────────── */
+
+.evidence-list { list-style: none; padding: 0; margin: 0 0 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.evidence-chip {
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+.evidence-chip:hover:not(:disabled) { border-color: var(--accent); }
+.evidence-chip.staged { border-color: var(--accent); color: var(--accent); }
+.evidence-chip.presented {
+  opacity: 0.5;
+  text-decoration: line-through;
+  cursor: default;
+}
+.evidence-chip .evidence-type { color: var(--text-secondary); font-size: 0.72rem; margin-right: 6px; }
+.evidence-number { color: var(--text-secondary); font-size: 0.72rem; margin-right: 4px; }
+
+/* ─── Transcript ─────────────────────────────────────────────────────── */
+
+.transcript { margin: 16px 0; display: flex; flex-direction: column; gap: 12px; }
+.turn-counter { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 8px; }
+
+.message { padding: 10px 14px; border-radius: 4px; max-width: 90%; }
+.message.detective { background: var(--surface); align-self: flex-end; border: 1px solid var(--border); }
+.message.suspect, .message.witness {
+  background: var(--surface-raised);
+  align-self: flex-start;
+  border-left: 3px solid var(--suspect-blue);
+}
+.message-speaker { font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+
+.demeanor-badge {
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.demeanor-badge.calm { background: #1e3a2e; color: var(--success); }
+.demeanor-badge.nervous { background: #3a2e1e; color: var(--accent); }
+.demeanor-badge.defensive { background: #3a1e2e; color: var(--danger); }
+.demeanor-badge.aggressive { background: #3a1414; color: var(--danger); }
+.demeanor-badge.evasive { background: #2a2a3a; color: var(--text-secondary); }
+.demeanor-badge.cooperative { background: #1e3a2e; color: var(--success); }
+.demeanor-badge.reluctant { background: #2a2a3a; color: var(--text-secondary); }
+.demeanor-badge.confused { background: #3a2e1e; color: var(--accent); }
+
+.thinking { color: var(--text-secondary); font-size: 0.85rem; font-style: italic; }
+.ellipsis::after { content: ''; animation: ellipsis-steps 1.4s steps(4, end) infinite; }
+@keyframes ellipsis-steps {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+.invigilator-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+  margin: 8px 0 16px;
+}
+
+/* ─── Forms within panels ───────────────────────────────────────────── */
+
+#interrogation-form, #witness-form { display: flex; gap: 10px; align-items: flex-end; margin-top: 12px; }
+#interrogation-form textarea, #witness-form textarea { flex: 1; margin-top: 0; resize: vertical; }
+
+/* ─── Verdict ────────────────────────────────────────────────────────── */
+
+#verdict-choice { text-align: center; padding: 40px 0; }
+.verdict-btn { margin: 8px; padding: 14px 28px; font-size: 1rem; }
+.verdict-btn.charge { border-color: var(--success); color: var(--success); }
+.verdict-btn.charge:hover { background: var(--success); color: var(--bg); }
+.verdict-btn.release { border-color: var(--danger); color: var(--danger); }
+.verdict-btn.release:hover { background: var(--danger); color: var(--bg); }
+
+.verdict-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  z-index: 100;
+  animation: verdict-in 0.4s ease-out;
+}
+@keyframes verdict-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.verdict-result-label {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.verdict-result-label.CHARGED_STRONG { color: var(--success); }
+.verdict-result-label.CHARGED_WEAK { color: var(--accent); }
+.verdict-result-label.RELEASED { color: var(--danger); }
+
+/* ─── Breakdown accordion ────────────────────────────────────────────── */
+
+.accordion-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.accordion-header {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 12px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+}
+.accordion-header:hover { background: var(--surface-raised); color: var(--text-primary); }
+.accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out;
+  padding: 0 14px;
+}
+.accordion-card.open .accordion-body { max-height: 2000px; padding: 0 14px 14px; }
+
+.claim-item { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+.claim-item:last-child { border-bottom: none; }
+.claim-item.contradicted { color: var(--danger); }
+.contradiction-tag { font-size: 0.7rem; color: var(--danger); margin-left: 8px; }
+
+/* ─── Error banner ───────────────────────────────────────────────────── */
+
+.error-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface-raised);
+  border-top: 2px solid var(--danger);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 200;
+}
+#error-message { color: var(--danger); font-size: 0.88rem; }
+
+/* ─── Case File overlay ──────────────────────────────────────────────── */
+
+.case-file-btn { margin-bottom: 12px; }
+
+.case-file-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  padding: 20px;
+}
+.case-file-panel {
+  max-width: 700px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .briefing-grid { grid-template-columns: 1fr; }
+  main { padding: 16px 14px 100px; }
+}

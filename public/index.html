@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIRTIGHT — Interrogation</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body data-phase="setup">
+
+  <header id="case-strength-header" class="cs-header">
+    <div class="cs-label">CASE STRENGTH</div>
+    <div class="cs-bar-track">
+      <div id="cs-bar-fill" class="cs-bar-fill"></div>
+    </div>
+    <div id="cs-value" class="cs-value">15</div>
+    <div id="cs-flash" class="cs-flash"></div>
+  </header>
+
+  <main>
+
+    <!-- SETUP -->
+    <section data-section="setup" class="panel">
+      <h1>AIRTIGHT</h1>
+      <p class="tagline">You are the detective. The suspect is guilty. Prove it.</p>
+      <form id="setup-form">
+        <label>
+          Seed (optional)
+          <input type="text" id="seed-input" placeholder="leave blank for random" maxlength="100">
+        </label>
+        <button type="submit" id="start-btn">Begin Interrogation</button>
+      </form>
+    </section>
+
+    <!-- BRIEFING -->
+    <section data-section="briefing" class="panel">
+      <h2>Case Briefing</h2>
+      <div class="briefing-grid">
+        <div class="briefing-field"><span class="field-label">Victim</span><span id="briefing-victim"></span></div>
+        <div class="briefing-field"><span class="field-label">Suspect</span><span id="briefing-suspect"></span></div>
+        <div class="briefing-field"><span class="field-label">Location</span><span id="briefing-location"></span></div>
+        <div class="briefing-field"><span class="field-label">Window</span><span id="briefing-window"></span></div>
+        <div class="briefing-field"><span class="field-label">Witness</span><span id="briefing-witness"></span></div>
+      </div>
+      <div class="briefing-prose">
+        <p id="briefing-victim-summary"></p>
+        <p id="briefing-suspect-summary"></p>
+        <p id="briefing-scene-summary"></p>
+        <h3>Crime</h3>
+        <p id="briefing-crime-summary"></p>
+        <p id="briefing-evidence-summary"></p>
+      </div>
+      <h3>Evidence on file</h3>
+      <ul id="briefing-evidence-list" class="evidence-list"></ul>
+      <button type="button" id="to-interrogation-btn">Begin Questioning the Suspect</button>
+    </section>
+
+    <!-- INTERROGATION -->
+    <section data-section="interrogation" class="panel">
+      <h2>Interrogation — <span id="suspect-name"></span></h2>
+      <button type="button" id="case-file-btn" class="case-file-btn">Case File</button>
+      <div class="turn-counter">Turn <span id="interrogation-turn-count">0</span> / <span id="interrogation-turn-max">6</span></div>
+      <div id="interrogation-transcript" class="transcript"></div>
+      <div id="interrogation-thinking" class="thinking hidden">The suspect is thinking<span class="ellipsis"></span></div>
+      <div id="interrogation-reasoning" class="invigilator-note hidden"></div>
+      <h3>Evidence</h3>
+      <ul id="interrogation-evidence-list" class="evidence-list"></ul>
+      <form id="interrogation-form">
+        <textarea id="interrogation-input" maxlength="300" placeholder="Ask your question..." rows="2"></textarea>
+        <button type="submit" id="interrogation-submit">Ask</button>
+      </form>
+      <button type="button" id="to-witness-btn" class="hidden">Question the Witness</button>
+    </section>
+
+    <!-- WITNESS -->
+    <section data-section="witness" class="panel">
+      <h2>Witness — <span id="witness-name"></span></h2>
+      <button type="button" id="case-file-btn-witness" class="case-file-btn">Case File</button>
+      <div class="turn-counter">Turn <span id="witness-turn-count">0</span> / <span id="witness-turn-max">2</span></div>
+      <div id="witness-transcript" class="transcript"></div>
+      <div id="witness-thinking" class="thinking hidden">The witness is thinking<span class="ellipsis"></span></div>
+      <div id="witness-reasoning" class="invigilator-note hidden"></div>
+      <form id="witness-form">
+        <textarea id="witness-input" maxlength="300" placeholder="Ask your question..." rows="2"></textarea>
+        <button type="submit" id="witness-submit">Ask</button>
+      </form>
+      <button type="button" id="to-verdict-btn" class="hidden">Render Verdict</button>
+    </section>
+
+    <!-- VERDICT -->
+    <section data-section="verdict" class="panel">
+      <div id="verdict-choice">
+        <h2>Render Your Verdict</h2>
+        <p>Case Strength: <span id="verdict-case-strength"></span> / 100</p>
+        <button type="button" id="charge-btn" class="verdict-btn charge">Charge the Suspect</button>
+        <button type="button" id="release-btn" class="verdict-btn release">Release the Suspect</button>
+      </div>
+      <div id="verdict-result" class="verdict-overlay hidden">
+        <div id="verdict-result-label" class="verdict-result-label"></div>
+        <button type="button" id="to-breakdown-btn">View Breakdown</button>
+      </div>
+    </section>
+
+    <!-- BREAKDOWN -->
+    <section data-section="breakdown" class="panel">
+      <h2>Post-Game Breakdown</h2>
+      <div id="breakdown-content"></div>
+      <button type="button" id="restart-btn">New Case</button>
+    </section>
+
+    <!-- CASE FILE (view-only overlay, reachable from interrogation/witness) -->
+    <div id="case-file-overlay" class="case-file-overlay hidden">
+      <div class="case-file-panel">
+        <h2>Case File</h2>
+        <div class="briefing-grid">
+          <div class="briefing-field"><span class="field-label">Victim</span><span id="case-file-victim"></span></div>
+          <div class="briefing-field"><span class="field-label">Suspect</span><span id="case-file-suspect"></span></div>
+          <div class="briefing-field"><span class="field-label">Location</span><span id="case-file-location"></span></div>
+          <div class="briefing-field"><span class="field-label">Window</span><span id="case-file-window"></span></div>
+          <div class="briefing-field"><span class="field-label">Witness</span><span id="case-file-witness"></span></div>
+        </div>
+        <div class="briefing-prose">
+          <p id="case-file-victim-summary"></p>
+          <p id="case-file-suspect-summary"></p>
+          <p id="case-file-scene-summary"></p>
+          <h3>Crime</h3>
+          <p id="case-file-crime-summary"></p>
+          <p id="case-file-evidence-summary"></p>
+        </div>
+        <h3>Evidence on file</h3>
+        <ul id="case-file-evidence-list" class="evidence-list"></ul>
+        <button type="button" id="case-file-close-btn">Close</button>
+      </div>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden">
+      <span id="error-message"></span>
+      <button type="button" id="error-retry-btn">Retry</button>
+    </div>
+
+  </main>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

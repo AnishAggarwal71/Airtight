@@ -54,9 +54,8 @@ export function createSession(
   crime: CrimeType,
   config: ScoringConfig = SCORING_CONFIG,
   templateId?: string,
-  locality?: string,
 ): GameSession {
-  const caseFile = generate({ seed, crime, templateId, locality })
+  const caseFile = generate({ seed, crime, templateId })
 
   return {
     seed,

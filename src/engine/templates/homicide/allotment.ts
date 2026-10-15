@@ -12,7 +12,7 @@ export const allotment: Template = {
   id: 'homicide-allotment',
   crime: 'homicide',
   title: 'The Allotment Shed',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -20,20 +20,19 @@ export const allotment: Template = {
     const op = pronouns(otherHolder.pronoun)
     const start = hhmm(19, r.int(10, 40))
     const end = addMinutes(start, r.int(45, 60))
-    const dispute = r.pick(['the shared water butt', 'the boundary line between the plots', 'the compost bay'])
-    const siteName = r.pick([
-      'the Fenbrook Road allotments',
-      'the Carrow Lane allotment gardens',
-      'the Mill View allotments',
+    const dispute = r.pick(['the shared water tank', 'the boundary line between the plots', 'the compost pit'])
+    const site = r.pick([
+      'the Kaveri Nagar community allotments',
+      'the Horamavu kitchen-garden plots',
+      'the Yelahanka allotment gardens',
     ])
-    const site = locality ? `${siteName} on the edge of ${locality}` : siteName
     const latchOffset = r.int(18, 26)
     const latchTime = addMinutes(start, latchOffset)
     const gloveColour = r.pick(['green', 'navy', 'grey'])
 
     return {
       suspect: { name: suspect, occupation: r.pick(['retired postal worker', 'school caretaker', 'plumber', 'market trader']) },
-      victim: { name: victim.name, relationship: `the plot-holder two rows over, locked in a long-running dispute over ${dispute}` },
+      victim: { name: victim.name, relationship: `the plot-holder two rows over` },
       location: `${site} — found face-down between the runner bean canes on ${vp.poss} own plot`,
       window: { start, end },
 
@@ -108,6 +107,7 @@ export const allotment: Template = {
         victimSummary: `${victim.name} was found dead on ${vp.poss} own allotment plot at ${site}, among the runner bean canes. Initial assessment leaned toward a fall or a cardiac event, but a ligature mark complicates that.`,
         suspectSummary: `${suspect}, who holds a nearby plot, had been in a long and documented dispute with ${victim.name} over ${dispute}. They admit to visiting the plot that evening.`,
         sceneSummary: `${site}. The body lay between the bean canes on ${victim.name}'s plot. Time of death window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was strangled with a washing line among the bean canes on their own plot and the body left to look like a fall or heart attack. The suspect holds a nearby plot and had been in a long-running dispute with ${victim.name} over ${dispute}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

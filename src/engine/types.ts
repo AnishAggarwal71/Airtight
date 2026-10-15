@@ -53,6 +53,8 @@ export type DetectiveBriefing = {
   victimSummary: string
   suspectSummary: string
   sceneSummary: string
+  /** What was done, where, how, how the suspect connects to it, and their motive. */
+  crimeSummary: string
   evidenceSummary: string
 }
 

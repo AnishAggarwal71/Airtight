@@ -12,7 +12,7 @@ export const smartGarage: Template = {
   id: 'homicide-smart-garage',
   crime: 'homicide',
   title: 'The Smart Garage',
-  build: (r, _detective, locality) => {
+  build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
     const suspect = fullName(r)
@@ -20,19 +20,18 @@ export const smartGarage: Template = {
     const np = pronouns(neighbour.pronoun)
     const start = hhmm(1, r.int(10, 40))
     const end = addMinutes(start, r.int(40, 55))
-    const inheritance = r.pick([310000, 450000, 580000, 690000])
-    const streetName = r.pick([
-      'Oakfield Drive',
-      'Birchwood Close',
-      'Lindens Avenue',
+    const inheritance = r.pick([31000000, 45000000, 58000000, 69000000])
+    const street = r.pick([
+      '12th Main, HSR Layout',
+      '4th Cross, Koramangala',
+      '9th Block, Jayanagar',
     ])
-    const street = locality ? `${streetName} in ${locality}` : streetName
     const logOffset = r.int(26, 32)
     const logTime = addMinutes(start, logOffset)
 
     return {
       suspect: { name: suspect, occupation: r.pick(['software engineer', 'property manager', 'dental hygienist', 'logistics coordinator']) },
-      victim: { name: victim.name, relationship: `the suspect's adult child, due to inherit the bulk of a disputed £${inheritance.toLocaleString()} family estate on an accelerated timeline the suspect opposed` },
+      victim: { name: victim.name, relationship: `the suspect's adult child` },
       location: `the attached garage of the family home on ${street} — found slumped in the driver's seat with the engine running`,
       window: { start, end },
 
@@ -105,8 +104,9 @@ export const smartGarage: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead in the family car in the attached garage on ${street}, apparently overcome by carbon monoxide. Initial assessment leaned toward a tragic accident caused by a known exhaust fault.`,
-        suspectSummary: `${suspect}, ${victim.name}'s parent, had formally objected to ${victim.name}'s petition to accelerate inheritance of a £${inheritance.toLocaleString()} family trust.`,
+        suspectSummary: `${suspect}, ${victim.name}'s parent, had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
         sceneSummary: `${street}, the attached garage. Time window: ${start}–${end}.`,
+        crimeSummary: `${victim.name} was sealed inside the garage with the engine remote-started via the shared smart-hub account, exploiting a known exhaust fault to cause carbon monoxide poisoning. The suspect is ${victim.name}'s parent, who had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }
