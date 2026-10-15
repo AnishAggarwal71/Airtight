@@ -4,7 +4,7 @@
 
 Build a case against an AI suspect before they talk their way free. Each case is generated deterministically from a seed; a guilty AI suspect sustains a cover story under questioning, a separate AI witness can corroborate or contradict that story, and an independent AI judge — not the suspect itself — decides what actually damages the case.
 
-> **Status: V3 two-agent architecture implemented, type-checked, and passing `npm run verify`.** It is a terminal game. What hasn't happened yet: a live playthrough against a real model and a run of the eval harness.
+> **Status: V3 two-agent architecture implemented, type-checked, and passing `npm run verify`.** Live human playtests have been run against Claude Haiku 4.5 (transcripts under gitignored `playtest-logs/`), and the eval harness has been run and tuned: Layer 1 invigilator accuracy sits at precision 0.667 / recall 0.80 (10 of 18 hand-crafted cases passed), and Layer 2 automated gameplay (10 games) produced a 6/10 `CHARGED_STRONG` rate with a mean Case Strength of 77 *(these Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run)*. Full results in [`docs/eval-v3-results.md`](docs/eval-v3-results.md); raw reports in gitignored `eval-results/`.
 
 ## Why it exists
 
@@ -14,27 +14,14 @@ See [the portfolio brief](docs/portfolio.md) for the project narrative, architec
 
 ## How it works
 
-```text
-seed + crime -> deterministic case generator -> private CaseFile
-                                               |
-                                               +-> public case briefing + evidence
+1. **Setup.** Each case is generated from a seed: a guilty suspect, a hidden true timeline, a cover story, and a claim ledger. The player only ever sees the public case — the briefing and evidence — never the hidden timeline or the suspect's strategy.
+2. **The loop.** The player gets six questions for the suspect and can present evidence. The suspect (a persona agent) answers in character, improvising without knowing what evidence the detective holds. A separate invigilator agent then checks that answer against the hidden state — contradictions with the claim ledger, guilty-knowledge leaks, how the evidence was handled, demeanor shifts. It does not judge how persuasive the answer sounded.
+3. **Case Strength.** One meter, starting at 15, that only rises — it never drops. Each turn's gain is capped at 25 points, on both suspect turns and witness turns.
+4. **The witness.** Becomes callable once Case Strength climbs above 50. Can be called exactly once, for two extra questions that don't come out of the suspect's six.
+5. **Endings.** Case Strength reaching 80 at any point ends the game immediately as a strong charge. If the questions run out first, 50–79 is a qualified charge; below 50, the suspect walks — that's the detective failing to build the case, not proof the suspect was innocent.
+6. **Why it's built this way.** Models are too agreeable to reliably judge how convincing their own performance was, so the invigilator never rates persuasiveness — only consistency against hidden ground truth — and a pure scoring engine, not a prompt, turns those checks into the number.
 
-detective question -> Persona Agent (suspect) -> dialogue + claims -> claim ledger
-                                               |
-                                               +-> Invigilator Agent (judge, full case context)
-                                               |
-                                               +-> pure scoring engine -> Case Strength
-
-two witness questions -> Persona Agent (witness) -> dialogue + claims -> same judge/score flow
-                                               |
-                                               +-> charge, gamble, or release
-```
-
-Two model calls per turn: the Persona Agent generates in-character dialogue immediately, then the Invigilator Agent — which sees the full truth, evidence vulnerabilities, and claim ledger — returns structured signals (contradictions, guilty-knowledge leaks, evidence-handling quality, demeanor shifts). The engine converts those signals into Case Strength deltas with fixed weights; the model never does the arithmetic.
-
-This exists because the earlier single-call design had the suspect self-report its own slips, and it never did — Case Strength stayed flat regardless of how badly the suspect contradicted itself. See `docs/decisions.md` for the full writeup.
-
-The player receives a briefing and 4–5 evidence items, asks up to six questions of the suspect, then up to two questions of a witness. Evidence can be formally presented during an interrogation. Case Strength starts at 15 and reaches 80 for a strong charge; otherwise the player chooses whether to gamble on a charge or release a guilty suspect.
+See `docs/decisions.md` for the full writeup of why the architecture split the acting and judging roles apart.
 
 ## Run it
 
@@ -87,7 +74,7 @@ Results are written to `eval-results/` (gitignored).
 | State | A compact claim ledger (suspect `c` prefix, witness `wc` prefix), evidence presentation state, Case Strength history, ending state, and token usage. |
 | Safety boundary | `toPublicCase()` exposes the detective's evidence while withholding the truth timeline, evidence vulnerabilities, suspect persona/strategy, and the fatal fact. |
 | Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (8 checks, zero model calls). |
-| Eval harness | Layer 1: 18 hand-crafted invigilator-accuracy cases. Layer 2: automated full-game runner with a scripted detective. Built, not yet run against a live model. |
+| Eval harness | Layer 1: 18 hand-crafted invigilator-accuracy cases (precision 0.667, recall 0.80, 10/18 passed). Layer 2: automated full-game runner with a scripted detective (6/10 `CHARGED_STRONG`, mean Case Strength 77 over 10 games) — *Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run.* See [`docs/eval-v3-results.md`](docs/eval-v3-results.md). |
 
 ## Project map
 
@@ -128,6 +115,6 @@ docs/
 
 ## Next
 
-The immediate priority is a live playthrough: validate invigilator accuracy against real (not hand-crafted) suspect dialogue, and run the eval harness to calibrate. A web UI, more templates, and innocent-suspect mode follow only after the two-agent loop proves itself against a live model.
+Live playtesting and the eval harness run are done against the CLI — see the status line above and [`docs/eval-v3-results.md`](docs/eval-v3-results.md) for the full numbers (Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run). The mid-game witness call and the Case Strength 50 witness-unlock gate described above are now implemented in the engine. A web UI exists (Express API + browser client) but has not yet had its own end-to-end playtest pass; more templates and innocent-suspect mode remain future scope.
 
 For the detailed portfolio framing, read [docs/portfolio.md](docs/portfolio.md).
