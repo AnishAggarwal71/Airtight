@@ -1,0 +1,166 @@
+{
+  "timestamp": "2026-10-15T19:57:25.140Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 0,
+    "passed": 0,
+    "precision": 0,
+    "recall": 0,
+    "results": []
+  },
+  "layer2": {
+    "gamesRequested": 5,
+    "gamesCompleted": 5,
+    "gamesAbandoned": 0,
+    "endingDistribution": {
+      "CHARGED_WEAK": 2,
+      "CHARGED_STRONG": 3
+    },
+    "caseStrength": {
+      "mean": 80,
+      "median": 80,
+      "min": 74,
+      "max": 86
+    },
+    "signalFrequency": {
+      "contradictions/game": 1.4,
+      "guiltyKnowledgeLeaks/game": 0.4,
+      "demeanorShifts/game": 1.6,
+      "witnessContradictions/game": 1.4
+    },
+    "games": [
+      {
+        "seed": "eval-game-0-1792093907399",
+        "completed": true,
+        "finalCaseStrength": 74,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          0,
+          3,
+          25,
+          8,
+          10,
+          10,
+          3
+        ],
+        "tokenUsage": {
+          "inputTokens": 41181,
+          "outputTokens": 3965
+        }
+      },
+      {
+        "seed": "eval-game-1-1792093976971",
+        "completed": true,
+        "finalCaseStrength": 86,
+        "ending": "CHARGED_STRONG",
+        "turns": 7,
+        "signalCounts": {
+          "contradictions": 3,
+          "guiltyKnowledgeLeaks": 1,
+          "demeanorShifts": 1,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          0,
+          3,
+          25,
+          23,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 34020,
+          "outputTokens": 4218
+        }
+      },
+      {
+        "seed": "eval-game-2-1792094047833",
+        "completed": true,
+        "finalCaseStrength": 78,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 2,
+          "witnessContradictions": 1
+        },
+        "perTurnDeltas": [
+          0,
+          11,
+          3,
+          25,
+          10,
+          0,
+          8,
+          6
+        ],
+        "tokenUsage": {
+          "inputTokens": 41533,
+          "outputTokens": 4214
+        }
+      },
+      {
+        "seed": "eval-game-3-1792094121460",
+        "completed": true,
+        "finalCaseStrength": 84,
+        "ending": "CHARGED_STRONG",
+        "turns": 7,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 1,
+          "demeanorShifts": 3,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          11,
+          8,
+          25,
+          0,
+          0,
+          25
+        ],
+        "tokenUsage": {
+          "inputTokens": 35259,
+          "outputTokens": 3577
+        }
+      },
+      {
+        "seed": "eval-game-4-1792094183321",
+        "completed": true,
+        "finalCaseStrength": 80,
+        "ending": "CHARGED_STRONG",
+        "turns": 7,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          8,
+          23,
+          11,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 34244,
+          "outputTokens": 3555
+        }
+      }
+    ]
+  }
+}
