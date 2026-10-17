@@ -5,6 +5,138 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-15 — Implemented: mid-game witness timing, ending reframe, cap audit
+
+**Decision:** Implemented the three engine rule changes queued by the
+"Locked" entry below (same date): mid-game witness calling, the
+charge/release-choice removal, and the per-turn-cap audit. `npm run verify`
+passes (7/7 — determinism, leak-safety, template integrity, coverage,
+variance, plus the two input-parsing assertions folded into check 1).
+
+1. **Witness is now callable once, mid-game, gated on Case Strength.**
+   `src/engine/score.ts` gained `witnessUnlockThreshold: 50` (separate knob
+   from `weakChargeThreshold`, even though both are 50 today — they tune
+   different things). `GameSession` (`src/engine/types.ts`) gained
+   `witnessUsed: boolean`. `src/engine/session.ts` exports
+   `isWitnessAvailable(session, config)`: false once both witness turns are
+   spent; true for the remainder of an opened session even if Case Strength
+   has since dropped (the gate applies to *opening* the session, not each
+   question within it); otherwise `caseStrength > witnessUnlockThreshold`.
+   `playWitnessTurn()` sets `witnessUsed = true` on its first call and no
+   longer forces `phase` to a one-way `'witness'` lock — `playInterrogationTurn()`
+   now resumes `phase = 'interrogation'` on every call (except once
+   `'verdict'` is reached), so suspect questioning can continue after a
+   witness interruption. The CLI (`src/cli/play.ts`) exposes this as a
+   `/witness` command inside the interrogation loop, available once unlocked,
+   routing into a new `runWitnessSession()` helper that asks both questions
+   and returns control to the interrogation loop. The server
+   (`src/server/routes/game.ts`) exposes `witnessAvailable`/`witnessUsed` on
+   `POST /` and `GET /:id`, and `POST /:id/witness` now 409s with a specific
+   message if the witness isn't unlocked yet vs. already used — no UI wiring
+   was added per instruction (`public/js/` untouched; see flag below).
+
+2. **Charge/release player choice removed; endings are now pure
+   Case-Strength + turn-exhaustion outcomes.** `resolveVerdict()` is deleted
+   from `session.ts` entirely. `checkEnding()` in `score.ts` takes a new
+   `TurnExhaustion` struct (`interrogationTurn`/`maxInterrogationTurns`/
+   `witnessUsed`/`witnessTurn`/`maxWitnessTurns`) alongside `caseStrength`:
+   Case Strength ≥ `chargedThreshold` (80) returns `CHARGED_STRONG`
+   immediately, regardless of remaining turns; otherwise, only once every
+   available question is spent (six suspect turns, plus both witness turns
+   if the witness was opened) does it resolve — `CHARGED_WEAK` at or above
+   `weakChargeThreshold` (50), `RELEASED` below it. Both
+   `playInterrogationTurn()` and `playWitnessTurn()` call the new signature
+   after every turn. `play.ts`'s CLI loop no longer has a Phase 4
+   charge-or-release prompt; `renderEnding()`'s `CHARGED_WEAK` copy changed
+   from "gamble paid off / your instinct was right" to "qualified case /
+   not airtight, but enough to charge," and `RELEASED` changed from "they
+   were guilty, they walked free" to "Case Strength ended at N — not enough
+   to charge... the detective failed to build the case," per the explicit
+   instruction that RELEASED must read as detective failure, not suspect
+   innocence. `src/server/routes/game.ts`'s `/:id/verdict` endpoint is
+   deleted outright (its only purpose was calling `resolveVerdict`).
+
+3. **Cap audit: one real gap found and fixed, nothing else.**
+   `scoreSuspectTurn()` already clamped its delta to
+   `[-maxTurnDelta, +maxTurnDelta]`. `scoreWitnessTurn()` did **not** — it
+   computed `delta` from `witnessContradiction` (10) and applied it
+   unclamped. Harmless today since no witness signal can exceed 25, but it
+   was a genuinely uncapped path. Fixed by routing it through the same
+   `clamp()` call, matching `scoreSuspectTurn()`. No weights changed; `25`
+   stays `25`.
+
+**Flagged for review (not silently changed):**
+- `src/eval/detective.ts`'s `runOneGame()` previously always spent both
+  witness questions unconditionally after all six interrogation turns, then
+  force-charged via `resolveVerdict(session, true)`. It's been reworked to
+  call the witness only once `isWitnessAvailable()` is true (interleaved
+  between interrogation turns) and to drop the `resolveVerdict` call —
+  endings now resolve on their own via `checkEnding()`. **This will change
+  the Layer 2 numbers already published** in `README.md` and
+  `docs/eval-v3-results.md` (6/10 `CHARGED_STRONG`, mean CS 77): those were
+  produced by a runner that always exercised the witness regardless of
+  gating. The eval harness has not been re-run against this change — the
+  published numbers are now stale and should be re-run and re-published
+  before being cited again.
+- `public/js/` (the Express web UI from commit `a7c4e8f`) still calls
+  `POST /api/game/:id/verdict` (`api.js:submitVerdict`) and tracks a
+  `'verdict'` game phase (`state.js`, `main.js`, `render.js`) expecting a
+  manual charge/release choice. That endpoint is now deleted and the
+  server never requires a player decision — the existing UI will break on
+  that call. No UI code was touched per instruction ("do not build any
+  UI"); this is flagged as follow-up work, not fixed here.
+- `README.md`'s "How it works" section (flagged in the "Locked" entry below)
+  is now actively wrong, not just destined to go stale — the engine no
+  longer runs a fixed suspect-then-witness-then-verdict phase order. Still
+  not rewritten in this task, per the original Task 1 instruction to flag
+  rather than silently rewrite README; carrying the flag forward since the
+  implementation it was waiting on has now landed.
+
+## 2026-10-15 — Locked: charged threshold, witness timing, and witness unlock gate
+
+**Decision:** Four design decisions locked for the witness-calling redesign:
+
+1. **Charged threshold stays at 80.** `SCORING_CONFIG.chargedThreshold` in
+   `src/engine/score.ts` is unchanged — Case Strength ≥ 80 still means
+   `CHARGED_STRONG`. No change proposed or needed; stated here so it isn't
+   relitigated alongside the witness-timing changes below.
+2. **The witness becomes callable once, mid-game**, with two questions that
+   are *extra* — not drawn from the six suspect-interrogation turns. The
+   player can interrupt suspect questioning to call the witness at any point
+   once the gate (below) is open, rather than the witness phase being a
+   fixed block after all six suspect turns.
+3. **The witness unlocks only when Case Strength exceeds 50.** Below that
+   threshold, the option to call the witness is shown but disabled. If 50
+   is never reached during a playthrough, the witness never becomes
+   available at all for that game.
+4. **Open item, not yet built:** the engine (`src/engine/session.ts`) still
+   runs the witness as a fixed phase after all six suspect turns via
+   `playWitnessTurn()`, with no Case Strength gate. Mid-game witness calling
+   and the >50 unlock gate are future work — not implemented as of this
+   entry.
+
+**Why:** Locks in the target design for the next engine iteration before
+implementation starts, so the witness-timing change doesn't get redesigned
+mid-build.
+
+**Not yet done:** `session.ts`, `play.ts`, and the web UI (`public/js/`)
+all currently assume a fixed suspect-then-witness phase order with no gate
+— none of these were touched by this entry. Implementing decisions 2–3
+requires: a way to interrupt interrogation turns to call the witness,
+a Case Strength check gating `to-witness-btn`/the CLI witness entry point,
+and session state to track whether the one-time witness call has been
+used. See "Flagged for review" below for a contradiction this surfaces in
+existing docs.
+
+**Flagged for review (not silently changed):** `README.md`'s "How it
+works" section and current-implementation table describe "up to six
+questions of the suspect, then up to two questions of a witness" as how
+the game plays today — that description is accurate for the *current*
+fixed-phase engine behavior (open item 4 above), but will become stale
+once mid-game witness calling ships. Left as-is pending the actual
+implementation; flagging so it isn't missed when `session.ts` changes.
+
+
 ## 2026-10-11 — Provider switch: GroqCloud/xAI → Anthropic Claude Haiku 4.5
 
 **Decision:** Replaced the Groq-primary/xAI-fallback provider logic in

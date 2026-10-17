@@ -7,8 +7,12 @@
  *   Call 2: Invigilator agent → structured signals for scoring
  *
  * play.ts calls createSession() once, then playInterrogationTurn() for each
- * of the 6 interrogation rounds, playWitnessTurn() for each witness question,
- * and resolveVerdict() at the end.
+ * of the 6 interrogation rounds and playWitnessTurn() for the witness's two
+ * questions, callable exactly once, mid-game, once Case Strength exceeds
+ * SCORING_CONFIG.witnessUnlockThreshold. There is no separate verdict step —
+ * checkEnding() resolves CHARGED_STRONG/CHARGED_WEAK/RELEASED from Case
+ * Strength and turn exhaustion alone; the suspect's guilt is a given, not a
+ * player choice. See docs/decisions.md (2026-10-15, ending reframe).
  */
 
 import { generate } from './generate'
@@ -65,6 +69,7 @@ export function createSession(
     maxInterrogationTurns: config.maxInterrogationTurns,
     witnessTurn: 0,
     maxWitnessTurns: config.maxWitnessTurns,
+    witnessUsed: false,
     caseFile,
     suspectClaims: [],
     witnessClaims: [],
@@ -112,6 +117,7 @@ export type PlayInterrogationResult = {
   presentedEvidenceIds: string[]
   rejectedEvidenceIds: string[]
   invigilatorReasoning: string | null
+  invigilatorSignals: InvigilatorSuspectResponse['signals'] | null
   invigilatorFailed: boolean
 }
 
@@ -128,7 +134,10 @@ export async function playInterrogationTurn(
   rawPlayerInput: string,
   config: ScoringConfig = SCORING_CONFIG,
 ): Promise<PlayInterrogationResult> {
-  if (session.phase === 'briefing') session.phase = 'interrogation'
+  // Suspect questioning can resume after a mid-game witness interruption, so
+  // only 'verdict' (ending resolved) is left alone — any other phase reverts
+  // to 'interrogation' while the suspect is actively being questioned.
+  if (session.phase !== 'verdict') session.phase = 'interrogation'
 
   session.interrogationTurn++
 
@@ -206,8 +215,21 @@ export async function playInterrogationTurn(
   }
   session.caseStrengthHistory.push(session.caseStrength)
 
-  const ending = checkEnding(session.caseStrength, config)
-  if (ending) session.ending = ending
+  const ending = checkEnding(
+    session.caseStrength,
+    {
+      interrogationTurn: session.interrogationTurn,
+      maxInterrogationTurns: session.maxInterrogationTurns,
+      witnessUsed: session.witnessUsed,
+      witnessTurn: session.witnessTurn,
+      maxWitnessTurns: session.maxWitnessTurns,
+    },
+    config,
+  )
+  if (ending) {
+    session.ending = ending
+    session.phase = 'verdict'
+  }
 
   // Record turn detail
   const detail: InterrogationDetail = {
@@ -229,8 +251,28 @@ export async function playInterrogationTurn(
     presentedEvidenceIds,
     rejectedEvidenceIds,
     invigilatorReasoning: invigilatorResponse?.reasoning ?? null,
+    invigilatorSignals: invigilatorResponse?.signals ?? null,
     invigilatorFailed,
   }
+}
+
+// ─── Witness availability ───────────────────────────────────────────────────
+
+/**
+ * The witness is callable exactly once, mid-game: never before Case Strength
+ * exceeds config.witnessUnlockThreshold, and never again once that one
+ * session has been opened and exhausted. While the session is open (one
+ * question asked, one remaining) this stays true so the second question can
+ * still be asked even if Case Strength has since dropped back at/below the
+ * unlock threshold — the gate applies only to *opening* the session.
+ */
+export function isWitnessAvailable(
+  session: GameSession,
+  config: ScoringConfig = SCORING_CONFIG,
+): boolean {
+  if (session.witnessTurn >= session.maxWitnessTurns) return false
+  if (session.witnessUsed) return true
+  return session.caseStrength > config.witnessUnlockThreshold
 }
 
 // ─── Play one witness turn ──────────────────────────────────────────────────
@@ -241,6 +283,7 @@ export type PlayWitnessResult = {
   caseStrengthDelta: number
   ending: Ending | null
   invigilatorReasoning: string | null
+  invigilatorSignals: InvigilatorWitnessResponse['signals'] | null
   invigilatorFailed: boolean
 }
 
@@ -248,13 +291,18 @@ export type PlayWitnessResult = {
  * Orchestrate one witness turn with two model calls:
  *   1. Persona agent → witness dialogue + claims
  *   2. Invigilator agent → contradiction check → scoring
+ *
+ * Callers (CLI, server routes) are responsible for checking
+ * isWitnessAvailable() before invoking this — same pattern as
+ * playInterrogationTurn, which trusts callers to respect the turn budget.
  */
 export async function playWitnessTurn(
   session: GameSession,
   playerQuestion: string,
   config: ScoringConfig = SCORING_CONFIG,
 ): Promise<PlayWitnessResult> {
-  if (session.phase === 'interrogation') session.phase = 'witness'
+  if (session.witnessTurn === 0) session.witnessUsed = true
+  session.phase = 'witness'
 
   session.witnessTurn++
 
@@ -317,8 +365,21 @@ export async function playWitnessTurn(
   }
   session.caseStrengthHistory.push(session.caseStrength)
 
-  const ending = checkEnding(session.caseStrength, config)
-  if (ending) session.ending = ending
+  const ending = checkEnding(
+    session.caseStrength,
+    {
+      interrogationTurn: session.interrogationTurn,
+      maxInterrogationTurns: session.maxInterrogationTurns,
+      witnessUsed: session.witnessUsed,
+      witnessTurn: session.witnessTurn,
+      maxWitnessTurns: session.maxWitnessTurns,
+    },
+    config,
+  )
+  if (ending) {
+    session.ending = ending
+    session.phase = 'verdict'
+  }
 
   // Record turn detail
   const detail: WitnessDetail = {
@@ -337,23 +398,9 @@ export async function playWitnessTurn(
     caseStrengthDelta: delta,
     ending,
     invigilatorReasoning: invigilatorResponse?.reasoning ?? null,
+    invigilatorSignals: invigilatorResponse?.signals ?? null,
     invigilatorFailed,
   }
-}
-
-// ─── Verdict ────────────────────────────────────────────────────────────────
-
-export function resolveVerdict(
-  session: GameSession,
-  playerCharges: boolean,
-): Ending {
-  session.phase = 'verdict'
-
-  if (session.ending) return session.ending
-
-  const ending: Ending = playerCharges ? 'CHARGED_WEAK' : 'RELEASED'
-  session.ending = ending
-  return ending
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

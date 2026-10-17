@@ -1,9 +1,20 @@
 import { appendFile, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { CrimeType } from '../engine/types'
+import type {
+  CrimeType,
+  Ending,
+  InvigilatorSuspectResponse,
+  InvigilatorWitnessResponse,
+} from '../engine/types'
 
 export type TranscriptPhase = 'interrogation' | 'witness'
 
+/**
+ * The invigilator's raw signals object for this turn (null if the
+ * invigilator call failed and the turn went zero-delta) — exposing exactly
+ * what score.ts consumed, so a score-vs-response audit can be done by
+ * reading the transcript alone, with no engine code involved.
+ */
 export type TranscriptExchange = {
   type: 'exchange'
   phase: TranscriptPhase
@@ -12,6 +23,19 @@ export type TranscriptExchange = {
   aiRole: 'suspect' | 'witness'
   aiMessage: string
   presentedEvidenceIds?: string[]
+  invigilatorSignals:
+    | InvigilatorSuspectResponse['signals']
+    | InvigilatorWitnessResponse['signals']
+    | null
+  caseStrengthDelta: number
+  caseStrengthAfter: number
+}
+
+/** Logged once per session, after the ending resolves. */
+export type TranscriptSessionEnd = {
+  type: 'session_end'
+  finalCaseStrength: number
+  ending: Ending | null
 }
 
 export type TranscriptTurnStarted = {
@@ -33,25 +57,33 @@ export type TranscriptTurnFailed = {
   error: { name: string; message: string }
 }
 
+/**
+ * uniquifier disambiguates concurrent writers sharing one process — the CLI
+ * is one process per game so process.pid is enough, but the Express server
+ * is one process serving many concurrent sessions, so routes/game.ts passes
+ * the session id instead.
+ */
 export async function createTranscriptLog(
   seed: string,
   crime: CrimeType,
+  uniquifier: string = String(process.pid),
 ): Promise<string> {
   const directory = path.resolve(process.cwd(), 'playtest-logs')
   await mkdir(directory, { recursive: true })
 
   const safeSeed = seed.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'case'
+  const safeUniquifier = uniquifier.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80)
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
   const filePath = path.join(
     directory,
-    `${timestamp}-${safeSeed}-${process.pid}.jsonl`,
+    `${timestamp}-${safeSeed}-${safeUniquifier}.jsonl`,
   )
   const header = {
     type: 'session',
     createdAt: new Date().toISOString(),
     seed,
     crime,
-    format: 'airtight-transcript-v2',
+    format: 'airtight-transcript-v3',
   }
 
   await writeFile(filePath, `${JSON.stringify(header)}\n`, {
@@ -73,6 +105,13 @@ export async function appendTranscriptTurnStarted(
   turn: TranscriptTurnStarted,
 ): Promise<void> {
   await appendFile(filePath, `${JSON.stringify(turn)}\n`, 'utf8')
+}
+
+export async function appendTranscriptSessionEnd(
+  filePath: string,
+  sessionEnd: TranscriptSessionEnd,
+): Promise<void> {
+  await appendFile(filePath, `${JSON.stringify(sessionEnd)}\n`, 'utf8')
 }
 
 export async function appendTranscriptTurnFailed(

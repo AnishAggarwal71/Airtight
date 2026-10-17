@@ -19,11 +19,12 @@ import {
   createSession,
   playInterrogationTurn,
   playWitnessTurn,
-  resolveVerdict,
+  isWitnessAvailable,
 } from '../engine/session'
 import { SCORING_CONFIG } from '../engine/score'
 import type {
   Claim,
+  Ending,
   InvigilatorSuspectResponse,
 } from '../engine/types'
 import type { EvalCase, EvalResult, GameResult, EvalReport } from './types'
@@ -295,6 +296,16 @@ const DETECTIVE_SCRIPT = {
 
 /**
  * Run one full automated game and return aggregate statistics.
+ *
+ * The witness is now a one-time, gated interrupt rather than a fixed phase
+ * (see docs/decisions.md, 2026-10-15, witness-timing change): the script
+ * calls it as soon as it unlocks (Case Strength exceeds
+ * SCORING_CONFIG.witnessUnlockThreshold) between interrogation turns, not
+ * unconditionally after all six. If Case Strength never clears the
+ * threshold, the witness is skipped entirely and the game resolves off the
+ * six suspect turns alone — this will shift the previously-reported Layer 2
+ * numbers (6/10 CHARGED_STRONG, mean CS 77), since those were produced by a
+ * runner that always spent both witness questions regardless of gating.
  */
 export async function runOneGame(
   seed: string,
@@ -313,7 +324,31 @@ export async function runOneGame(
       witnessContradictions: 0,
     }
 
-    // ── Interrogation phase ──────────────────────────────────────────────
+    // Spends the one-time witness session, if it's unlocked and unused.
+    // Returns the ending if the witness pushed Case Strength to CHARGED_STRONG.
+    const tryWitness = async (): Promise<Ending | null> => {
+      if (session.witnessUsed || !isWitnessAvailable(session)) return null
+      for (let i = 0; i < DETECTIVE_SCRIPT.witness.length; i++) {
+        const question = DETECTIVE_SCRIPT.witness[i]
+        onProgress?.(`    Witness ${i + 1}/2: ${question.slice(0, 60)}...`)
+
+        const result = await playWitnessTurn(session, question)
+        perTurnDeltas.push(result.caseStrengthDelta)
+
+        const detail = session.witnessDetails[session.witnessDetails.length - 1]
+        if (detail?.invigilatorResponse?.signals?.suspectContradiction) {
+          signalCounts.witnessContradictions++
+        }
+
+        if (result.ending === 'CHARGED_STRONG') {
+          onProgress?.(`    CHARGED_STRONG after witness ${i + 1} (CS: ${session.caseStrength})`)
+          return result.ending
+        }
+      }
+      return null
+    }
+
+    // ── Interrogation phase, with the witness interleaved as soon as it unlocks ──
     for (let i = 0; i < DETECTIVE_SCRIPT.interrogation.length; i++) {
       const question = DETECTIVE_SCRIPT.interrogation[i]
       onProgress?.(`    Turn ${i + 1}/6: ${question.slice(0, 60)}...`)
@@ -335,30 +370,23 @@ export async function runOneGame(
         onProgress?.(`    CHARGED_STRONG at turn ${i + 1} (CS: ${session.caseStrength})`)
         return buildGameResult(session, seed, true, perTurnDeltas, signalCounts)
       }
-    }
 
-    // ── Witness phase ────────────────────────────────────────────────────
-    for (let i = 0; i < DETECTIVE_SCRIPT.witness.length; i++) {
-      const question = DETECTIVE_SCRIPT.witness[i]
-      onProgress?.(`    Witness ${i + 1}/2: ${question.slice(0, 60)}...`)
-
-      const result = await playWitnessTurn(session, question)
-      perTurnDeltas.push(result.caseStrengthDelta)
-
-      const detail = session.witnessDetails[session.witnessDetails.length - 1]
-      if (detail?.invigilatorResponse?.signals?.suspectContradiction) {
-        signalCounts.witnessContradictions++
-      }
-
-      if (result.ending === 'CHARGED_STRONG') {
-        onProgress?.(`    CHARGED_STRONG after witness ${i + 1} (CS: ${session.caseStrength})`)
+      const witnessEnding = await tryWitness()
+      if (witnessEnding) {
         return buildGameResult(session, seed, true, perTurnDeltas, signalCounts)
       }
     }
 
-    // ── Verdict — always charge in automated eval ────────────────────────
-    const ending = resolveVerdict(session, true)
-    onProgress?.(`    Verdict: ${ending} (CS: ${session.caseStrength})`)
+    // Interrogation is exhausted. If the witness unlocked only on the final
+    // turn, session.ending is already resolved (CHARGED_WEAK/RELEASED) by
+    // checkEnding's turn-exhaustion check before this line runs — the one-time
+    // witness window has to be used between turns, not after the budget
+    // is spent. Only reachable here with session.ending still null if the
+    // interrogation loop somehow exits without exhausting turns, so this is
+    // a no-op in practice; kept for defensiveness against future script changes.
+    if (!session.ending) {
+      await tryWitness()
+    }
 
     return buildGameResult(session, seed, true, perTurnDeltas, signalCounts)
   } catch (err) {

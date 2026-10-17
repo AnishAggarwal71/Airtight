@@ -10,7 +10,10 @@
  *   1. Persona agent generates suspect/witness dialogue
  *   2. Invigilator agent judges the dialogue and returns scoring signals
  *
- * Phases: briefing -> interrogation (6 turns) -> witness (2 turns) -> verdict -> breakdown
+ * Phases: briefing -> interrogation (6 turns, witness callable mid-game once
+ * Case Strength clears the unlock threshold) -> breakdown. There is no
+ * separate verdict step — the ending is resolved purely from Case Strength
+ * and turn exhaustion (see docs/decisions.md, 2026-10-15, ending reframe).
  */
 
 import dotenv from 'dotenv'
@@ -19,18 +22,20 @@ dotenv.config()
 import * as readline from 'node:readline'
 import {
   appendTranscriptExchange,
+  appendTranscriptSessionEnd,
   appendTranscriptTurnFailed,
   appendTranscriptTurnStarted,
   createTranscriptLog,
 } from './transcript'
 import { randomSeed } from '../engine/rng'
 import { toPublicCase } from '../engine/generate'
+import { SCORING_CONFIG } from '../engine/score'
 import {
   createSession,
   parsePlayerInput,
   playInterrogationTurn,
   playWitnessTurn,
-  resolveVerdict,
+  isWitnessAvailable,
 } from '../engine/session'
 import type { CrimeType, GameSession, Ending, SuspectResponse } from '../engine/types'
 import { CRIME_LABELS } from '../engine/types'
@@ -113,14 +118,14 @@ function renderEnding(ending: Ending, session: GameSession): void {
       console.log(`  ${session.caseFile.suspect.name} is going away.`)
       break
     case 'CHARGED_WEAK':
-      console.log(`  ${C.yellow(C.bold('CHARGED — GAMBLE PAID OFF'))}`)
-      console.log(`  Case Strength was only ${session.caseStrength}, but you charged anyway.`)
-      console.log(`  The suspect was guilty — your instinct was right.`)
+      console.log(`  ${C.yellow(C.bold('CHARGED — QUALIFIED CASE'))}`)
+      console.log(`  Case Strength ended at ${session.caseStrength}. Not airtight, but enough to charge.`)
+      console.log(`  ${session.caseFile.suspect.name} goes to trial on a case with real holes in it.`)
       break
     case 'RELEASED':
       console.log(`  ${C.red(C.bold('RELEASED'))}`)
-      console.log(`  You released ${session.caseFile.suspect.name}.`)
-      console.log(`  ${C.red('They were guilty. They walked free.')}`)
+      console.log(`  Case Strength ended at ${session.caseStrength} — not enough to charge.`)
+      console.log(`  ${C.red(`${session.caseFile.suspect.name} walks. The detective failed to build the case.`)}`)
       break
   }
 
@@ -328,6 +333,139 @@ function ask(rl: readline.Interface, prompt: string): Promise<string> {
   return new Promise((resolve) => rl.question(prompt, resolve))
 }
 
+// ─── Witness session (one-time, mid-game) ──────────────────────────────────
+
+/**
+ * Runs the witness's two questions as a one-time interrupt of the
+ * interrogation. Called from the interrogation loop via /witness, once
+ * isWitnessAvailable() is true. Mutates session in place; sets
+ * session.ending if the witness's testimony pushes Case Strength to
+ * CHARGED_STRONG, same as an interrogation turn would.
+ */
+async function runWitnessSession(
+  session: GameSession,
+  rl: readline.Interface,
+  transcriptPath: string,
+  divider: string,
+  witness: { name: string; relationship: string },
+): Promise<void> {
+  console.log()
+  console.log(` ${divider}`)
+  console.log(`  ${C.bold('WITNESS INTERVIEW')} — ${witness.name} (${witness.relationship})`)
+  console.log(` ${divider}`)
+  console.log()
+  console.log(`  ${C.dim(`You have ${session.maxWitnessTurns} questions for this witness. This is a one-time session.`)}`)
+  console.log()
+
+  while (!session.ending && session.witnessTurn < session.maxWitnessTurns) {
+    const turnLabel = `Q${session.witnessTurn + 1}/${session.maxWitnessTurns}`
+    let question = ''
+
+    while (true) {
+      const raw = await ask(rl, `  ${C.dim(turnLabel)} > `)
+      const trimmed = raw.trim()
+
+      if (trimmed === '/quit') {
+        console.log(C.dim('\n  Ending session early.\n'))
+        rl.close()
+        await appendTranscriptSessionEnd(transcriptPath, {
+          type: 'session_end',
+          finalCaseStrength: session.caseStrength,
+          ending: session.ending,
+        })
+        renderBreakdown(session)
+        process.exit(0)
+      }
+
+      if (trimmed === '/status') {
+        renderCaseStrength(session.caseStrength, 0)
+        continue
+      }
+
+      if (trimmed.length === 0) {
+        console.log(C.dim('  (ask a question, or /quit)'))
+        continue
+      }
+
+      if (trimmed.length > MAX_QUESTION_LENGTH) {
+        console.log(C.yellow(`  Too long (${trimmed.length}/${MAX_QUESTION_LENGTH}). Try again.`))
+        continue
+      }
+
+      question = trimmed
+      break
+    }
+
+    const witnessTurn = session.witnessTurn + 1
+    await appendTranscriptTurnStarted(transcriptPath, {
+      type: 'turn_started',
+      phase: 'witness',
+      turn: witnessTurn,
+      detectiveInput: question,
+      detectiveMessage: question,
+      aiRole: 'witness',
+    })
+    console.log(C.dim('\n  Thinking...\n'))
+    let result
+    try {
+      result = await playWitnessTurn(session, question)
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      await appendTranscriptTurnFailed(
+        transcriptPath,
+        {
+          type: 'turn_failed',
+          phase: 'witness',
+          turn: witnessTurn,
+          aiRole: 'witness',
+          error: { name: error.name, message: error.message },
+        },
+        [process.env.ANTHROPIC_API_KEY ?? ''],
+      )
+      throw err
+    }
+    const witnessDetail = session.witnessDetails[session.witnessDetails.length - 1]
+    await appendTranscriptExchange(transcriptPath, {
+      type: 'exchange',
+      phase: 'witness',
+      turn: session.witnessTurn,
+      detectiveMessage: question,
+      aiRole: 'witness',
+      aiMessage: result.witnessDialogue,
+      invigilatorSignals: witnessDetail?.invigilatorResponse?.signals ?? null,
+      caseStrengthDelta: result.caseStrengthDelta,
+      caseStrengthAfter: session.caseStrength,
+    })
+
+    // Show the witness's response
+    console.log(`  ${C.bold(witness.name)} ${C.dim(`[${result.witnessDemeanor}]`)}:`)
+    console.log(`  ${C.cyan('"' + result.witnessDialogue + '"')}`)
+    console.log()
+
+    // Show case strength update
+    renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
+
+    // Show invigilator reasoning
+    if (result.invigilatorFailed) {
+      console.log(`  ${C.yellow('[Invigilator] Evaluation failed — no score change this turn.')}`)
+      console.log()
+    } else if (result.invigilatorReasoning) {
+      console.log(`  ${C.dim(`[Invigilator] ${result.invigilatorReasoning}`)}`)
+      console.log()
+    }
+
+    if (result.ending) {
+      renderEnding(result.ending, session)
+      break
+    }
+  }
+
+  console.log(` ${divider}`)
+  console.log(`  ${C.dim('Back to the interrogation.')}`)
+  console.log(` ${divider}`)
+  console.log()
+}
+
 // ─── Main game loop ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -387,16 +525,16 @@ async function main(): Promise<void> {
 
   const witness = session.caseFile.witness
   console.log(`  ${C.bold('WITNESS AVAILABLE:')} ${witness.name} — ${witness.relationship}`)
-  console.log(`  ${C.dim('(You can question the witness after the interrogation — 2 questions max)')}`)
+  console.log(`  ${C.dim(`(Call the witness any time with /witness, once Case Strength exceeds ${SCORING_CONFIG.witnessUnlockThreshold} — 2 questions, one-time only)`)}`)
   console.log()
 
   renderCaseStrength(session.caseStrength, 0)
 
-  console.log(`  ${C.dim('Commands: type a question, PRESENT e3: question, PRESENT e1,e3: question, /evidence, /status, /quit')}`)
+  console.log(`  ${C.dim('Commands: type a question, PRESENT e3: question, PRESENT e1,e3: question, /witness, /evidence, /status, /quit')}`)
   console.log(`  ${C.dim(`Max ${MAX_QUESTION_LENGTH} characters per question.`)}`)
   console.log()
 
-  // ── Phase 2: Interrogation ─────────────────────────────────────────────
+  // ── Phase 2: Interrogation (witness callable mid-game via /witness) ────
   console.log(` ${divider}`)
   console.log(`  ${C.bold('INTERROGATION')} — ${session.caseFile.suspect.name}`)
   console.log(` ${divider}`)
@@ -405,6 +543,7 @@ async function main(): Promise<void> {
   while (!session.ending && session.interrogationTurn < session.maxInterrogationTurns) {
     const turnLabel = `Turn ${session.interrogationTurn + 1}/${session.maxInterrogationTurns}`
     let question = ''
+    let callWitness = false
 
     while (true) {
       const raw = await ask(rl, `  ${C.dim(turnLabel)} > `)
@@ -413,6 +552,11 @@ async function main(): Promise<void> {
       if (trimmed === '/quit') {
         console.log(C.dim('\n  Ending session early.\n'))
         rl.close()
+        await appendTranscriptSessionEnd(transcriptPath, {
+          type: 'session_end',
+          finalCaseStrength: session.caseStrength,
+          ending: session.ending,
+        })
         if (session.interrogationDetails.length > 0) renderBreakdown(session)
         process.exit(0)
       }
@@ -427,6 +571,19 @@ async function main(): Promise<void> {
         continue
       }
 
+      if (trimmed === '/witness') {
+        if (!isWitnessAvailable(session)) {
+          console.log(
+            session.witnessUsed
+              ? C.yellow('  The witness has already been questioned — that one-time session is closed.')
+              : C.yellow(`  Not yet — the witness unlocks once Case Strength exceeds ${SCORING_CONFIG.witnessUnlockThreshold} (currently ${session.caseStrength}).`),
+          )
+          continue
+        }
+        callWitness = true
+        break
+      }
+
       if (trimmed.length === 0) {
         console.log(C.dim('  (ask a question — or /quit to leave)'))
         continue
@@ -439,6 +596,11 @@ async function main(): Promise<void> {
 
       question = trimmed
       break
+    }
+
+    if (callWitness) {
+      await runWitnessSession(session, rl, transcriptPath, divider, witness)
+      continue
     }
 
     const parsedInput = parsePlayerInput(question, session.caseFile.evidence)
@@ -482,6 +644,7 @@ async function main(): Promise<void> {
       )
       throw err
     }
+    const interrogationDetail = session.interrogationDetails[session.interrogationDetails.length - 1]
     await appendTranscriptExchange(transcriptPath, {
       type: 'exchange',
       phase: 'interrogation',
@@ -492,6 +655,9 @@ async function main(): Promise<void> {
       ...(result.presentedEvidenceIds.length > 0
         ? { presentedEvidenceIds: result.presentedEvidenceIds }
         : {}),
+      invigilatorSignals: interrogationDetail?.invigilatorResponse?.signals ?? null,
+      caseStrengthDelta: result.caseStrengthDelta,
+      caseStrengthAfter: session.caseStrength,
     })
 
     // Show the suspect's response
@@ -517,6 +683,12 @@ async function main(): Promise<void> {
       console.log()
     }
 
+    // Announce witness unlock the moment it happens
+    if (!session.witnessUsed && isWitnessAvailable(session) && session.interrogationTurn < session.maxInterrogationTurns) {
+      console.log(`  ${C.green(`>> The witness is now available. Type /witness to call them in.`)}`)
+      console.log()
+    }
+
     // Check ending
     if (result.ending) {
       renderEnding(result.ending, session)
@@ -524,158 +696,17 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── Phase 3: Witness ───────────────────────────────────────────────────
-  if (!session.ending) {
-    console.log()
-    console.log(` ${divider}`)
-    console.log(`  ${C.bold('WITNESS INTERVIEW')} — ${witness.name} (${witness.relationship})`)
-    console.log(` ${divider}`)
-    console.log()
-    console.log(`  ${C.dim(`You have ${session.maxWitnessTurns} questions for this witness.`)}`)
-    console.log()
+  // checkEnding() resolves CHARGED_STRONG/CHARGED_WEAK/RELEASED purely from
+  // Case Strength and turn exhaustion (see docs/decisions.md, 2026-10-15,
+  // ending reframe) — by the time the loop above exits, session.ending is
+  // always set and already rendered (inline above, or inside
+  // runWitnessSession below), so there is no separate verdict step here.
 
-    while (!session.ending && session.witnessTurn < session.maxWitnessTurns) {
-      const turnLabel = `Q${session.witnessTurn + 1}/${session.maxWitnessTurns}`
-      let question = ''
-
-      while (true) {
-        const raw = await ask(rl, `  ${C.dim(turnLabel)} > `)
-        const trimmed = raw.trim()
-
-        if (trimmed === '/quit') {
-          console.log(C.dim('\n  Ending session early.\n'))
-          rl.close()
-          renderBreakdown(session)
-          process.exit(0)
-        }
-
-        if (trimmed === '/skip') {
-          console.log(C.dim('  Skipping remaining witness questions.'))
-          session.witnessTurn = session.maxWitnessTurns
-          question = ''
-          break
-        }
-
-        if (trimmed === '/status') {
-          renderCaseStrength(session.caseStrength, 0)
-          continue
-        }
-
-        if (trimmed.length === 0) {
-          console.log(C.dim('  (ask a question, /skip to move on, or /quit)'))
-          continue
-        }
-
-        if (trimmed.length > MAX_QUESTION_LENGTH) {
-          console.log(C.yellow(`  Too long (${trimmed.length}/${MAX_QUESTION_LENGTH}). Try again.`))
-          continue
-        }
-
-        question = trimmed
-        break
-      }
-
-      if (!question) break
-
-      const witnessTurn = session.witnessTurn + 1
-      await appendTranscriptTurnStarted(transcriptPath, {
-        type: 'turn_started',
-        phase: 'witness',
-        turn: witnessTurn,
-        detectiveInput: question,
-        detectiveMessage: question,
-        aiRole: 'witness',
-      })
-      console.log(C.dim('\n  Thinking...\n'))
-      let result
-      try {
-        result = await playWitnessTurn(session, question)
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        await appendTranscriptTurnFailed(
-          transcriptPath,
-          {
-            type: 'turn_failed',
-            phase: 'witness',
-            turn: witnessTurn,
-            aiRole: 'witness',
-            error: { name: error.name, message: error.message },
-          },
-          [process.env.ANTHROPIC_API_KEY ?? ''],
-        )
-        throw err
-      }
-      await appendTranscriptExchange(transcriptPath, {
-        type: 'exchange',
-        phase: 'witness',
-        turn: session.witnessTurn,
-        detectiveMessage: question,
-        aiRole: 'witness',
-        aiMessage: result.witnessDialogue,
-      })
-
-      // Show the witness's response
-      console.log(`  ${C.bold(witness.name)} ${C.dim(`[${result.witnessDemeanor}]`)}:`)
-      console.log(`  ${C.cyan('"' + result.witnessDialogue + '"')}`)
-      console.log()
-
-      // Show case strength update
-      renderCaseStrength(session.caseStrength, result.caseStrengthDelta)
-
-      // Show invigilator reasoning
-      if (result.invigilatorFailed) {
-        console.log(`  ${C.yellow('[Invigilator] Evaluation failed — no score change this turn.')}`)
-        console.log()
-      } else if (result.invigilatorReasoning) {
-        console.log(`  ${C.dim(`[Invigilator] ${result.invigilatorReasoning}`)}`)
-        console.log()
-      }
-
-      if (result.ending) {
-        renderEnding(result.ending, session)
-        break
-      }
-    }
-  }
-
-  // ── Phase 4: Verdict ──────────────────────────────────────────────────
-  if (!session.ending) {
-    console.log()
-    console.log(` ${divider}`)
-    console.log(`  ${C.bold('VERDICT')}`)
-    console.log(` ${divider}`)
-    console.log()
-    console.log(`  Case Strength: ${session.caseStrength}/100`)
-    console.log()
-
-    if (session.caseStrength >= 80) {
-      const ending = resolveVerdict(session, true)
-      renderEnding(ending, session)
-    } else {
-      console.log(`  ${C.yellow('Your case isn\'t strong enough for a guaranteed conviction.')}`)
-      console.log(`  ${C.bold('Do you charge the suspect anyway, or release them?')}`)
-      console.log()
-      console.log(`  ${C.bold('1.')} ${C.green('CHARGE')} — gamble that they\'re guilty`)
-      console.log(`  ${C.bold('2.')} ${C.red('RELEASE')} — let them go`)
-      console.log()
-
-      while (true) {
-        const answer = await ask(rl, '  Your decision (1 or 2): ')
-        const n = parseInt(answer.trim(), 10)
-        if (n === 1) {
-          const ending = resolveVerdict(session, true)
-          renderEnding(ending, session)
-          break
-        }
-        if (n === 2) {
-          const ending = resolveVerdict(session, false)
-          renderEnding(ending, session)
-          break
-        }
-        console.log(`  ${C.red('Enter 1 or 2.')}`)
-      }
-    }
-  }
+  await appendTranscriptSessionEnd(transcriptPath, {
+    type: 'session_end',
+    finalCaseStrength: session.caseStrength,
+    ending: session.ending,
+  })
 
   // Post-game breakdown
   renderBreakdown(session)

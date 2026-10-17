@@ -213,6 +213,15 @@ export type GameSession = {
   maxInterrogationTurns: number
   witnessTurn: number
   maxWitnessTurns: number
+  /**
+   * The witness is callable exactly once, mid-game, once Case Strength
+   * exceeds SCORING_CONFIG.witnessUnlockThreshold. This flips true as soon
+   * as that one-time session is opened (first witness turn played) — not
+   * only once both questions are asked — so it can never be reopened, even
+   * if the player stops after one question. See docs/decisions.md
+   * (2026-10-15, witness-timing change).
+   */
+  witnessUsed: boolean
   caseFile: CaseFile
   suspectClaims: Claim[]
   witnessClaims: Claim[]
