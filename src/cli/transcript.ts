@@ -68,7 +68,13 @@ export async function createTranscriptLog(
   crime: CrimeType,
   uniquifier: string = String(process.pid),
 ): Promise<string> {
-  const directory = path.resolve(process.cwd(), 'playtest-logs')
+  // PLAYTEST_LOGS_DIR lets a deployment point this at a mounted persistent
+  // disk (e.g. Render/Railway/Fly volumes, which mount at a fixed path, not
+  // the app's working directory) so logs survive restarts and redeploys.
+  // Falls back to cwd-relative playtest-logs/ for local CLI/dev use.
+  const directory = process.env.PLAYTEST_LOGS_DIR
+    ? path.resolve(process.env.PLAYTEST_LOGS_DIR)
+    : path.resolve(process.cwd(), 'playtest-logs')
   await mkdir(directory, { recursive: true })
 
   const safeSeed = seed.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'case'

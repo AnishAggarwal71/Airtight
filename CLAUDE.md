@@ -314,9 +314,19 @@ before claiming a cost number publicly.
   static imports evaluate before an importing script's own `dotenv.config()`
   call runs, so provider factories that read `process.env` eagerly at import
   time need the env already loaded.
-- In production (not yet built) this would be a Vercel environment variable
-  readable only by server-side code — no UI exists yet, V3 is terminal-only
-  so far, same as V1 was before M3.
+- **Deployment target: Render**, chosen over Railway/Fly.io/a small VM for
+  its persistent-disk guarantee across restarts and redeploys (requires a
+  paid plan — no free-tier disk). `ANTHROPIC_API_KEY` is a server-side-only
+  Render environment variable, never shipped to the client. See
+  `docs/decisions.md` (2026-10-15) for the full host comparison.
+- **`PLAYTEST_LOGS_DIR`** (optional env var, read in
+  `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.
+  `/var/data/playtest-logs`) in production. Every persistent-disk host
+  mounts its volume at a fixed path that is *not* the app's working
+  directory, and `createTranscriptLog()` otherwise resolves its log folder
+  relative to `process.cwd()` — unset, logs would be written outside the
+  mounted disk and lost on redeploy. Unset in local/CLI dev, it falls back
+  to the previous cwd-relative `playtest-logs/` behavior unchanged.
 
 ---
 
@@ -375,10 +385,12 @@ This project demonstrates:
 
 ## Open items / known gaps (check before assuming something is done)
 
-- **Web UI not yet built.** The game is terminal-only (`npm run play`).
-  Plan calls for an Express + vanilla JS/HTML/CSS front-end with 5 API
-  endpoints and a dark/noir visual design, self-hosted on the user's own
-  domain.
+- **Web UI implemented** (Express API + vanilla JS/HTML/CSS front-end under
+  `public/`), manually playtested end-to-end this round against
+  `test-seed-1` through all three endings (RELEASED, CHARGED_WEAK,
+  CHARGED_STRONG) — reveal screen and breakdown data confirmed correct for
+  each. **Not yet deployed** — `docs/decisions.md` (2026-10-15) records the
+  Render decision; the actual deploy hasn't happened from this machine yet.
 - **`README.md` and `AIRTIGHT-PRD.md` still describe V1 end-to-end** (player
   as suspect, Suspicion meter, 12-round structure, M0–M6 milestone table).
   Don't trust them for current behavior; this file supersedes them until

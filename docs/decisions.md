@@ -5,6 +5,53 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-15 — Deployment target: Render (persistent disk), transcript path made configurable
+
+**Decision:** Picked **Render** as the deployment target over Railway,
+Fly.io, or a small VM, and made `createTranscriptLog()`
+(`src/cli/transcript.ts`) write to `process.env.PLAYTEST_LOGS_DIR` when
+set, falling back to the existing cwd-relative `playtest-logs/` for local
+CLI/dev use.
+
+**Why Render over the alternatives:**
+- Render's persistent disks explicitly document surviving both restarts
+  and redeploys when the app writes inside the disk's mount path — exactly
+  the write pattern `transcript.ts` already uses (`appendFile`/`writeFile`
+  via `node:fs/promises`, no DB). Disks require a paid plan (no free-tier
+  disk), but the cheapest paid web service + disk combination is simple to
+  reason about and the docs are unambiguous about the persistence
+  guarantee.
+- Railway also offers volumes (0.5GB on its Free plan, 5GB on Hobby at
+  $5/mo), but Free-tier volume data is documented as deleted 30 days after
+  plan/account expiry — a worse fit for a portfolio project meant to sit
+  untouched between demos.
+- Fly.io volumes are explicitly tied to a single machine in a single
+  region with no built-in replication, and Fly's own docs recommend
+  provisioning at least two volumes per app for redundancy — more
+  infrastructure complexity than this project's single-process, no-DB
+  design needs.
+- A small VM (e.g. a basic cloud instance) trivially satisfies "disk
+  persists" but requires self-managed OS patching, TLS, and process
+  supervision that Render's platform already provides — not worth the
+  ops overhead for a portfolio demo.
+
+**The real risk wasn't the host, it was the write path.** Every one of
+these hosts mounts its persistent disk/volume at a fixed path you choose
+(e.g. Render's disks mount wherever you configure, commonly `/var/data`),
+which is **not** the app's working directory. `createTranscriptLog()`
+previously always resolved `playtest-logs/` relative to `process.cwd()` —
+deployed as-is, on any of these hosts, logs would have been written
+outside the mounted disk and lost on every redeploy regardless of which
+host was picked. Fixed by reading `PLAYTEST_LOGS_DIR` from the environment
+first, so the Render deploy sets it to the disk's mount path (e.g.
+`PLAYTEST_LOGS_DIR=/var/data/playtest-logs`) and the CLI/local dev path is
+unchanged (env var unset → same cwd-relative fallback as before).
+
+**Outcome:** `npx tsc --noEmit` clean, `npm run verify` still 9/9 (no
+engine files touched). Not yet deployed from this machine — this records
+the decision and the code fix that makes it correct wherever it's
+deployed, not a completed deployment.
+
 ## 2026-10-15 — Implemented: mid-game witness timing, ending reframe, cap audit
 
 **Decision:** Implemented the three engine rule changes queued by the
@@ -135,7 +182,6 @@ the game plays today — that description is accurate for the *current*
 fixed-phase engine behavior (open item 4 above), but will become stale
 once mid-game witness calling ships. Left as-is pending the actual
 implementation; flagging so it isn't missed when `session.ts` changes.
-
 
 ## 2026-10-11 — Provider switch: GroqCloud/xAI → Anthropic Claude Haiku 4.5
 
