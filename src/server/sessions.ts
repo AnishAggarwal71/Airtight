@@ -14,6 +14,7 @@ export type StoredSession = {
   session: GameSession
   createdAt: number
   lastActiveAt: number
+  transcriptPath: string
 }
 
 const SESSION_TTL_MS = 60 * 60 * 1000 // 1 hour of inactivity
@@ -25,9 +26,9 @@ export function createSessionId(): string {
   return crypto.randomUUID()
 }
 
-export function putSession(sessionId: string, session: GameSession): void {
+export function putSession(sessionId: string, session: GameSession, transcriptPath: string): void {
   const now = Date.now()
-  store.set(sessionId, { session, createdAt: now, lastActiveAt: now })
+  store.set(sessionId, { session, createdAt: now, lastActiveAt: now, transcriptPath })
 }
 
 /** Returns the live GameSession for an id, or undefined if it never existed, expired, or the server restarted. */
@@ -36,6 +37,11 @@ export function getSession(sessionId: string): GameSession | undefined {
   if (!entry) return undefined
   entry.lastActiveAt = Date.now()
   return entry.session
+}
+
+/** Returns the JSONL transcript path for a session id, or undefined if the session doesn't exist. */
+export function getTranscriptPath(sessionId: string): string | undefined {
+  return store.get(sessionId)?.transcriptPath
 }
 
 export function deleteSession(sessionId: string): void {

@@ -2,7 +2,7 @@
 /**
  * V2 sanity checks.  npx tsx src/cli/verify.ts
  *
- * Five things matter here:
+ * Seven things matter here:
  *
  *   1. DETERMINISM — generate() must stay pure. The server regenerates the case
  *      file from the seed on every turn instead of storing it.
@@ -14,12 +14,23 @@
  *   4. COVERAGE — every template should be reachable from generation.
  *   5. VARIANCE — the same template should produce different cases from
  *      different seeds.
+ *   6. VERDICT-REASON LEAK-SAFETY — deriveVerdictReason() (src/server/verdict.ts)
+ *      must never echo invigilator free-text, since that text is written by a
+ *      model with full hidden-case context and could carry any of it.
+ *   7. BREAKDOWN-ROUTE LOCK — GET /api/game/:id/breakdown (src/server/routes/
+ *      game.ts) must refuse (403/409) until session.ending is set. It is the
+ *      one route allowed to return the cover story and true timeline; if it
+ *      answered mid-game, a player could open dev tools and read the answers
+ *      straight off the wire. No API key needed — this only creates a session
+ *      and reads the refusal, no model call involved.
  */
 
 import { generate, toPublicCase } from '../engine/generate'
 import { parsePlayerInput } from '../engine/session'
 import { ALL_TEMPLATES } from '../engine/templates'
-import type { CrimeType } from '../engine/types'
+import type { CrimeType, InvigilatorSuspectResponse, InvigilatorWitnessResponse } from '../engine/types'
+import { deriveSuspectVerdictType, deriveWitnessVerdictType, deriveVerdictReason } from '../server/verdict'
+import { createApp } from '../server/app'
 
 const CRIMES: CrimeType[] = ['homicide']
 const ALL_CRIMES: CrimeType[] = ['homicide', 'arson', 'embezzlement']  // coverage check still validates arson template is reachable
@@ -154,7 +165,7 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
       // are escaped to `\"` in that blob and can never match a raw substring.
       for (const e of file.evidence) {
         const pe = publicCase.evidence.find((x) => x.id === e.id)
-        if (!pe || pe.claim !== e.claim) {
+        if (!pe || pe.description !== e.claim) {
           fail(`evidence ${e.id} claim not visible in public case (${seed}/${crime})`)
           clean = false
         }
@@ -308,6 +319,99 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
   }
   if (varied) pass('slot randomisation produces high variance within each template')
 }
+
+// 6. Verdict-reason leak-safety — deriveVerdictReason() must be structurally
+// incapable of echoing invigilator free-text (reasoning/description), since
+// those fields are written by a model with full hidden-case context.
+{
+  const SENTINEL_TRUTH = 'SENTINEL_TRUE_TIMELINE_FACT_xyz'
+  const SENTINEL_CLAIM = 'SENTINEL_CLAIM_LEDGER_TEXT_xyz'
+  const SENTINEL_COVER = 'SENTINEL_COVER_STORY_TEXT_xyz'
+
+  const fakeSuspectSignals: InvigilatorSuspectResponse['signals'] = {
+    contradictions: [
+      { againstClaimId: 'c1', description: `${SENTINEL_CLAIM} contradicts ${SENTINEL_TRUTH}`, severity: 'major' },
+    ],
+    guiltyKnowledgeLeak: { description: `${SENTINEL_COVER} slipped through` },
+    evidenceHandling: [{ evidenceId: 'e1', quality: 0, description: SENTINEL_TRUTH }],
+    demeanorShift: true,
+  }
+  const fakeWitnessSignals: InvigilatorWitnessResponse['signals'] = {
+    suspectContradiction: { againstClaimId: 'c1', description: `${SENTINEL_CLAIM} vs ${SENTINEL_COVER}` },
+  }
+
+  const sentinels = [SENTINEL_TRUTH, SENTINEL_CLAIM, SENTINEL_COVER]
+  let safe = true
+
+  const suspectType = deriveSuspectVerdictType(fakeSuspectSignals)
+  const suspectReason = deriveVerdictReason(suspectType, {
+    question: 'Where were you that night?',
+    presentedEvidenceDescriptions: [SENTINEL_TRUTH],
+  })
+  for (const s of sentinels) {
+    if (suspectReason.includes(s)) {
+      fail(`deriveVerdictReason() leaked sentinel "${s}" via suspect signals`)
+      safe = false
+    }
+  }
+
+  const witnessType = deriveWitnessVerdictType(fakeWitnessSignals)
+  const witnessReason = deriveVerdictReason(witnessType, {
+    question: 'Did you see anyone else that evening?',
+    presentedEvidenceDescriptions: [],
+  })
+  for (const s of sentinels) {
+    if (witnessReason.includes(s)) {
+      fail(`deriveVerdictReason() leaked sentinel "${s}" via witness signals`)
+      safe = false
+    }
+  }
+
+  if (safe) pass('deriveVerdictReason() never echoes invigilator free-text (claim ledger, truth, cover story)')
+}
+
+// 7. Breakdown-route lock — GET /:id/breakdown must refuse until session.ending
+// is set. This is the one route allowed to return the cover story and the
+// true timeline; answering mid-game would let a player read the answers
+// straight off the wire via dev tools. Spins up a real Express app on an
+// ephemeral port (no API key, no model call — only session creation and a
+// read of the refusal) and tears it down when done.
+await (async () => {
+  const app = createApp()
+  const server = app.listen(0)
+  const port = (server.address() as { port: number }).port
+  const base = `http://127.0.0.1:${port}`
+
+  try {
+    const createRes = await fetch(`${base}/api/game`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    if (!createRes.ok) {
+      fail(`breakdown-lock check could not create a session (status ${createRes.status})`)
+      return
+    }
+    const { sessionId } = (await createRes.json()) as { sessionId: string }
+
+    const breakdownRes = await fetch(`${base}/api/game/${sessionId}/breakdown`)
+    const body = (await breakdownRes.json()) as { error?: { message?: string } }
+
+    if (breakdownRes.status !== 403 && breakdownRes.status !== 409) {
+      fail(`GET /:id/breakdown returned ${breakdownRes.status} mid-game (want 403 or 409) — hidden case data may be exposed before the game ends`)
+      return
+    }
+    if (!body.error?.message) {
+      fail('GET /:id/breakdown refused mid-game but returned no error message')
+      return
+    }
+    pass(`GET /:id/breakdown refuses mid-game (${breakdownRes.status}) — cover story and truth timeline stay server-side`)
+  } catch (err) {
+    fail(`breakdown-lock check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    server.close()
+  }
+})()
 
 console.log(
   failures === 0

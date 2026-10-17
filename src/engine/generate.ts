@@ -23,6 +23,15 @@ export type GenerateOptions = {
   templateId?: string
 }
 
+/** Deterministic short display code from the seed string — no RNG, no Date.now(). */
+export function caseNumber(seed: string): string {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+  }
+  return `AT-${(hash % 9000) + 1000}`
+}
+
 export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile {
   const r = new Rng(`${seed}::${crime}`)
 
@@ -53,6 +62,7 @@ export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile
     seed,
     crime,
     templateId: template.id,
+    title: template.title,
     suspect: built.suspect,
     victim: built.victim,
     location: built.location,
@@ -79,15 +89,18 @@ export function toPublicCase(file: CaseFile): PublicCase {
   return {
     seed: file.seed,
     crime: file.crime,
+    title: file.title,
+    caseNumber: caseNumber(file.seed),
     suspect: file.suspect,
     victim: file.victim,
     location: file.location,
     window: file.window,
     briefing: file.detectiveBriefing,
-    evidence: file.evidence.map((e) => ({
+    evidence: file.evidence.map((e, index) => ({
       id: e.id,
       type: e.type,
-      claim: e.claim,
+      name: `${capitalize(e.type)} evidence #${index + 1}`,
+      description: e.claim,
       presented: e.presented,
     })),
     witness: {
@@ -95,4 +108,8 @@ export function toPublicCase(file: CaseFile): PublicCase {
       relationship: file.witness.relationship,
     },
   }
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }

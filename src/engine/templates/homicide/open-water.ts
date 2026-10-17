@@ -15,7 +15,7 @@ export const openWater: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const dogWalker = namedPerson(r)
     const dp = pronouns(dogWalker.pronoun)
     const start = hhmm(18, r.int(15, 45))
@@ -30,7 +30,7 @@ export const openWater: Template = {
     const pingTime = addMinutes(start, pingOffset)
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['solicitor', 'surveyor', 'IT consultant', 'nurse']) },
+      suspect: { name: suspect.name, occupation: r.pick(['solicitor', 'surveyor', 'IT consultant', 'nurse']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's spouse of several years` },
       location: `${lake} — found in the shallows near the eastern jetty`,
       window: { start, end },
@@ -104,7 +104,7 @@ export const openWater: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead in the shallows of ${lake}, near the eastern jetty. Initial assessment leaned toward an accidental drowning, but pre-death bruising complicates that.`,
-        suspectSummary: `${suspect}, ${victim.name}'s spouse, had been having an affair with ${lover}, recently discovered by ${victim.name}, who was pushing for a divorce and a full asset split.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s spouse, had been having an affair with ${lover}, recently discovered by ${victim.name}, who was pushing for a divorce and a full asset split.`,
         sceneSummary: `${lake}, eastern jetty and shoreline. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was pushed from the jetty during an argument, struck their head on a submerged post, and was held under rather than pulled out. The suspect is ${victim.name}'s spouse, who was recently discovered to be having an affair with ${lover} and was facing a demand for divorce and a full asset split.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

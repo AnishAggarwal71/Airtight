@@ -15,7 +15,7 @@ export const hikingTrail: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const otherHiker = namedPerson(r)
     const op = pronouns(otherHiker.pronoun)
     const start = hhmm(14, r.int(10, 40))
@@ -29,7 +29,7 @@ export const hikingTrail: Template = {
     const gpsOffset = r.int(3, 6)
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['architect', 'personal trainer', 'graphic designer', 'veterinary nurse']) },
+      suspect: { name: suspect.name, occupation: r.pick(['architect', 'personal trainer', 'graphic designer', 'veterinary nurse']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's close friend of many years` },
       location: `${trail} — found at the base of a cliff section known locally as the Scar`,
       window: { start, end },
@@ -103,7 +103,7 @@ export const hikingTrail: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead at the base of a cliff section known as the Scar on ${trail}, while hiking with the suspect. Initial assessment leaned toward a fall on unstable scree.`,
-        suspectSummary: `${suspect}, ${victim.name}'s close friend of many years, was about to be exposed by ${victim.name} for an ongoing affair with ${affairPartner}.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s close friend of many years, was about to be exposed by ${victim.name} for an ongoing affair with ${affairPartner}.`,
         sceneSummary: `${trail}, the Scar viewpoint and cliff base. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was pushed from the cliff edge at the Scar during a confrontation and left there while the suspect walked on. The suspect is ${victim.name}'s close friend of many years, who was about to be exposed for an ongoing affair with ${affairPartner}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

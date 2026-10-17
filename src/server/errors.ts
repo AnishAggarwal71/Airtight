@@ -33,6 +33,10 @@ export function conflict(message: string): ApiError {
   return new ApiError(409, 'CONFLICT', message)
 }
 
+export function budgetExceeded(message: string): ApiError {
+  return new ApiError(429, 'BUDGET_EXCEEDED', message)
+}
+
 /**
  * Wraps a persona-agent model failure (interrogateSuspect/interrogateWitness —
  * these throw on failure with no retry, unlike the invigilator) as a clean

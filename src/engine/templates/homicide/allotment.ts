@@ -15,7 +15,7 @@ export const allotment: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const otherHolder = namedPerson(r)
     const op = pronouns(otherHolder.pronoun)
     const start = hhmm(19, r.int(10, 40))
@@ -31,7 +31,7 @@ export const allotment: Template = {
     const gloveColour = r.pick(['green', 'navy', 'grey'])
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['retired postal worker', 'school caretaker', 'plumber', 'market trader']) },
+      suspect: { name: suspect.name, occupation: r.pick(['retired postal worker', 'school caretaker', 'plumber', 'market trader']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the plot-holder two rows over` },
       location: `${site} — found face-down between the runner bean canes on ${vp.poss} own plot`,
       window: { start, end },
@@ -105,7 +105,7 @@ export const allotment: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead on ${vp.poss} own allotment plot at ${site}, among the runner bean canes. Initial assessment leaned toward a fall or a cardiac event, but a ligature mark complicates that.`,
-        suspectSummary: `${suspect}, who holds a nearby plot, had been in a long and documented dispute with ${victim.name} over ${dispute}. They admit to visiting the plot that evening.`,
+        suspectSummary: `${suspect.name}, who holds a nearby plot, had been in a long and documented dispute with ${victim.name} over ${dispute}. They admit to visiting the plot that evening.`,
         sceneSummary: `${site}. The body lay between the bean canes on ${victim.name}'s plot. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was strangled with a washing line among the bean canes on their own plot and the body left to look like a fall or heart attack. The suspect holds a nearby plot and had been in a long-running dispute with ${victim.name} over ${dispute}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

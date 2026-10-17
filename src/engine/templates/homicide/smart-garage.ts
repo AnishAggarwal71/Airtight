@@ -15,7 +15,7 @@ export const smartGarage: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const neighbour = namedPerson(r)
     const np = pronouns(neighbour.pronoun)
     const start = hhmm(1, r.int(10, 40))
@@ -30,7 +30,7 @@ export const smartGarage: Template = {
     const logTime = addMinutes(start, logOffset)
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['software engineer', 'property manager', 'dental hygienist', 'logistics coordinator']) },
+      suspect: { name: suspect.name, occupation: r.pick(['software engineer', 'property manager', 'dental hygienist', 'logistics coordinator']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's adult child` },
       location: `the attached garage of the family home on ${street} — found slumped in the driver's seat with the engine running`,
       window: { start, end },
@@ -104,7 +104,7 @@ export const smartGarage: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead in the family car in the attached garage on ${street}, apparently overcome by carbon monoxide. Initial assessment leaned toward a tragic accident caused by a known exhaust fault.`,
-        suspectSummary: `${suspect}, ${victim.name}'s parent, had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s parent, had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
         sceneSummary: `${street}, the attached garage. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was sealed inside the garage with the engine remote-started via the shared smart-hub account, exploiting a known exhaust fault to cause carbon monoxide poisoning. The suspect is ${victim.name}'s parent, who had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

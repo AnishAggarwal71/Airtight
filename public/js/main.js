@@ -4,6 +4,7 @@ import { buildPlayerInput } from './evidence.js'
 import { render } from './render.js'
 
 const SESSION_STORAGE_KEY = 'airtight-session-id'
+const CHAR_LIMIT = 300
 
 function paint() {
   render(state)
@@ -38,6 +39,8 @@ async function createSession(seed) {
     state.previousCaseStrength = result.caseStrength
     state.maxInterrogationTurns = result.maxInterrogationTurns
     state.maxWitnessTurns = result.maxWitnessTurns
+    state.witnessAvailable = result.witnessAvailable
+    state.witnessUsed = result.witnessUsed
     state.phase = 'briefing'
     sessionStorage.setItem(SESSION_STORAGE_KEY, state.sessionId)
     paint()
@@ -53,28 +56,45 @@ document.getElementById('to-interrogation-btn').addEventListener('click', () => 
   paint()
 })
 
-// ─── Evidence chip staging (interrogation only, no network call) ───────────
+document.getElementById('restart-btn-briefing').addEventListener('click', () => {
+  sessionStorage.removeItem(SESSION_STORAGE_KEY)
+  resetForNewCase()
+  paint()
+})
 
-document.getElementById('interrogation-evidence-list').addEventListener('click', (e) => {
+// ─── Evidence tray staging (one at a time, no network call) ───────────────
+
+document.getElementById('evidence-tray').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-evidence-id]')
   if (!btn || btn.disabled) return
   const id = btn.dataset.evidenceId
-  if (state.evidenceToggled.has(id)) {
-    state.evidenceToggled.delete(id)
-  } else {
-    state.evidenceToggled.add(id)
-  }
+  state.evidenceStaged = state.evidenceStaged === id ? null : id
   paint()
 })
 
 // ─── Interrogation submit ───────────────────────────────────────────────────
+
+document.getElementById('interrogation-input').addEventListener('input', () => {
+  paint()
+})
+
+document.getElementById('interrogation-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    document.getElementById('interrogation-form').requestSubmit()
+  }
+})
 
 document.getElementById('interrogation-form').addEventListener('submit', async (e) => {
   e.preventDefault()
   const input = document.getElementById('interrogation-input')
   const question = input.value.trim()
   if (!question) return
-  const evidenceIds = [...state.evidenceToggled]
+  if (state.witnessMode) {
+    await submitWitness(question, input)
+    return
+  }
+  const evidenceIds = state.evidenceStaged ? [state.evidenceStaged] : []
   await submitInterrogation(evidenceIds, question, input)
 })
 
@@ -87,29 +107,10 @@ async function submitInterrogation(evidenceIds, question, inputEl) {
 
   try {
     const result = await api.interrogate(state.sessionId, playerInput)
-
-    state.interrogationTranscript.push({ speaker: 'detective', text: question })
-    state.interrogationTranscript.push({
-      speaker: 'suspect',
-      text: result.suspectDialogue,
-      demeanor: result.suspectDemeanor,
-    })
-
-    for (const id of result.presentedEvidenceIds) state.presentedEvidenceIds.add(id)
-    state.evidenceToggled.clear()
-
-    state.previousCaseStrength = state.caseStrength
-    state.caseStrength = result.caseStrength
-    state.interrogationTurn = result.interrogationTurn
-    state.lastInvigilatorReasoning = result.invigilatorReasoning
-    state.ending = result.ending
-
+    applyTurnResult(result, question, false)
     if (inputEl) inputEl.value = ''
     state.thinking = false
-
-    if (state.ending) {
-      state.phase = 'verdict'
-    }
+    if (state.ending) state.phase = 'ended'
     paint()
   } catch (err) {
     state.thinking = false
@@ -117,21 +118,56 @@ async function submitInterrogation(evidenceIds, question, inputEl) {
   }
 }
 
-// ─── Interrogation → witness ────────────────────────────────────────────────
+function applyTurnResult(result, question, isWitness) {
+  const presentedEvidence = isWitness
+    ? []
+    : (result.presentedEvidenceIds || [])
+        .map((id) => state.publicCase.evidence.find((e) => e.id === id))
+        .filter(Boolean)
+        .map((e) => ({ id: e.id, name: e.name }))
 
-document.getElementById('to-witness-btn').addEventListener('click', () => {
-  state.phase = 'witness'
+  for (const e of presentedEvidence) {
+    const item = state.publicCase.evidence.find((x) => x.id === e.id)
+    if (item) item.presented = true
+  }
+  if (!isWitness) state.evidenceStaged = null
+
+  state.transcript.push({
+    speaker: 'detective',
+    question,
+    presentedEvidence,
+    answerText: isWitness ? result.witnessDialogue : result.suspectDialogue,
+    demeanor: isWitness ? result.witnessDemeanor : result.suspectDemeanor,
+    verdict: result.verdict || null,
+    delta: result.caseStrengthDelta || 0,
+    isWitness,
+  })
+
+  state.previousCaseStrength = state.caseStrength
+  state.caseStrength = result.caseStrength
+  state.lastDelta = result.caseStrengthDelta || 0
+  state.lastVerdictType = result.verdict ? result.verdict.type : null
+
+  if (isWitness) {
+    state.witnessTurn = result.witnessTurn
+    state.witnessUsed = result.witnessUsed
+  } else {
+    state.interrogationTurn = result.interrogationTurn
+    state.witnessAvailable = result.witnessAvailable
+  }
+  state.ending = result.ending
+}
+
+// ─── Witness (folded into the interrogation composer) ──────────────────────
+// Calling the witness switches the shared composer into witness mode rather
+// than popping a separate input — the evidence tray is for the suspect only,
+// so it's disabled while in this mode (render.js handles the visual state).
+
+document.getElementById('witness-btn').addEventListener('click', () => {
+  if (!state.witnessAvailable || state.witnessUsed || state.thinking || state.witnessMode) return
+  state.witnessMode = true
   paint()
-})
-
-// ─── Witness submit ──────────────────────────────────────────────────────────
-
-document.getElementById('witness-form').addEventListener('submit', async (e) => {
-  e.preventDefault()
-  const input = document.getElementById('witness-input')
-  const question = input.value.trim()
-  if (!question) return
-  await submitWitness(question, input)
+  document.getElementById('interrogation-input').focus()
 })
 
 async function submitWitness(question, inputEl) {
@@ -141,26 +177,15 @@ async function submitWitness(question, inputEl) {
 
   try {
     const result = await api.askWitness(state.sessionId, question)
-
-    state.witnessTranscript.push({ speaker: 'detective', text: question })
-    state.witnessTranscript.push({
-      speaker: 'witness',
-      text: result.witnessDialogue,
-      demeanor: result.witnessDemeanor,
-    })
-
-    state.previousCaseStrength = state.caseStrength
-    state.caseStrength = result.caseStrength
-    state.witnessTurn = result.witnessTurn
-    state.lastWitnessReasoning = result.invigilatorReasoning
-    state.ending = result.ending
-
+    applyTurnResult(result, question, true)
     if (inputEl) inputEl.value = ''
     state.thinking = false
-
-    if (state.ending) {
-      state.phase = 'verdict'
+    // Exactly two witness questions per session — once both are used (or the
+    // session ends), the composer switches back to questioning the suspect.
+    if (state.witnessTurn >= state.maxWitnessTurns || state.ending) {
+      state.witnessMode = false
     }
+    if (state.ending) state.phase = 'ended'
     paint()
   } catch (err) {
     state.thinking = false
@@ -168,54 +193,22 @@ async function submitWitness(question, inputEl) {
   }
 }
 
-// ─── Witness → verdict ───────────────────────────────────────────────────────
+// ─── Reveal ──────────────────────────────────────────────────────────────────
 
-document.getElementById('to-verdict-btn').addEventListener('click', () => {
-  state.phase = 'verdict'
+document.getElementById('to-reveal-btn').addEventListener('click', async () => {
+  state.phase = 'ended'
   paint()
+  await loadBreakdown()
 })
 
-// ─── Verdict ──────────────────────────────────────────────────────────────────
-
-document.getElementById('charge-btn').addEventListener('click', () => submitVerdict(true))
-document.getElementById('release-btn').addEventListener('click', () => submitVerdict(false))
-
-async function submitVerdict(charges) {
-  clearError()
-  try {
-    const result = await api.submitVerdict(state.sessionId, charges)
-    state.ending = result.ending
-    state.caseStrength = result.caseStrength
-    paint()
-  } catch (err) {
-    setError(err.message, () => submitVerdict(charges))
-  }
-}
-
-document.getElementById('to-breakdown-btn').addEventListener('click', async () => {
-  clearError()
+async function loadBreakdown() {
   try {
     state.breakdown = await api.getBreakdown(state.sessionId)
-    state.phase = 'breakdown'
     paint()
   } catch (err) {
-    setError(err.message, () => document.getElementById('to-breakdown-btn').click())
+    setError(err.message, loadBreakdown)
   }
-})
-
-// ─── Breakdown accordion (event-delegated) ───────────────────────────────────
-
-document.getElementById('breakdown-content').addEventListener('click', (e) => {
-  const header = e.target.closest('[data-accordion-key]')
-  if (!header) return
-  const key = header.dataset.accordionKey
-  if (state.openAccordions.has(key)) {
-    state.openAccordions.delete(key)
-  } else {
-    state.openAccordions.add(key)
-  }
-  paint()
-})
+}
 
 document.getElementById('restart-btn').addEventListener('click', () => {
   sessionStorage.removeItem(SESSION_STORAGE_KEY)
@@ -223,18 +216,22 @@ document.getElementById('restart-btn').addEventListener('click', () => {
   paint()
 })
 
-// ─── Case File overlay (client-side-only, view-only) ────────────────────────
-
-function toggleCaseFile(visible) {
-  state.caseFileVisible = visible
+document.getElementById('reveal-reviewer-toggle').addEventListener('click', () => {
+  state.reviewerExpanded = !state.reviewerExpanded
   paint()
-}
+})
 
-document.getElementById('case-file-btn').addEventListener('click', () => toggleCaseFile(true))
-document.getElementById('case-file-btn-witness').addEventListener('click', () => toggleCaseFile(true))
-document.getElementById('case-file-close-btn').addEventListener('click', () => toggleCaseFile(false))
+// ─── Transcript-inline error retry (event-delegated: the button is rebuilt
+// on every render, so a direct listener would be lost each paint) ──────────
 
-// ─── Error banner retry ──────────────────────────────────────────────────────
+document.getElementById('transcript').addEventListener('click', (e) => {
+  if (!e.target.closest('#transcript-retry-btn')) return
+  const retry = state.error?.retry
+  clearError()
+  if (retry) retry()
+})
+
+// ─── Setup-phase error banner retry ──────────────────────────────────────────
 
 document.getElementById('error-retry-btn').addEventListener('click', () => {
   const retry = state.error?.retry
@@ -260,26 +257,35 @@ async function tryReconnect() {
     state.maxWitnessTurns = result.maxWitnessTurns
     state.interrogationTurn = result.interrogationTurn
     state.witnessTurn = result.witnessTurn
+    state.witnessAvailable = result.witnessAvailable
+    state.witnessUsed = result.witnessUsed
     state.ending = result.ending
-    state.phase = result.ending ? 'verdict' : result.phase === 'briefing' ? 'briefing' : result.phase
+    state.phase = result.ending ? 'ended' : result.phase === 'briefing' ? 'briefing' : 'interrogation'
 
-    // The reconnect endpoint returns one flat transcript; split it back into
-    // interrogation vs. witness messages by speaker (detective lines appear
-    // in both, suspect/witness lines are unambiguous).
-    state.interrogationTranscript = []
-    state.witnessTranscript = []
+    state.transcript = []
     let inWitnessPhase = false
+    let pendingQuestion = null
     for (const entry of result.transcript) {
       if (entry.speaker === 'witness') inWitnessPhase = true
-      const target = inWitnessPhase ? state.witnessTranscript : state.interrogationTranscript
-      target.push(entry)
-    }
-
-    for (const item of result.publicCase.evidence) {
-      if (item.presented) state.presentedEvidenceIds.add(item.id)
+      if (entry.speaker === 'detective') {
+        pendingQuestion = entry.text
+      } else {
+        state.transcript.push({
+          speaker: 'detective',
+          question: pendingQuestion || '',
+          presentedEvidence: [],
+          answerText: entry.text,
+          demeanor: entry.demeanor,
+          verdict: null,
+          delta: 0,
+          isWitness: inWitnessPhase,
+        })
+        pendingQuestion = null
+      }
     }
 
     paint()
+    if (state.ending) await loadBreakdown()
   } catch {
     sessionStorage.removeItem(SESSION_STORAGE_KEY)
     paint()

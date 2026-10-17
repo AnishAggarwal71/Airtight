@@ -76,7 +76,8 @@ export type CaseFile = {
   seed: string
   crime: CrimeType
   templateId: string
-  suspect: { name: string; occupation: string }
+  title: string
+  suspect: { name: string; occupation: string; pronoun: 'he' | 'she' }
   victim: { name: string; relationship: string }
   location: string
   window: { start: string; end: string }
@@ -92,12 +93,20 @@ export type CaseFile = {
 export type PublicCase = {
   seed: string
   crime: CrimeType
-  suspect: { name: string; occupation: string }
+  title: string
+  caseNumber: string
+  suspect: { name: string; occupation: string; pronoun: 'he' | 'she' }
   victim: { name: string; relationship: string }
   location: string
   window: { start: string; end: string }
   briefing: DetectiveBriefing
-  evidence: { id: string; type: EvidenceType; claim: string; presented: boolean }[]
+  evidence: {
+    id: string
+    type: EvidenceType
+    name: string
+    description: string
+    presented: boolean
+  }[]
   witness: { name: string; relationship: string }
 }
 

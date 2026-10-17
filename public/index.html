@@ -8,134 +8,179 @@
 </head>
 <body data-phase="setup">
 
-  <header id="case-strength-header" class="cs-header">
-    <div class="cs-label">CASE STRENGTH</div>
-    <div class="cs-bar-track">
-      <div id="cs-bar-fill" class="cs-bar-fill"></div>
-    </div>
-    <div id="cs-value" class="cs-value">15</div>
-    <div id="cs-flash" class="cs-flash"></div>
-  </header>
+  <div class="room" aria-hidden="true"></div>
 
   <main>
 
-    <!-- SETUP -->
-    <section data-section="setup" class="panel">
-      <h1>AIRTIGHT</h1>
-      <p class="tagline">You are the detective. The suspect is guilty. Prove it.</p>
-      <form id="setup-form">
-        <label>
-          Seed (optional)
-          <input type="text" id="seed-input" placeholder="leave blank for random" maxlength="100">
-        </label>
-        <button type="submit" id="start-btn">Begin Interrogation</button>
-      </form>
+    <!-- ENTRY -->
+    <section data-section="setup" class="entry-shell">
+      <div class="entry-panel glass-panel">
+        <span class="bracket-bl"></span><span class="bracket-br"></span>
+        <div class="entry-lockmark">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          AIRTIGHT
+        </div>
+        <h1 class="entry-title">Build the case.</h1>
+        <p class="entry-premise">You are the detective. The suspect is guilty. Six questions, one witness session — prove it before the case runs cold.</p>
+        <ul class="howto-list">
+          <li class="howto-row">
+            <span class="howto-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+            <span class="howto-text">Ask questions. The suspect answers in character — nothing is scripted.</span>
+          </li>
+          <li class="howto-row">
+            <span class="howto-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg></span>
+            <span class="howto-text">Present evidence to force a reaction. Deploy it carefully — the suspect doesn't know what you have.</span>
+          </li>
+          <li class="howto-row">
+            <span class="howto-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="4"/><rect x="3" y="11" width="12" height="4"/><rect x="3" y="18" width="16" height="4"/></svg></span>
+            <span class="howto-text">Watch the case build. Every answer is judged and scored — contradictions and slips move the meter.</span>
+          </li>
+        </ul>
+        <hr class="entry-divider">
+        <form id="setup-form">
+          <div class="entry-fields">
+            <label class="field-label" for="seed-input">Case seed (optional)</label>
+            <input type="text" id="seed-input" placeholder="leave blank for a random case" maxlength="100">
+          </div>
+          <button type="submit" id="start-btn" class="btn btn-primary entry-begin">Begin</button>
+        </form>
+      </div>
     </section>
 
     <!-- BRIEFING -->
-    <section data-section="briefing" class="panel">
-      <h2>Case Briefing</h2>
-      <div class="briefing-grid">
-        <div class="briefing-field"><span class="field-label">Victim</span><span id="briefing-victim"></span></div>
-        <div class="briefing-field"><span class="field-label">Suspect</span><span id="briefing-suspect"></span></div>
-        <div class="briefing-field"><span class="field-label">Location</span><span id="briefing-location"></span></div>
-        <div class="briefing-field"><span class="field-label">Window</span><span id="briefing-window"></span></div>
-        <div class="briefing-field"><span class="field-label">Witness</span><span id="briefing-witness"></span></div>
+    <section data-section="briefing">
+      <div class="hud" id="hud-briefing">
+        <div class="hud-case">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span class="hud-case-number" id="hud-case-number-briefing"></span>
+        </div>
+        <div class="hud-meter">
+          <div class="hud-meter-track">
+            <div class="hud-meter-fill" id="hud-fill-briefing"></div>
+            <div class="hud-meter-gain" id="hud-gain-briefing"></div>
+            <div class="hud-meter-tick" style="left:50%"></div>
+            <div class="hud-meter-tick mark-80" id="hud-mark80-briefing" style="left:80%"></div>
+            <div class="hud-meter-delta" id="hud-delta-briefing"></div>
+          </div>
+          <div class="hud-meter-value" id="hud-value-briefing" aria-hidden="true">15</div>
+        </div>
+        <div class="hud-turns" id="hud-turns-briefing"></div>
       </div>
-      <div class="briefing-prose">
-        <p id="briefing-victim-summary"></p>
-        <p id="briefing-suspect-summary"></p>
-        <p id="briefing-scene-summary"></p>
-        <h3>Crime</h3>
-        <p id="briefing-crime-summary"></p>
-        <p id="briefing-evidence-summary"></p>
+      <div class="briefing-shell">
+        <div class="dossier-panel glass-panel">
+          <span class="bracket-bl"></span><span class="bracket-br"></span>
+          <div class="dossier-scroll">
+            <div class="dossier-header">
+              <p class="dossier-case-type">Homicide</p>
+              <h2 class="dossier-title" id="dossier-title"></h2>
+              <div class="dossier-stamp">Open case</div>
+            </div>
+            <div class="subject-block">
+              <div class="subject-thumb" aria-hidden="true"></div>
+              <div class="subject-grid">
+                <div class="subject-field"><span class="field-label">Name</span><span class="field-value" id="dossier-suspect-name"></span></div>
+                <div class="subject-field"><span class="field-label">Occupation</span><span class="field-value" id="dossier-suspect-occupation"></span></div>
+                <div class="subject-field"><span class="field-label">Victim</span><span class="field-value" id="dossier-victim"></span></div>
+                <div class="subject-field"><span class="field-label">Window</span><span class="field-value" id="dossier-window"></span></div>
+              </div>
+            </div>
+            <div class="dossier-prose">
+              <p id="dossier-victim-summary"></p>
+              <p id="dossier-suspect-summary"></p>
+              <p id="dossier-scene-summary"></p>
+              <h3>Account of the crime</h3>
+              <p id="dossier-crime-summary"></p>
+              <p id="dossier-evidence-summary"></p>
+            </div>
+            <h3 style="font-size:15px;font-weight:600;color:var(--ink-strong);margin:0 0 12px;">Evidence</h3>
+            <ul id="dossier-evidence-list" class="exhibit-list"></ul>
+          </div>
+          <div class="dossier-footer">
+            <button type="button" id="restart-btn-briefing" class="btn btn-ghost">New case</button>
+            <button type="button" id="to-interrogation-btn" class="btn btn-primary">Begin questioning</button>
+          </div>
+        </div>
       </div>
-      <h3>Evidence on file</h3>
-      <ul id="briefing-evidence-list" class="evidence-list"></ul>
-      <button type="button" id="to-interrogation-btn">Begin Questioning the Suspect</button>
     </section>
 
     <!-- INTERROGATION -->
-    <section data-section="interrogation" class="panel">
-      <h2>Interrogation — <span id="suspect-name"></span></h2>
-      <button type="button" id="case-file-btn" class="case-file-btn">Case File</button>
-      <div class="turn-counter">Turn <span id="interrogation-turn-count">0</span> / <span id="interrogation-turn-max">6</span></div>
-      <div id="interrogation-transcript" class="transcript"></div>
-      <div id="interrogation-thinking" class="thinking hidden">The suspect is thinking<span class="ellipsis"></span></div>
-      <div id="interrogation-reasoning" class="invigilator-note hidden"></div>
-      <h3>Evidence</h3>
-      <ul id="interrogation-evidence-list" class="evidence-list"></ul>
-      <form id="interrogation-form">
-        <textarea id="interrogation-input" maxlength="300" placeholder="Ask your question..." rows="2"></textarea>
-        <button type="submit" id="interrogation-submit">Ask</button>
-      </form>
-      <button type="button" id="to-witness-btn" class="hidden">Question the Witness</button>
-    </section>
-
-    <!-- WITNESS -->
-    <section data-section="witness" class="panel">
-      <h2>Witness — <span id="witness-name"></span></h2>
-      <button type="button" id="case-file-btn-witness" class="case-file-btn">Case File</button>
-      <div class="turn-counter">Turn <span id="witness-turn-count">0</span> / <span id="witness-turn-max">2</span></div>
-      <div id="witness-transcript" class="transcript"></div>
-      <div id="witness-thinking" class="thinking hidden">The witness is thinking<span class="ellipsis"></span></div>
-      <div id="witness-reasoning" class="invigilator-note hidden"></div>
-      <form id="witness-form">
-        <textarea id="witness-input" maxlength="300" placeholder="Ask your question..." rows="2"></textarea>
-        <button type="submit" id="witness-submit">Ask</button>
-      </form>
-      <button type="button" id="to-verdict-btn" class="hidden">Render Verdict</button>
-    </section>
-
-    <!-- VERDICT -->
-    <section data-section="verdict" class="panel">
-      <div id="verdict-choice">
-        <h2>Render Your Verdict</h2>
-        <p>Case Strength: <span id="verdict-case-strength"></span> / 100</p>
-        <button type="button" id="charge-btn" class="verdict-btn charge">Charge the Suspect</button>
-        <button type="button" id="release-btn" class="verdict-btn release">Release the Suspect</button>
-      </div>
-      <div id="verdict-result" class="verdict-overlay hidden">
-        <div id="verdict-result-label" class="verdict-result-label"></div>
-        <button type="button" id="to-breakdown-btn">View Breakdown</button>
-      </div>
-    </section>
-
-    <!-- BREAKDOWN -->
-    <section data-section="breakdown" class="panel">
-      <h2>Post-Game Breakdown</h2>
-      <div id="breakdown-content"></div>
-      <button type="button" id="restart-btn">New Case</button>
-    </section>
-
-    <!-- CASE FILE (view-only overlay, reachable from interrogation/witness) -->
-    <div id="case-file-overlay" class="case-file-overlay hidden">
-      <div class="case-file-panel">
-        <h2>Case File</h2>
-        <div class="briefing-grid">
-          <div class="briefing-field"><span class="field-label">Victim</span><span id="case-file-victim"></span></div>
-          <div class="briefing-field"><span class="field-label">Suspect</span><span id="case-file-suspect"></span></div>
-          <div class="briefing-field"><span class="field-label">Location</span><span id="case-file-location"></span></div>
-          <div class="briefing-field"><span class="field-label">Window</span><span id="case-file-window"></span></div>
-          <div class="briefing-field"><span class="field-label">Witness</span><span id="case-file-witness"></span></div>
+    <section data-section="interrogation">
+      <div class="hud" id="hud-interrogation">
+        <div class="hud-case">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span class="hud-case-number" id="hud-case-number"></span>
         </div>
-        <div class="briefing-prose">
-          <p id="case-file-victim-summary"></p>
-          <p id="case-file-suspect-summary"></p>
-          <p id="case-file-scene-summary"></p>
-          <h3>Crime</h3>
-          <p id="case-file-crime-summary"></p>
-          <p id="case-file-evidence-summary"></p>
+        <div class="hud-meter">
+          <div class="hud-meter-track">
+            <div class="hud-meter-fill" id="hud-fill"></div>
+            <div class="hud-meter-gain" id="hud-gain"></div>
+            <div class="hud-meter-tick" style="left:50%"></div>
+            <div class="hud-meter-tick mark-80" id="hud-mark80" style="left:80%"></div>
+            <div class="hud-meter-delta" id="hud-delta"></div>
+          </div>
+          <div class="hud-meter-value" id="hud-value" aria-hidden="true">15</div>
         </div>
-        <h3>Evidence on file</h3>
-        <ul id="case-file-evidence-list" class="evidence-list"></ul>
-        <button type="button" id="case-file-close-btn">Close</button>
+        <div class="hud-turns" id="hud-turns"></div>
+      </div>
+      <div class="interrogation-shell">
+        <div class="transcript-panel glass-panel">
+          <span class="bracket-bl"></span><span class="bracket-br"></span>
+          <div id="transcript" class="transcript" role="log" aria-live="polite" aria-label="Interrogation transcript"></div>
+
+          <div class="composer" id="composer">
+            <p class="composer-mode-label" id="composer-mode-label">Questioning the suspect</p>
+            <div class="evidence-tray" id="evidence-tray"></div>
+            <form id="interrogation-form" class="composer-row">
+              <label class="hidden" for="interrogation-input">Question</label>
+              <textarea id="interrogation-input" maxlength="300" rows="2" placeholder="Ask your question..."></textarea>
+              <button type="submit" id="interrogation-submit" class="btn btn-primary">Ask</button>
+            </form>
+            <div class="composer-footer">
+              <button type="button" id="witness-btn" class="witness-btn" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <span id="witness-btn-label">Question the witness</span>
+              </button>
+              <span class="char-count" id="char-count">300</span>
+            </div>
+          </div>
+
+          <div class="composer-ended hidden" id="composer-ended">
+            <button type="button" id="to-reveal-btn" class="btn btn-primary">View case outcome</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REVEAL -->
+    <div id="reveal-placeholder" class="reveal-placeholder hidden">
+      <div class="reveal-panel glass-panel">
+        <span class="bracket-bl"></span><span class="bracket-br"></span>
+        <h2 class="reveal-ending" id="reveal-ending-label"></h2>
+        <p class="reveal-copy" id="reveal-copy"></p>
+
+        <div class="reveal-meter">
+          <div class="hud-meter-track">
+            <div class="hud-meter-fill" id="hud-fill-reveal"></div>
+            <div class="hud-meter-tick" style="left:50%"></div>
+            <div class="hud-meter-tick mark-80" id="hud-mark80-reveal" style="left:80%"></div>
+          </div>
+          <div class="hud-meter-value" id="hud-value-reveal" aria-hidden="true"></div>
+        </div>
+
+        <button type="button" id="restart-btn" class="btn btn-primary">New case</button>
+
+        <div class="reveal-reviewer">
+          <button type="button" id="reveal-reviewer-toggle" class="btn btn-ghost reveal-reviewer-toggle" aria-expanded="false">
+            How the judge scored this
+          </button>
+          <div id="reveal-reviewer-body" class="reveal-reviewer-body hidden"></div>
+        </div>
       </div>
     </div>
 
     <div id="error-banner" class="error-banner hidden">
       <span id="error-message"></span>
-      <button type="button" id="error-retry-btn">Retry</button>
+      <button type="button" id="error-retry-btn" class="btn btn-ghost">Retry</button>
     </div>
 
   </main>

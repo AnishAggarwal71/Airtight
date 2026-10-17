@@ -42,10 +42,6 @@ export function askWitness(sessionId, question) {
   return request('POST', `/api/game/${sessionId}/witness`, { question })
 }
 
-export function submitVerdict(sessionId, charges) {
-  return request('POST', `/api/game/${sessionId}/verdict`, { charges })
-}
-
 export function getBreakdown(sessionId) {
   return request('GET', `/api/game/${sessionId}/breakdown`)
 }

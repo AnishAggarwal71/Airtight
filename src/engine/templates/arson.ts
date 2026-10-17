@@ -1,5 +1,5 @@
 import type { Template } from './shared'
-import { beats, fullName } from './shared'
+import { beats, fullName, namedPerson } from './shared'
 import { addMinutes, hhmm } from '../rng'
 
 /**
@@ -13,7 +13,7 @@ const warehouse: Template = {
   crime: 'arson',
   title: 'The Warehouse',
   build: (r, _detective) => {
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const bookkeeper = fullName(r)
     const start = hhmm(r.int(2, 4), r.int(0, 55))
     const alarm = addMinutes(start, r.int(18, 34))
@@ -23,7 +23,7 @@ const warehouse: Template = {
     const trade = r.pick(['reclaimed furniture', 'commercial flooring', 'garden machinery', 'shopfitting supplies'])
 
     return {
-      suspect: { name: suspect, occupation: `owner of a ${trade} business` },
+      suspect: { name: suspect.name, occupation: `owner of a ${trade} business`, pronoun: suspect.pronoun },
       victim: { name: 'Unit 14, Jigani Industrial Area', relationship: 'the suspect\'s own premises' },
       location: `Unit 14, Jigani Industrial Area — total loss`,
       window: { start, end },
@@ -95,7 +95,7 @@ const warehouse: Template = {
 
       detectiveBriefing: {
         victimSummary: `Unit 14, Jigani Industrial Area — a ${trade} warehouse. Total loss. No casualties but the building is destroyed.`,
-        suspectSummary: `${suspect}, owner of the business operating from Unit 14. The business was in financial trouble — significant debt, refused credit extension. Insurance cover was doubled nine weeks before the fire.`,
+        suspectSummary: `${suspect.name}, owner of the business operating from Unit 14. The business was in financial trouble — significant debt, refused credit extension. Insurance cover was doubled nine weeks before the fire.`,
         sceneSummary: `The fire started at the rear racking, sometime between ${start} and ${alarm}. The fire investigator found a pour pattern and traces of white spirit. The rear fire door was wedged open.`,
         crimeSummary: `A trail of white spirit was laid from the rear racking to the office partition and set alight, with the rear fire door wedged open as an escape route and the only working smoke detector left to catch the fire late. The suspect is the business's own owner, who had moved the valuable stock out eleven days earlier and was carrying ₹${debt.toLocaleString()} of debt against a recently doubled insurance payout of ₹${cover.toLocaleString()}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. The fire evidence is strong but every item has a plausible innocent explanation. The suspect doesn't know which items you have — deploy them strategically.`,

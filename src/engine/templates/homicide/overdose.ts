@@ -15,7 +15,7 @@ export const overdose: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const carer = namedPerson(r)
     const cp = pronouns(carer.pronoun)
     const start = hhmm(20, r.int(0, 30))
@@ -30,7 +30,7 @@ export const overdose: Template = {
     const refillOffset = r.int(-4, -1)
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['registered carer', 'part-time nurse', 'none — full-time family carer']) },
+      suspect: { name: suspect.name, occupation: r.pick(['registered carer', 'part-time nurse', 'none — full-time family carer']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's elderly, dependent parent` },
       location: `${house} — found unresponsive in the bedroom`,
       window: { start, end },
@@ -104,7 +104,7 @@ export const overdose: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name}, cared for at home by the suspect, was found unresponsive in the bedroom at ${house} and later pronounced dead. Initial assessment leaned toward a dosing accident given the long-term medication regime.`,
-        suspectSummary: `${suspect}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
         sceneSummary: `${house}, bedroom. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was given a dose of ${medication} well beyond the prescribed amount during the evening medication round, and help was delayed afterward. The suspect is ${victim.name}'s child and full-time carer, who stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected a prescription refill days early.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

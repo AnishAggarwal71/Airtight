@@ -15,7 +15,7 @@ export const nightShift: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const coworker = namedPerson(r)
     const cp = pronouns(coworker.pronoun)
     const start = hhmm(2, r.int(5, 35))
@@ -32,7 +32,7 @@ export const nightShift: Template = {
     const breakEnd = addMinutes(badgeTime, r.int(4, 9))
 
     return {
-      suspect: { name: suspect, occupation: 'warehouse operative' },
+      suspect: { name: suspect.name, occupation: 'warehouse operative', pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's shift manager` },
       location: `${site} — found at the base of the mezzanine stairs near loading bay 4`,
       window: { start, end },
@@ -106,7 +106,7 @@ export const nightShift: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name}, the night shift manager, was found at the base of the mezzanine stairs near loading bay 4 at ${site}. Initial read was an unwitnessed workplace accident.`,
-        suspectSummary: `${suspect}, a warehouse operative on the same shift, was the subject of a theft investigation ${victim.name} was about to escalate to HR.`,
+        suspectSummary: `${suspect.name}, a warehouse operative on the same shift, was the subject of a theft investigation ${victim.name} was about to escalate to HR.`,
         sceneSummary: `${site}, loading bay 4. Body found at the base of the mezzanine stairs. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was shoved from the mezzanine rail during a confrontation and the scene staged as an equipment accident using the victim's own badge. The suspect is a warehouse operative on ${victim.name}'s shift, named in a ₹${theftAmount.toLocaleString()} stock-theft investigation that was days from going to HR.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

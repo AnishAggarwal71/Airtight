@@ -99,7 +99,7 @@ function renderEvidenceTable(session: GameSession): void {
   console.log(`  ${C.bold('YOUR EVIDENCE:')}`)
   for (const e of pub.evidence) {
     const status = e.presented ? C.dim('[presented]') : C.green('[available] ')
-    console.log(`  ${C.bold(e.id)} ${status} ${C.dim(`[${e.type}]`)} ${e.claim.slice(0, 80)}`)
+    console.log(`  ${C.bold(e.id)} ${status} ${C.dim(`[${e.type}]`)} ${e.description.slice(0, 80)}`)
   }
   console.log()
   console.log(`  ${C.dim('Present one: PRESENT e3: question  |  Multiple: PRESENT e1,e3: question')}`)

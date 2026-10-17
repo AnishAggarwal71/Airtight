@@ -15,7 +15,7 @@ export const allergy: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const otherGuest = namedPerson(r)
     const op = pronouns(otherGuest.pronoun)
     const start = hhmm(19, r.int(30, 55))
@@ -31,7 +31,7 @@ export const allergy: Template = {
     const reactionTime = addMinutes(start, reactionOffset)
 
     return {
-      suspect: { name: suspect, occupation: r.pick(['estate agent', 'accountant', 'teacher', 'pharmacist']) },
+      suspect: { name: suspect.name, occupation: r.pick(['estate agent', 'accountant', 'teacher', 'pharmacist']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's sibling, co-heir to the family estate` },
       location: `${house} — collapsed in the dining room during a family dinner`,
       window: { start, end },
@@ -105,7 +105,7 @@ export const allergy: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} died of a severe allergic reaction during a family dinner at ${house}. Initial read was a tragic accident, but the timeline around the ingredient and the delayed treatment raises questions.`,
-        suspectSummary: `${suspect}, ${victim.name}'s sibling, hosted the dinner and stood to gain control of a disputed ₹${inheritance.toLocaleString()} inherited property if ${victim.name} were out of the picture.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s sibling, hosted the dinner and stood to gain control of a disputed ₹${inheritance.toLocaleString()} inherited property if ${victim.name} were out of the picture.`,
         sceneSummary: `${house}, dining room and kitchen. ${victim.name} collapsed at the table. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was deliberately fed ${allergen} paste worked into their portion of the meal, then treatment was delayed by several critical minutes. The suspect is ${victim.name}'s sibling, co-heir to a ₹${inheritance.toLocaleString()} estate ${victim.name} had refused three times to sell.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

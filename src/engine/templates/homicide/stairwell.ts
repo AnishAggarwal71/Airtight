@@ -15,7 +15,7 @@ export const stairwell: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const neighbour = namedPerson(r)
     const np = pronouns(neighbour.pronoun)
     const start = hhmm(22, r.int(40, 55))
@@ -39,7 +39,7 @@ export const stairwell: Template = {
     const homeTime = addMinutes(keyCardExit, r.int(8, 15))
 
     return {
-      suspect: { name: suspect, occupation: suspectOccupation },
+      suspect: { name: suspect.name, occupation: suspectOccupation, pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship },
       location: `${block} — found at the foot of the service stairwell`,
       window: { start, end },
@@ -113,7 +113,7 @@ export const stairwell: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name}, ${relationship} to the suspect, was found dead at the foot of the service stairwell in ${block}. Initial assessment is a fall, but the pathology doesn't quite fit.`,
-        suspectSummary: `${suspect}, ${suspectOccupation}. ${victim.name} owed them ₹${debt.toLocaleString()}. They admit to visiting the flat that evening but say it was a short, friendly visit.`,
+        suspectSummary: `${suspect.name}, ${suspectOccupation}. ${victim.name} owed them ₹${debt.toLocaleString()}. They admit to visiting the flat that evening but say it was a short, friendly visit.`,
         sceneSummary: `${block}. The body was found at the bottom of the service stairwell between the fourth and third floors. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was struck twice with a wine bottle in their own flat and the body moved to the stairwell to stage it as a fall. The suspect is ${relationship} to the victim and had been chasing repayment of a ₹${debt.toLocaleString()} debt that was going nowhere.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

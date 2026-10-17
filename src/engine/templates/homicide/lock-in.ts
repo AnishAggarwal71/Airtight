@@ -15,7 +15,7 @@ export const lockIn: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = fullName(r)
+    const suspect = namedPerson(r)
     const staffer = namedPerson(r)
     const sp = pronouns(staffer.pronoun)
     const start = hhmm(23, r.int(15, 45))
@@ -30,7 +30,7 @@ export const lockIn: Template = {
     const loginTime = addMinutes(start, loginOffset)
 
     return {
-      suspect: { name: suspect, occupation: 'co-owner and licensee' },
+      suspect: { name: suspect.name, occupation: 'co-owner and licensee', pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's business partner, co-owner of the pub` },
       location: `${pub} — found behind the bar after an apparent break-in`,
       window: { start, end },
@@ -104,7 +104,7 @@ export const lockIn: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead behind the bar at ${pub}, in what was first reported as a break-in gone wrong. The staged scene doesn't fully hold up under examination.`,
-        suspectSummary: `${suspect}, ${victim.name}'s business partner, was under pressure to match a ₹${buyout.toLocaleString()} buyout offer or sell the pub within thirty days.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s business partner, was under pressure to match a ₹${buyout.toLocaleString()} buyout offer or sell the pub within thirty days.`,
         sceneSummary: `${pub}, behind the bar. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was struck with a bar stool during an after-hours argument over the pub's buyout terms, and the scene staged as a break-in using the victim's own till credentials. The suspect is ${victim.name}'s business partner and co-owner, who couldn't afford to match the ₹${buyout.toLocaleString()} buyout the victim was demanding.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

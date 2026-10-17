@@ -38,7 +38,7 @@ export type TemplateWitness = {
 }
 
 export type TemplateBuild = {
-  suspect: { name: string; occupation: string }
+  suspect: { name: string; occupation: string; pronoun: 'he' | 'she' }
   victim: { name: string; relationship: string }
   location: string
   window: { start: string; end: string }
