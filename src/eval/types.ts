@@ -2,7 +2,7 @@
  * Eval harness types — Layer 1 (invigilator accuracy) and Layer 2 (gameplay).
  */
 
-import type { SuspectResponse } from '../engine/types'
+import type { SuspectResponse, TokenUsage } from '../engine/types'
 
 /** A hand-crafted test case for the invigilator's signal detection. */
 export type EvalCase = {
@@ -53,7 +53,7 @@ export type GameResult = {
     witnessContradictions: number
   }
   perTurnDeltas: number[]
-  tokenUsage: { inputTokens: number; outputTokens: number }
+  tokenUsage: TokenUsage
   error?: string
 }
 

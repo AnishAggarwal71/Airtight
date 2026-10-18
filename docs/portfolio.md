@@ -105,9 +105,12 @@ The system carries compact claims forward rather than replaying the complete tra
 
 ## Current scope
 
-V3 is implemented as a terminal game and passes deterministic generation, leak-safety, template-integrity, coverage, and variance checks (`npm run verify`, 9 checks, zero model calls). Scope was narrowed to **murder only** for V3 focus: 10 homicide templates are active. Embezzlement is a Phase 2 placeholder. Sessions are saved as gitignored JSONL transcripts for manual review.
+V3 is implemented as a terminal game and passes deterministic generation, leak-safety, template-integrity, coverage, and variance checks (`npm run verify`, 9 checks, zero model calls). Scope was narrowed to **murder only** for V3 focus: 10 homicide templates are active. Embezzlement is a Phase 2 placeholder. Sessions are saved as JSONL
+transcripts under `playtest-logs/` for manual review, and currently kept
+(not gitignored) on the build machine intentionally — see `docs/decisions.md`
+(2026-10-19) for the retention policy.
 
-The next priority is a live-model playthrough and an eval run, not more features: invigilator accuracy against real suspect dialogue, prompt latency from the large (but cacheable) invigilator system prompt, and actual token cost all need evidence from real sessions.
+The next priority is a live-model playthrough and an eval run, not more features: invigilator accuracy against real suspect dialogue and prompt latency need evidence from real sessions. Actual token cost has real-world evidence now: confirmed ~$0.05/run (2026-10-19) — see `docs/decisions.md` for the analysis, including why prompt caching doesn't apply at this model/prompt size (Haiku 4.5's cache minimum is 4,096 tokens; this project's largest system prompt measures ~1,658).
 
 ## Key technical risk — resolved by architecture, now needs calibration
 
@@ -129,7 +132,7 @@ The verification suite checks engine properties without model calls: determinism
 - **Layer 1** measures invigilator precision/recall against hand-crafted cases where the correct signal is known in advance.
 - **Layer 2** runs full automated games against a scripted detective and reports ending distribution, Case Strength statistics, and signal frequency.
 
-Both layers are built and type-checked but have not yet been run against a live model — results land in `eval-results/` (gitignored) once they are.
+Both layers are built and type-checked but have not yet been run against a live model — results land in `eval-results/` once they are.
 
 Every transcript can be replayed from its seed and crime type. The post-game breakdown surfaces the state necessary to understand a result — including per-turn invigilator reasoning — without spending additional model tokens.
 

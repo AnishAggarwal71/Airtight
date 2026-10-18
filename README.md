@@ -61,7 +61,7 @@ npm run eval                     # Layer 1: 18 hand-crafted invigilator accuracy
 npm run eval -- --games 10       # Layer 1 + 10 automated full-game runs
 ```
 
-Results are written to `eval-results/` (gitignored).
+Results are written to `eval-results/` as timestamped JSON.
 
 ## Current implementation
 

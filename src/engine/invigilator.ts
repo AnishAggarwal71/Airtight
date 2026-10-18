@@ -242,8 +242,8 @@ export async function evaluateSuspectTurn(
       const usage: TokenUsage = {
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
+        cacheCreationTokens: (result.providerMetadata?.anthropic?.cacheCreationInputTokens as number) ?? 0,
+        cacheReadTokens: (result.providerMetadata?.anthropic?.cacheReadInputTokens as number) ?? 0,
       }
 
       return { response: result.object as InvigilatorSuspectResponse, usage }
@@ -323,8 +323,8 @@ export async function evaluateWitnessTurn(
       const usage: TokenUsage = {
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
+        cacheCreationTokens: (result.providerMetadata?.anthropic?.cacheCreationInputTokens as number) ?? 0,
+        cacheReadTokens: (result.providerMetadata?.anthropic?.cacheReadInputTokens as number) ?? 0,
       }
 
       return { response: result.object as InvigilatorWitnessResponse, usage }

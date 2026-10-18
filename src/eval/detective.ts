@@ -405,7 +405,7 @@ export async function runOneGame(
         witnessContradictions: 0,
       },
       perTurnDeltas: [],
-      tokenUsage: { inputTokens: 0, outputTokens: 0 },
+      tokenUsage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
       error: detail,
     }
   }
@@ -430,6 +430,8 @@ function buildGameResult(
     tokenUsage: {
       inputTokens: session.usage.inputTokens,
       outputTokens: session.usage.outputTokens,
+      cacheCreationTokens: session.usage.cacheCreationTokens,
+      cacheReadTokens: session.usage.cacheReadTokens,
     },
   }
 }

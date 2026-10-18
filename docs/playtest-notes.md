@@ -37,6 +37,23 @@ Newest entries at the top.
 
 ## 2026-10-11 — First successful human playtests and five-game eval
 
+> **Reviewed 2026-10-19 — partially actioned, two items still open.** The
+> witness-timing request was implemented: `/witness` is now callable
+> mid-interrogation once Case Strength clears `witnessUnlockThreshold`
+> (`docs/decisions.md`, 2026-10-15 entry). The evidence-truncation complaint
+> is **still live** — `src/cli/play.ts`'s `renderEvidenceTable()` (CLI,
+> `/evidence` and the pre-interrogation briefing) and the post-game
+> `EVIDENCE BREAKDOWN` section both still hard-truncate at
+> `.slice(0, 80)` with no wrapping. Not fixed yet; left as an open item
+> rather than folded into `CLAUDE.md` since it's a known, scoped UI nit, not
+> a new finding. The Layer 1 precision/recall numbers below (0.36/0.90, 5–7
+> of 18) are superseded by the tuned V3 numbers in
+> [`docs/eval-v3-results.md`](eval-v3-results.md) (0.667/0.80) — this entry
+> is kept only as the historical before/after baseline. The $0.45-per-session
+> cost claim is superseded by the confirmed real-world figure of
+> **~$0.05/run** (2026-10-19); see `docs/decisions.md` for the cache-reporting
+> fix and cost-reduction analysis done alongside that confirmation.
+
 **Ran:** Two real-player playthroughs of `test-seed-1` / homicide with
 locality `Banglore`, plus `npm run eval -- --games 5`, using the configured
 Claude Haiku 4.5 model. Tester reports combined spend of about $0.45; this
@@ -140,6 +157,14 @@ Transcript: `2026-10-02T11-32-27-498Z-test-seed-1-12220.jsonl`.
 **Severity (if bug):** blocks play
 
 ## 2026-10-02 — Persisting playtest transcripts
+
+> **Reviewed 2026-10-19 — feature confirmed current, format tag updated
+> since.** The behavior below is still accurate: every playthrough (CLI and
+> the web server, which shares this same `transcript.ts` module) logs to
+> `playtest-logs/` with a `turn_started` record before each request and an
+> `exchange`/`turn_failed` record after. One correction: transcripts now tag
+> `"format": "airtight-transcript-v3"`, not v2 — `CLAUDE.md`'s file map has
+> been updated to match. No other behavior change.
 
 `npm run play` now saves each detective/AI exchange as it happens to a
 JSONL file under `playtest-logs/`. Transcript files include the
