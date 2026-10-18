@@ -54,7 +54,7 @@ not available here.
 - The CLI truncates long evidence claims, making the table hard to read. For
   example, the wine-rack and debt items ended with `...none fou` and
   `...repayment d`. Show complete evidence text (possibly wrapped across lines).
-- Both latest human transcripts are present under gitignored `playtest-logs/`:
+- Both latest human transcripts are present under `playtest-logs/`:
   `2026-10-10T21-04-52-462Z-test-seed-1-12936.jsonl` has six suspect turns
   and one witness turn; `2026-10-10T21-35-10-996Z-test-seed-1-13400.jsonl`
   has six suspect turns and two witness turns. Both logged all exchanges
@@ -142,7 +142,7 @@ Transcript: `2026-10-02T11-32-27-498Z-test-seed-1-12220.jsonl`.
 ## 2026-10-02 — Persisting playtest transcripts
 
 `npm run play` now saves each detective/AI exchange as it happens to a
-gitignored JSONL file under `playtest-logs/`. Transcript files include the
+JSONL file under `playtest-logs/`. Transcript files include the
 case seed and crime, the exact detective input (including `PRESENT eN:`),
 the suspect or witness dialogue, phase/turn, and presented evidence ID where
 applicable. The CLI prints the path at game start; completed exchanges remain

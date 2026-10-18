@@ -4,7 +4,7 @@
 
 Build a case against an AI suspect before they talk their way free. Each case is generated deterministically from a seed; a guilty AI suspect sustains a cover story under questioning, a separate AI witness can corroborate or contradict that story, and an independent AI judge — not the suspect itself — decides what actually damages the case.
 
-> **Status: V3 two-agent architecture implemented, type-checked, and passing `npm run verify`.** Live human playtests have been run against Claude Haiku 4.5 (transcripts under gitignored `playtest-logs/`), and the eval harness has been run and tuned: Layer 1 invigilator accuracy sits at precision 0.667 / recall 0.80 (10 of 18 hand-crafted cases passed), and Layer 2 automated gameplay (10 games) produced a 6/10 `CHARGED_STRONG` rate with a mean Case Strength of 77 *(these Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run)*. Full results in [`docs/eval-v3-results.md`](docs/eval-v3-results.md); raw reports in gitignored `eval-results/`.
+> **Status: V3 two-agent architecture implemented, type-checked, and passing `npm run verify`.** Live human playtests have been run against Claude Haiku 4.5 (transcripts under `playtest-logs/`), and the eval harness has been run and tuned: Layer 1 invigilator accuracy sits at precision 0.667 / recall 0.80 (10 of 18 hand-crafted cases passed), and Layer 2 automated gameplay (10 games) produced a 6/10 `CHARGED_STRONG` rate with a mean Case Strength of 77 *(these Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run)*. Full results in [`docs/eval-v3-results.md`](docs/eval-v3-results.md); raw reports in `eval-results/`.
 
 ## Why it exists
 
@@ -52,7 +52,7 @@ PRESENT e1,e3: Explain both of these records.
 /quit         # leave early and see the breakdown
 ```
 
-Questions are capped at 300 characters. Homicide cases can optionally use a city/region and country as fictional scene context. Each playthrough saves a gitignored JSONL transcript under `playtest-logs/`.
+Questions are capped at 300 characters. Homicide cases can optionally use a city/region and country as fictional scene context. Each playthrough saves a JSONL transcript under `playtest-logs/`.
 
 Evaluation harness (also requires the API key):
 
