@@ -33,7 +33,7 @@ import { deriveSuspectVerdictType, deriveWitnessVerdictType, deriveVerdictReason
 import { createApp } from '../server/app'
 
 const CRIMES: CrimeType[] = ['homicide']
-const ALL_CRIMES: CrimeType[] = ['homicide', 'arson', 'embezzlement']  // coverage check still validates arson template is reachable
+const ALL_CRIMES: CrimeType[] = ['homicide', 'embezzlement']
 const SEEDS = Array.from({ length: 60 }, (_, i) => `verify-${i}`)
 
 let failures = 0

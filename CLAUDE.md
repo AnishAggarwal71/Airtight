@@ -15,10 +15,9 @@ converts the invigilator's structured signals into Case Strength changes.
 > decisions, new files, and anything that changes "how do I run/test this"
 > belongs in this file immediately, not as a follow-up.
 
-Read `README.md` for a user-facing overview and `AIRTIGHT-PRD.md` for the
-original design doc — **both still describe V1 (player-as-suspect) and are
-stale.** Treat this file as the current-state source of truth until they're
-rewritten.
+Read `README.md` for a user-facing overview — kept in sync with the current
+V3 state. Treat this file as the current-state source of truth for anything
+`README.md` doesn't cover.
 
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
@@ -69,16 +68,17 @@ flat and the game felt broken.
 **V3 (current):** Two-agent split. The **Persona Agent** acts (suspect
 dialogue + claims); the **Invigilator Agent** judges (structured signals from
 a bird's-eye view). The engine scores deterministically from those signals.
-Also narrowed to **murder only** for focus — arson/embezzlement templates
-remain on disk but are excluded from active play and verification.
+Also narrowed to **murder only** for focus — the arson template was removed
+from the codebase entirely (2026-10-18) and embezzlement remains a Phase 2
+placeholder.
 
 Non-negotiable constraints (don't relitigate without a new reason):
 - Score the **answer** a question provoked, not the question itself.
 - The suspect is **always guilty** in Phase 1. Innocent-suspect mode is
   Phase 2.
 - 6 suspect questions, 2 witness questions.
-- **Homicide only** for V3. Arson template stays on disk for portfolio
-  breadth; embezzlement is a Phase 2 placeholder.
+- **Homicide only** for V3. Arson is gone (not just excluded); embezzlement
+  is a Phase 2 placeholder.
 - 4–5 evidence items per case, shown to the player upfront, not drip-fed.
 
 ---
@@ -220,7 +220,6 @@ src/engine/
     homicide/           10 distinct scenario files: stairwell, allotment, night-shift,
                           allergy, open-water, overdose, lock-in, hiking-trail,
                           smart-garage, charity-gala. Each exports one Template const.
-    arson.ts            1 template: the warehouse. On disk for portfolio, excluded from active play.
     embezzlement.ts     Empty array — Phase 2 placeholder.
 src/eval/
   types.ts              EvalCase, EvalResult, GameResult, EvalReport types
@@ -234,7 +233,7 @@ src/cli/
                           witness → verdict → post-game breakdown with per-turn invigilator
                           analysis (reasoning, signals, evidence quality, claim contradictions)
   verify.ts             Determinism, leak-safety, template integrity, coverage, variance
-                          (homicide only in active checks, arson still in coverage)
+                          (homicide only in active checks)
   inspect.ts            Dump a full case file, or --public for exactly what the player sees
                           (homicide only)
   eval.ts               Eval harness CLI: Layer 1 (invigilator accuracy, 18 cases) and
@@ -358,8 +357,9 @@ Carried over from V1 where still applicable, V3-specific ones added:
   via `PRESENT eN:`.
 - **The suspect is always guilty in Phase 1.** Hardcoded, not randomised.
   Innocent-suspect mode is an explicit Phase 2 scope item, not an oversight.
-- **Murder only for V3.** Arson template stays on disk for portfolio breadth
-  but is excluded from the active crime list, verify loops, and CLI.
+- **Murder only for V3.** The arson template was removed from the codebase
+  entirely (2026-10-18) rather than kept on disk — see
+  `docs/decisions.md`.
 
 ---
 
@@ -390,12 +390,20 @@ This project demonstrates:
   `test-seed-1` through all three endings (RELEASED, CHARGED_WEAK,
   CHARGED_STRONG) — reveal screen and breakdown data confirmed correct for
   each. **Not yet deployed** — `docs/decisions.md` (2026-10-15) records the
-  Render decision; the actual deploy hasn't happened from this machine yet.
-- **`README.md` and `AIRTIGHT-PRD.md` still describe V1 end-to-end** (player
-  as suspect, Suspicion meter, 12-round structure, M0–M6 milestone table).
-  Don't trust them for current behavior; this file supersedes them until
-  they're rewritten.
+  Render decision; deploy is on hold, the user plans to deploy from their
+  own website/hosting instead of this machine.
+- **`README.md` rewritten to match V3** and **`AIRTIGHT-PRD.md` deleted**
+  (2026-10-18) — the stale V1 doc pair this section used to warn about no
+  longer exists; `README.md` is now a trustworthy current-state summary
+  alongside this file.
+- **Crime-template flavor content (names, locations, currency) was
+  regenerated to a consistent UK setting** (2026-10-18) — a prior session
+  had silently generated Indian names/places/₹ inconsistently mixed with
+  UK emergency numbers and police ranks. Fixed across `shared.ts` and all
+  11 template files that existed at the time (10 homicide + arson, before
+  arson was removed). `npm run verify` green after the change.
 - **No prompt-injection handling in the V3 suspect schema** — V1 had an
   explicit `injectionAttempt` flag. Whether an in-character guilty suspect
   needs a "break character" mechanic is an open question.
 - **Cost per playthrough unverified** for the 16-call pattern.
+

@@ -3,7 +3,7 @@
  * Case file inspector — V2 detective mode.
  *
  *   npx tsx src/cli/inspect.ts                      # random seed, random crime
- *   npx tsx src/cli/inspect.ts mallard-7719 arson   # a specific case
+ *   npx tsx src/cli/inspect.ts mallard-7719 homicide # a specific case
  *   npx tsx src/cli/inspect.ts --public mallard-7719 homicide
  *
  * --public shows only what the player-detective would receive, which is the

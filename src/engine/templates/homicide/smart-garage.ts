@@ -20,11 +20,11 @@ export const smartGarage: Template = {
     const np = pronouns(neighbour.pronoun)
     const start = hhmm(1, r.int(10, 40))
     const end = addMinutes(start, r.int(40, 55))
-    const inheritance = r.pick([31000000, 45000000, 58000000, 69000000])
+    const inheritance = r.pick([310000, 450000, 580000, 690000])
     const street = r.pick([
-      '12th Main, HSR Layout',
-      '4th Cross, Koramangala',
-      '9th Block, Jayanagar',
+      'Elm Grove, Chalfont',
+      'Victoria Road, Westbury',
+      'Church Lane, Fairview',
     ])
     const logOffset = r.int(26, 32)
     const logTime = addMinutes(start, logOffset)
@@ -104,9 +104,9 @@ export const smartGarage: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead in the family car in the attached garage on ${street}, apparently overcome by carbon monoxide. Initial assessment leaned toward a tragic accident caused by a known exhaust fault.`,
-        suspectSummary: `${suspect.name}, ${victim.name}'s parent, had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s parent, had formally objected to ${victim.name}'s petition to accelerate inheritance of a £${inheritance.toLocaleString()} family trust.`,
         sceneSummary: `${street}, the attached garage. Time window: ${start}–${end}.`,
-        crimeSummary: `${victim.name} was sealed inside the garage with the engine remote-started via the shared smart-hub account, exploiting a known exhaust fault to cause carbon monoxide poisoning. The suspect is ${victim.name}'s parent, who had formally objected to ${victim.name}'s petition to accelerate inheritance of a ₹${inheritance.toLocaleString()} family trust.`,
+        crimeSummary: `${victim.name} was sealed inside the garage with the engine remote-started via the shared smart-hub account, exploiting a known exhaust fault to cause carbon monoxide poisoning. The suspect is ${victim.name}'s parent, who had formally objected to ${victim.name}'s petition to accelerate inheritance of a £${inheritance.toLocaleString()} family trust.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

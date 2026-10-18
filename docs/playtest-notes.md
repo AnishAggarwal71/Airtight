@@ -80,6 +80,15 @@ not available here.
 
 ## 2026-10-02 — Turn-six guilty-knowledge leak not scored; witness JSON validation failed
 
+> **Reviewed 2026-10-18 — resolved by architecture, not by this fix.** This
+> was a V2-era finding (single self-judging suspect call, GroqCloud). V3's
+> two-agent split (`src/engine/invigilator.ts`) replaced self-reported
+> `inadvertentReveal`/`selfContradiction` with an independent judge call —
+> see the "V2 role flip" → "V3" decision in `docs/decisions.md`
+> (2026-10-02 entry, "the self-judging failure"). The specific Groq JSON
+> validation error is also moot: the project now runs on Claude Haiku 4.5
+> via `@ai-sdk/anthropic`. Left below for the historical record.
+
 **Ran:** `test-seed-1` / homicide / locality `banglore` against GroqCloud.
 Transcript: `2026-10-02T11-32-27-498Z-test-seed-1-12220.jsonl`.
 
@@ -156,6 +165,13 @@ The suspect assesses each item separately; combined evidence quality is
 averaged for that turn so listing more items does not multiply the score.
 
 ## 2026-10-02 — Auditing failed turn-six playthrough
+
+> **Reviewed 2026-10-18 — fix landed, confirmed still in place.** The scene
+> chronology constraint and verification check mentioned below are current:
+> `src/cli/verify.ts` still checks "homicide truth timelines stay in
+> chronological order, including midnight-crossing windows" (`npm run
+> verify`, green). No further action needed; kept for the historical
+> record of what the check was added for.
 
 **Ran:** `test-seed-1` / homicide against GroqCloud; transcript
 `2026-10-01T21-08-18-520Z-test-seed-1-14508.jsonl`.

@@ -7,7 +7,7 @@
  * receives a PublicCase that shows evidence but hides the suspect's strategy.
  */
 
-export type CrimeType = 'homicide' | 'arson' | 'embezzlement'
+export type CrimeType = 'homicide' | 'embezzlement'
 
 export type TimelineBeat = {
   id: string
@@ -112,15 +112,12 @@ export type PublicCase = {
 
 export const CRIME_LABELS: Record<CrimeType, string> = {
   homicide: 'Homicide',
-  arson: 'Arson',
   embezzlement: 'Embezzlement',
 }
 
 export const CRIME_BLURBS: Record<CrimeType, string> = {
   homicide:
     'A body, a timeline, and a suspect who has had all night to rehearse.',
-  arson:
-    'Technical evidence that sounds conclusive and is anything but. Every item has a crack.',
   embezzlement:
     'Coming in Phase 2.',
 }

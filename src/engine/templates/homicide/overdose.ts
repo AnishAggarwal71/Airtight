@@ -20,12 +20,12 @@ export const overdose: Template = {
     const cp = pronouns(carer.pronoun)
     const start = hhmm(20, r.int(0, 30))
     const end = addMinutes(start, r.int(60, 90))
-    const estate = r.pick([9500000, 14000000, 16500000, 22000000])
+    const estate = r.pick([95000, 140000, 165000, 220000])
     const medication = r.pick(['morphine', 'diazepam', 'digoxin'])
     const house = r.pick([
-      'the house in Basavanagudi',
-      'the bungalow in RT Nagar',
-      'the house in Banashankari',
+      'the house in Weston',
+      'the bungalow in Ashdale',
+      'the house in Mortlake',
     ])
     const refillOffset = r.int(-4, -1)
 
@@ -66,7 +66,7 @@ export const overdose: Template = {
         {
           id: 'e4', type: 'financial',
           linkedBeats: ['t2'],
-          claim: `${victim.name}'s will leaves the bulk of a ₹${estate.toLocaleString()} estate to the suspect in recognition of years of caregiving, over objections from a sibling.`,
+          claim: `${victim.name}'s will leaves the bulk of a £${estate.toLocaleString()} estate to the suspect in recognition of years of caregiving, over objections from a sibling.`,
           vulnerability: `The will predates the death by years and reflects an existing, long-settled family arrangement — it's evidence of motive in the abstract, not of anything done this particular evening.`,
         },
         {
@@ -104,9 +104,9 @@ export const overdose: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name}, cared for at home by the suspect, was found unresponsive in the bedroom at ${house} and later pronounced dead. Initial assessment leaned toward a dosing accident given the long-term medication regime.`,
-        suspectSummary: `${suspect.name}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a £${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
         sceneSummary: `${house}, bedroom. Time window: ${start}–${end}.`,
-        crimeSummary: `${victim.name} was given a dose of ${medication} well beyond the prescribed amount during the evening medication round, and help was delayed afterward. The suspect is ${victim.name}'s child and full-time carer, who stood to inherit the bulk of a ₹${estate.toLocaleString()} estate and had collected a prescription refill days early.`,
+        crimeSummary: `${victim.name} was given a dose of ${medication} well beyond the prescribed amount during the evening medication round, and help was delayed afterward. The suspect is ${victim.name}'s child and full-time carer, who stood to inherit the bulk of a £${estate.toLocaleString()} estate and had collected a prescription refill days early.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

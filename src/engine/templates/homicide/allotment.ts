@@ -22,9 +22,9 @@ export const allotment: Template = {
     const end = addMinutes(start, r.int(45, 60))
     const dispute = r.pick(['the shared water tank', 'the boundary line between the plots', 'the compost pit'])
     const site = r.pick([
-      'the Kaveri Nagar community allotments',
-      'the Horamavu kitchen-garden plots',
-      'the Yelahanka allotment gardens',
+      'the Oakfield Road community allotments',
+      'the Mill Lane kitchen-garden plots',
+      'the Birchwood allotment gardens',
     ])
     const latchOffset = r.int(18, 26)
     const latchTime = addMinutes(start, latchOffset)

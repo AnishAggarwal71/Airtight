@@ -20,11 +20,11 @@ export const lockIn: Template = {
     const sp = pronouns(staffer.pronoun)
     const start = hhmm(23, r.int(15, 45))
     const end = addMinutes(start, r.int(50, 70))
-    const buyout = r.pick([8500000, 12000000, 16000000, 21000000])
+    const buyout = r.pick([85000, 120000, 160000, 210000])
     const pub = r.pick([
-      'the Toit brewpub',
-      'the Hammer and Barrel',
-      'the Byg Brewski taproom',
+      'the Red Lion brewpub',
+      'the Hammer and Anvil',
+      'the Fox and Barrel taproom',
     ])
     const loginOffset = r.int(20, 30)
     const loginTime = addMinutes(start, loginOffset)
@@ -36,7 +36,7 @@ export const lockIn: Template = {
       window: { start, end },
 
       truth: beats(
-        ['t1', start, `After closing, the suspect and ${victim.name} stayed behind to go through the buyout paperwork ${victim.name} had brought to force the suspect's hand on the ₹${buyout.toLocaleString()} valuation.`],
+        ['t1', start, `After closing, the suspect and ${victim.name} stayed behind to go through the buyout paperwork ${victim.name} had brought to force the suspect's hand on the £${buyout.toLocaleString()} valuation.`],
         ['t2', addMinutes(start, 8), `${victim.name} said ${vp.subj} had already lined up a buyer and the suspect had thirty days to match the offer or sell up.`],
         ['t3', addMinutes(start, 13), `The suspect grabbed a bar stool during the argument and struck ${victim.name}, who fell against the till stand.`],
         ['t4', addMinutes(start, 22), `The suspect smashed the till drawer and the back door glass to stage a break-in, then logged into the till using ${victim.name}'s own staff credentials to make it look like ${vp.subj} had still been working alone.`],
@@ -60,7 +60,7 @@ export const lockIn: Template = {
         {
           id: 'e3', type: 'financial',
           linkedBeats: ['t2'],
-          claim: `Partnership paperwork shows ${victim.name} had served formal notice demanding the suspect either match a ₹${buyout.toLocaleString()} buyout offer within thirty days or agree to sell.`,
+          claim: `Partnership paperwork shows ${victim.name} had served formal notice demanding the suspect either match a £${buyout.toLocaleString()} buyout offer within thirty days or agree to sell.`,
           vulnerability: `A thirty-day ultimatum is a business dispute with a clear legal process attached, not an immediate crisis — the suspect had options besides violence, which a jury could read either way.`,
         },
         {
@@ -104,9 +104,9 @@ export const lockIn: Template = {
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead behind the bar at ${pub}, in what was first reported as a break-in gone wrong. The staged scene doesn't fully hold up under examination.`,
-        suspectSummary: `${suspect.name}, ${victim.name}'s business partner, was under pressure to match a ₹${buyout.toLocaleString()} buyout offer or sell the pub within thirty days.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s business partner, was under pressure to match a £${buyout.toLocaleString()} buyout offer or sell the pub within thirty days.`,
         sceneSummary: `${pub}, behind the bar. Time window: ${start}–${end}.`,
-        crimeSummary: `${victim.name} was struck with a bar stool during an after-hours argument over the pub's buyout terms, and the scene staged as a break-in using the victim's own till credentials. The suspect is ${victim.name}'s business partner and co-owner, who couldn't afford to match the ₹${buyout.toLocaleString()} buyout the victim was demanding.`,
+        crimeSummary: `${victim.name} was struck with a bar stool during an after-hours argument over the pub's buyout terms, and the scene staged as a break-in using the victim's own till credentials. The suspect is ${victim.name}'s business partner and co-owner, who couldn't afford to match the £${buyout.toLocaleString()} buyout the victim was demanding.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

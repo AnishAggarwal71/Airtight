@@ -63,19 +63,19 @@ export function beats(...rows: [string, string, string][]): TimelineBeat[] {
 }
 
 const FIRST_NAMES = [
-  'Arjun', 'Priya', 'Rohan', 'Ananya', 'Vikram', 'Divya', 'Karan', 'Neha',
-  'Aditya', 'Pooja', 'Rahul', 'Sneha', 'Varun', 'Kavya', 'Siddharth', 'Riya',
-  'Nikhil', 'Shreya', 'Amit', 'Isha', 'Rajesh', 'Meera', 'Sanjay', 'Nisha',
-  'Vivek', 'Anjali', 'Suresh', 'Deepa', 'Manish', 'Lakshmi', 'Arvind', 'Kriti',
-  'Harish', 'Swati', 'Gaurav', 'Tanvi', 'Ashok', 'Radha', 'Naveen', 'Simran',
+  'James', 'Emma', 'Oliver', 'Olivia', 'Thomas', 'Charlotte', 'Daniel', 'Sophie',
+  'Michael', 'Hannah', 'Edward', 'Laura', 'William', 'Rebecca', 'Henry', 'Catherine',
+  'Jack', 'Alice', 'David', 'Victoria', 'Peter', 'Elizabeth', 'Andrew', 'Emily',
+  'Richard', 'Rachel', 'Matthew', 'Amy', 'Christopher', 'Claire', 'Mark', 'Lucy',
+  'Paul', 'Sarah', 'Simon', 'Jessica', 'Robert', 'Megan', 'Nicholas', 'Karen',
 ] as const
 
 const LAST_NAMES = [
-  'Sharma', 'Verma', 'Iyer', 'Nair', 'Reddy', 'Gupta', 'Menon', 'Rao',
-  'Mehta', 'Kapoor', 'Chatterjee', 'Bose', 'Pillai', 'Desai', 'Joshi', 'Agarwal',
-  'Krishnan', 'Pillay', 'Khanna', 'Malhotra', 'Chawla', 'Bhatt', 'Shetty', 'Varma',
-  'Nambiar', 'Subramaniam', 'Banerjee', 'Mukherjee', 'Patel', 'Trivedi', 'Hegde',
-  'Chandran', 'Rangan', 'Kulkarni', 'Suri',
+  'Smith', 'Johnson', 'Williams', 'Brown', 'Taylor', 'Davies', 'Wilson', 'Evans',
+  'Thomas', 'Roberts', 'Walker', 'Wright', 'Thompson', 'White', 'Edwards', 'Green',
+  'Hughes', 'Harris', 'Clarke', 'Hall', 'Baker', 'Mitchell', 'Turner', 'Carter',
+  'Phillips', 'Parker', 'Collins', 'Stewart', 'Morris', 'Rogers', 'Reed', 'Cook',
+  'Bell', 'Murphy', 'Cox',
 ] as const
 
 export function fullName(r: Rng): string {
@@ -83,15 +83,15 @@ export function fullName(r: Rng): string {
 }
 
 const MALE_FIRST_NAMES = [
-  'Arjun', 'Rohan', 'Vikram', 'Karan', 'Aditya', 'Rahul', 'Varun', 'Siddharth',
-  'Nikhil', 'Amit', 'Rajesh', 'Sanjay', 'Vivek', 'Suresh', 'Manish', 'Arvind',
-  'Harish', 'Gaurav', 'Ashok', 'Naveen',
+  'James', 'Oliver', 'Thomas', 'Daniel', 'Michael', 'Edward', 'William', 'Henry',
+  'Jack', 'David', 'Peter', 'Andrew', 'Richard', 'Matthew', 'Christopher', 'Mark',
+  'Paul', 'Simon', 'Robert', 'Nicholas',
 ] as const
 
 const FEMALE_FIRST_NAMES = [
-  'Priya', 'Ananya', 'Divya', 'Neha', 'Pooja', 'Sneha', 'Kavya', 'Riya',
-  'Shreya', 'Isha', 'Meera', 'Nisha', 'Anjali', 'Deepa', 'Lakshmi', 'Kriti',
-  'Swati', 'Tanvi', 'Radha', 'Simran',
+  'Emma', 'Olivia', 'Charlotte', 'Sophie', 'Hannah', 'Laura', 'Rebecca', 'Catherine',
+  'Alice', 'Victoria', 'Elizabeth', 'Emily', 'Rachel', 'Amy', 'Claire', 'Lucy',
+  'Sarah', 'Jessica', 'Megan', 'Karen',
 ] as const
 
 export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
@@ -101,12 +101,12 @@ export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
 }
 
 export const DETECTIVE_NAMES: DetectiveIdentity[] = [
-  { name: 'Aisha Khan', rank: 'Inspector' },
-  { name: 'Rohit Kulkarni', rank: 'Sub-Inspector' },
-  { name: 'Priya Chandran', rank: 'Inspector' },
-  { name: 'Marcus D\'Souza', rank: 'Deputy Commissioner' },
-  { name: 'Fiona Pinto', rank: 'Sub-Inspector' },
-  { name: 'Tanvi Nair', rank: 'Inspector' },
-  { name: 'Grace Fernandes', rank: 'Sub-Inspector' },
-  { name: 'Owen Kurian', rank: 'Inspector' },
+  { name: 'Sarah Mitchell', rank: 'Detective Inspector' },
+  { name: 'James Carter', rank: 'Detective Sergeant' },
+  { name: 'Emily Hughes', rank: 'Detective Inspector' },
+  { name: 'Mark Turner', rank: 'Detective Chief Inspector' },
+  { name: 'Laura Bennett', rank: 'Detective Sergeant' },
+  { name: 'Daniel Walsh', rank: 'Detective Inspector' },
+  { name: 'Grace Thompson', rank: 'Detective Sergeant' },
+  { name: 'Owen Richards', rank: 'Detective Inspector' },
 ]

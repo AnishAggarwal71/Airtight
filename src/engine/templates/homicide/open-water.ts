@@ -22,9 +22,9 @@ export const openWater: Template = {
     const end = addMinutes(start, r.int(45, 65))
     const lover = r.pick(['a colleague', 'a university friend', 'someone from the gym'])
     const lake = r.pick([
-      'Hesaraghatta Lake',
-      'the lake at Hebbal',
-      'Byramangala reservoir',
+      'Elmridge Lake',
+      'the lake at Thornfield',
+      'Marsden reservoir',
     ])
     const pingOffset = r.int(35, 45)
     const pingTime = addMinutes(start, pingOffset)

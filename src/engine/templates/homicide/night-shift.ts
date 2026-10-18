@@ -20,11 +20,11 @@ export const nightShift: Template = {
     const cp = pronouns(coworker.pronoun)
     const start = hhmm(2, r.int(5, 35))
     const end = addMinutes(start, r.int(40, 55))
-    const theftAmount = r.pick([32000, 48000, 61000, 75000])
+    const theftAmount = r.pick([3200, 4800, 6100, 7500])
     const site = r.pick([
-      'the Whitefield logistics park warehouse',
-      'the Peenya industrial estate distribution depot',
-      'the Bommasandra fulfilment centre',
+      'the Crossgate logistics park warehouse',
+      'the Riverside industrial estate distribution depot',
+      'the Fenwick Road fulfilment centre',
     ])
     const badgeOffset = r.int(10, 16)
     const badgeTime = addMinutes(start, badgeOffset)
@@ -38,7 +38,7 @@ export const nightShift: Template = {
       window: { start, end },
 
       truth: beats(
-        ['t1', start, `${victim.name} called the suspect up to the mezzanine office to tell them the theft investigation naming them for ₹${theftAmount.toLocaleString()} in missing stock was going to HR in the morning.`],
+        ['t1', start, `${victim.name} called the suspect up to the mezzanine office to tell them the theft investigation naming them for £${theftAmount.toLocaleString()} in missing stock was going to HR in the morning.`],
         ['t2', addMinutes(start, 3), `The suspect pleaded, then threatened. ${victim.name} said it was already out of ${vp.poss} hands.`],
         ['t3', addMinutes(start, 6), `The suspect shoved ${victim.name} toward the mezzanine stair rail during the argument. ${vp.Subj} went over and fell to the floor below.`],
         ['t4', addMinutes(start, 9), `The suspect went down, found ${victim.name} not breathing, and used ${vp.poss} badge to override the loading bay's safety lockout so the scene would read as an unwitnessed equipment accident.`],
@@ -62,7 +62,7 @@ export const nightShift: Template = {
         {
           id: 'e3', type: 'financial',
           linkedBeats: ['t1'],
-          claim: `An internal audit names the suspect as the primary suspect in a ₹${theftAmount.toLocaleString()} stock-shrinkage investigation ${victim.name} was overseeing — and was days away from escalating to HR.`,
+          claim: `An internal audit names the suspect as the primary suspect in a £${theftAmount.toLocaleString()} stock-shrinkage investigation ${victim.name} was overseeing — and was days away from escalating to HR.`,
           vulnerability: `Three other operatives on that shift are also named in the same audit — the suspect being investigated doesn't make them the only one with a motive to silence ${victim.name}.`,
         },
         {
@@ -108,7 +108,7 @@ export const nightShift: Template = {
         victimSummary: `${victim.name}, the night shift manager, was found at the base of the mezzanine stairs near loading bay 4 at ${site}. Initial read was an unwitnessed workplace accident.`,
         suspectSummary: `${suspect.name}, a warehouse operative on the same shift, was the subject of a theft investigation ${victim.name} was about to escalate to HR.`,
         sceneSummary: `${site}, loading bay 4. Body found at the base of the mezzanine stairs. Time of death window: ${start}–${end}.`,
-        crimeSummary: `${victim.name} was shoved from the mezzanine rail during a confrontation and the scene staged as an equipment accident using the victim's own badge. The suspect is a warehouse operative on ${victim.name}'s shift, named in a ₹${theftAmount.toLocaleString()} stock-theft investigation that was days from going to HR.`,
+        crimeSummary: `${victim.name} was shoved from the mezzanine rail during a confrontation and the scene staged as an equipment accident using the victim's own badge. The suspect is a warehouse operative on ${victim.name}'s shift, named in a £${theftAmount.toLocaleString()} stock-theft investigation that was days from going to HR.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

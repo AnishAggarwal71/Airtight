@@ -22,9 +22,9 @@ export const hikingTrail: Template = {
     const end = addMinutes(start, r.int(50, 70))
     const affairPartner = r.pick(["the suspect's spouse", "the suspect's business partner", "the suspect's sister-in-law"])
     const trail = r.pick([
-      'the Nandi Hills ridge trail',
-      'the Skandagiri hiking path',
-      'the Savandurga trail',
+      'the Pennine ridge trail',
+      'the Blackstone Edge hiking path',
+      'the Haworth Moor trail',
     ])
     const gpsOffset = r.int(3, 6)
 

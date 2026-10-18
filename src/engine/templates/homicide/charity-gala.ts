@@ -22,9 +22,9 @@ export const charityGala: Template = {
     const end = addMinutes(start, r.int(70, 90))
     const promotion = r.pick(['Head of Development', 'Regional Director', 'Chief Marketing Officer'])
     const venue = r.pick([
-      'the Taj Vivanta ballroom',
-      'the Chancery Pavilion banquet hall',
-      'the ITC Gardenia ballroom',
+      'the Grand Harbour Hotel ballroom',
+      'the Kingsley Hall banquet hall',
+      'the Ashford Manor ballroom',
     ])
     const serviceStairOffset = r.int(30, 40)
     const fallTime = addMinutes(start, serviceStairOffset)

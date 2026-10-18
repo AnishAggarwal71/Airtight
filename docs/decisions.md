@@ -5,6 +5,48 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-18 — Removed arson template, deleted AIRTIGHT-PRD.md, rewrote README, UK setting for templates
+
+**Decision:** Three cleanup items, done together:
+
+1. **Arson template removed entirely**, not just excluded from active play.
+   Deleted `src/engine/templates/arson.ts`, dropped `'arson'` from
+   `CrimeType` (`src/engine/types.ts`), removed it from `CRIME_LABELS`/
+   `CRIME_BLURBS`, and from `TEMPLATES`/`ALL_TEMPLATES`
+   (`src/engine/templates/index.ts`). `src/cli/verify.ts`'s `ALL_CRIMES`
+   list updated to match. This supersedes every earlier entry below that
+   says "arson stays on disk for portfolio breadth" — that was always a
+   deferred decision, not a permanent one, and the dormant template wasn't
+   worth maintaining for a crime type that was never in active play.
+2. **`AIRTIGHT-PRD.md` deleted.** It described V1 end-to-end (player as
+   suspect, Suspicion meter, 12-round structure, M0–M6 milestones) and had
+   been stale since the V2 role flip. `README.md` rewritten to describe
+   current V3 behavior instead of carrying a "this doc is stale" warning
+   indefinitely.
+3. **Crime-template flavor content regenerated to a consistent UK
+   setting.** A prior session had generated name pools
+   (`src/engine/templates/shared.ts`), detective names/ranks, and
+   per-template place/business names with an undiscussed Indian regional
+   setting, inconsistently mixed with UK emergency numbers (999/111) and
+   UK police rank terminology already present elsewhere in the same
+   templates. Replaced with common English names, UK-recognizable
+   locations, GBP currency, and UK detective ranks across `shared.ts` and
+   all 10 homicide templates (the arson template also got this fix before
+   being removed in this same session).
+
+**Outcome:** `npx tsc --noEmit` clean, `npm run verify` 9/9 green (now "10
+active templates reachable" instead of 11).
+
+**Deferred, not forgotten:**
+- Web UI still not deployed — user plans to deploy from their own
+  website/hosting rather than from this machine; Render decision
+  (2026-10-15 entry below) stands as the record of that evaluation if
+  they revisit host choice later.
+- `docs/portfolio.md` and this log's own historical entries below still
+  describe arson as "on disk, excluded from play" — those are accurate
+  records of past state, left as-is rather than rewritten; this entry is
+  the correction going forward.
+
 ## 2026-10-15 — Deployment target: Render (persistent disk), transcript path made configurable
 
 **Decision:** Picked **Render** as the deployment target over Railway,

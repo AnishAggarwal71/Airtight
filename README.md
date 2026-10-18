@@ -67,13 +67,13 @@ Results are written to `eval-results/` (gitignored).
 
 | Area | What is here now |
 |---|---|
-| Cases | Deterministic seeded generation. **Homicide only** is active for V3 — one playable stairwell template. Arson stays on disk for portfolio breadth but is excluded from play/verify. Embezzlement is a Phase 2 placeholder. |
+| Cases | Deterministic seeded generation. **Homicide only** is active for V3 — 10 distinct scenario templates. Embezzlement is a Phase 2 placeholder. |
 | Persona Agent | Structured suspect/witness actor: dialogue, normalized claims, demeanor. Does not see what evidence the detective has or any evidence's vulnerability — it improvises in character. |
 | Invigilator Agent | A separate LLM-as-judge call with full case context (truth, vulnerabilities, persona, claim ledger) that returns structured signals: contradictions (tagged to claim IDs), guilty-knowledge leaks, evidence-handling quality (0–3), demeanor shifts. |
 | Scoring | Pure TypeScript with all tuning weights in `SCORING_CONFIG`; the engine reads invigilator signals and does the arithmetic — the model never scores itself. |
 | State | A compact claim ledger (suspect `c` prefix, witness `wc` prefix), evidence presentation state, Case Strength history, ending state, and token usage. |
 | Safety boundary | `toPublicCase()` exposes the detective's evidence while withholding the truth timeline, evidence vulnerabilities, suspect persona/strategy, and the fatal fact. |
-| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (8 checks, zero model calls). |
+| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (9 checks, zero model calls). |
 | Eval harness | Layer 1: 18 hand-crafted invigilator-accuracy cases (precision 0.667, recall 0.80, 10/18 passed). Layer 2: automated full-game runner with a scripted detective (6/10 `CHARGED_STRONG`, mean Case Strength 77 over 10 games) — *Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run.* See [`docs/eval-v3-results.md`](docs/eval-v3-results.md). |
 
 ## Project map
@@ -87,7 +87,7 @@ src/engine/
   ledger.ts         compact suspect and witness claim ledgers
   score.ts          pure scoring configuration and ending checks
   session.ts        game-loop orchestration (persona -> ledger -> invigilator -> score)
-  templates/        homicide (active), arson (on disk, excluded from play), embezzlement (placeholder)
+  templates/        homicide (active, 10 scenarios), embezzlement (placeholder)
 src/eval/
   cases.ts          18 hand-crafted invigilator accuracy cases
   detective.ts       Layer 1 (invigilator accuracy) and Layer 2 (automated gameplay) runners
@@ -115,6 +115,6 @@ docs/
 
 ## Next
 
-Live playtesting and the eval harness run are done against the CLI — see the status line above and [`docs/eval-v3-results.md`](docs/eval-v3-results.md) for the full numbers (Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run). The mid-game witness call and the Case Strength 50 witness-unlock gate described above are now implemented in the engine. A web UI exists (Express API + browser client) but has not yet had its own end-to-end playtest pass; more templates and innocent-suspect mode remain future scope.
+Live playtesting and the eval harness run are done against the CLI — see the status line above and [`docs/eval-v3-results.md`](docs/eval-v3-results.md) for the full numbers (Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run). The mid-game witness call and the Case Strength 50 witness-unlock gate described above are now implemented in the engine. A web UI exists (Express API + browser client) and has been manually playtested end-to-end against all three endings, but is **not yet deployed** — the plan is to deploy from the user's own hosting rather than this machine. More templates and innocent-suspect mode remain future scope.
 
 For the detailed portfolio framing, read [docs/portfolio.md](docs/portfolio.md).

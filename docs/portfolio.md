@@ -105,7 +105,7 @@ The system carries compact claims forward rather than replaying the complete tra
 
 ## Current scope
 
-V3 is implemented as a terminal game and passes deterministic generation, leak-safety, template-integrity, coverage, and variance checks (`npm run verify`, 8 checks, zero model calls). Scope was narrowed to **murder only** for V3 focus: one playable homicide template is active. The arson template remains on disk for portfolio breadth but is excluded from active play, verification, and the eval harness. Embezzlement is a Phase 2 placeholder. Sessions are saved as gitignored JSONL transcripts for manual review.
+V3 is implemented as a terminal game and passes deterministic generation, leak-safety, template-integrity, coverage, and variance checks (`npm run verify`, 9 checks, zero model calls). Scope was narrowed to **murder only** for V3 focus: 10 homicide templates are active. Embezzlement is a Phase 2 placeholder. Sessions are saved as gitignored JSONL transcripts for manual review.
 
 The next priority is a live-model playthrough and an eval run, not more features: invigilator accuracy against real suspect dialogue, prompt latency from the large (but cacheable) invigilator system prompt, and actual token cost all need evidence from real sessions.
 
