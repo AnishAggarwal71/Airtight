@@ -72,7 +72,7 @@ const FIRST_NAMES = [
 
 const LAST_NAMES = [
   'Smith', 'Johnson', 'Williams', 'Brown', 'Taylor', 'Davies', 'Wilson', 'Evans',
-  'Thomas', 'Roberts', 'Walker', 'Wright', 'Thompson', 'White', 'Edwards', 'Green',
+  'Barton', 'Roberts', 'Walker', 'Wright', 'Thompson', 'White', 'Edwards', 'Green',
   'Hughes', 'Harris', 'Clarke', 'Hall', 'Baker', 'Mitchell', 'Turner', 'Carter',
   'Phillips', 'Parker', 'Collins', 'Stewart', 'Morris', 'Rogers', 'Reed', 'Cook',
   'Bell', 'Murphy', 'Cox',
@@ -94,7 +94,23 @@ const FEMALE_FIRST_NAMES = [
   'Sarah', 'Jessica', 'Megan', 'Karen',
 ] as const
 
-export function namedPerson(r: Rng): { name: string; pronoun: 'he' | 'she' } {
+/**
+ * Generate a random named person with a gendered pronoun.
+ * Pass `exclude` to prevent within-case name collisions (M1/M2/M3).
+ * Re-draws up to 5 times if the generated name matches an excluded name
+ * or the first name equals the last name ("Thomas Thomas" guard).
+ */
+export function namedPerson(r: Rng, exclude: string[] = []): { name: string; pronoun: 'he' | 'she' } {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const isMale = r.chance(0.5)
+    const first = r.pick(isMale ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES)
+    const last = r.pick(LAST_NAMES)
+    const name = `${first} ${last}`
+    if ((first as string) === (last as string)) continue
+    if (exclude.includes(name)) continue
+    return { name, pronoun: isMale ? 'he' : 'she' }
+  }
+  // Fallback (extremely unlikely): accept whatever the RNG gives
   const isMale = r.chance(0.5)
   const first = r.pick(isMale ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES)
   return { name: `${first} ${r.pick(LAST_NAMES)}`, pronoun: isMale ? 'he' : 'she' }

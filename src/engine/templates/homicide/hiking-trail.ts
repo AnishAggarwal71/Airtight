@@ -15,8 +15,8 @@ export const hikingTrail: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const otherHiker = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const otherHiker = namedPerson(r, [victim.name, suspect.name])
     const op = pronouns(otherHiker.pronoun)
     const start = hhmm(14, r.int(10, 40))
     const end = addMinutes(start, r.int(50, 70))
@@ -59,13 +59,13 @@ export const hikingTrail: Template = {
         {
           id: 'e3', type: 'circumstantial',
           linkedBeats: ['t2'],
-          claim: `Messages from ${victim.name} to a mutual friend the night before say "I'm telling everyone this weekend, I can't carry this anymore about [the suspect] and ${affairPartner}."`,
+          claim: `Messages from ${victim.name} to a mutual friend the night before say "I'm telling everyone this weekend, I can't carry this anymore about ${suspect.name} and ${affairPartner}."`,
           vulnerability: `The message doesn't name what ${victim.name} intended to reveal — the detective is inferring it was the affair, but ${victim.name} may have meant something else entirely unrelated to the suspect.`,
         },
         {
-          id: 'e4', type: 'witness',
+          id: 'e4', type: 'digital',
           linkedBeats: ['t6'],
-          claim: `${otherHiker.name}, hiking the same trail that day, says the suspect looked "unbothered, almost calm" when they encountered them shortly before the suspect reported ${victim.name} missing.`,
+          claim: `A trail-cam photo timestamped at ${addMinutes(start, 50)} shows the suspect walking alone past the marker post below the Scar, at a normal pace — no sign of urgency or distress.`,
           vulnerability: `Shock affects people very differently — a flat or calm affect after trauma is a recognised and common response, not reliable evidence of guilt on its own.`,
         },
         {
@@ -92,18 +92,18 @@ export const hikingTrail: Template = {
 
       suspectPersona: {
         personality: `Leans on the decades-long friendship as a shield — "I would never, we've hiked together for years" — treating the accusation itself as the offense. Composed in a way that reads as denial rather than innocence once the GPS data comes up.`,
-        coverStory: `${victim.name} seemed a bit distracted that day but nothing alarming. They were hiking together near the Scar, the suspect went ahead a short way to take photos, and when they turned back ${victim.name} was gone. Assumed ${vp.subj} had gone on ahead. Only realised something was wrong much further down the trail and called it in immediately.`,
+        coverStory: `Got to the trailhead about ${start}. ${victim.name} seemed a bit distracted that day but nothing alarming. They were hiking together near the Scar, the suspect went ahead a short way to take photos, and when they turned back ${victim.name} was gone. Assumed ${vp.subj} had gone on ahead. Only realised something was wrong much further down the trail and called it in immediately.`,
         breakingPoints: ['the GPS data showing them stationary at the Scar', `what ${victim.name} actually said about telling everyone`, 'why they didn\'t call for help sooner', 'their demeanor when the other hiker passed them'],
         guiltyKnowledge: [
           `${victim.name} went over the edge during a confrontation, not while out of sight ahead on the trail`,
           `The suspect saw ${victim.name} at the base of the cliff and did not immediately seek help`,
-          `${victim.name} intended to reveal the affair that specific weekend`,
+          `${victim.name} had already told one person about the affair before the hike — the suspect found out from a text notification on ${victim.name}'s phone at the viewpoint`,
         ],
       },
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead at the base of a cliff section known as the Scar on ${trail}, while hiking with the suspect. Initial assessment leaned toward a fall on unstable scree.`,
-        suspectSummary: `${suspect.name}, ${victim.name}'s close friend of many years, was about to be exposed by ${victim.name} for an ongoing affair with ${affairPartner}.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s close friend of many years, was about to be exposed for having an affair — ${victim.name} had threatened to tell ${affairPartner} that weekend.`,
         sceneSummary: `${trail}, the Scar viewpoint and cliff base. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was pushed from the cliff edge at the Scar during a confrontation and left there while the suspect walked on. The suspect is ${victim.name}'s close friend of many years, who was about to be exposed for an ongoing affair with ${affairPartner}.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,

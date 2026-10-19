@@ -15,8 +15,8 @@ export const lockIn: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const staffer = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const staffer = namedPerson(r, [victim.name, suspect.name])
     const sp = pronouns(staffer.pronoun)
     const start = hhmm(23, r.int(15, 45))
     const end = addMinutes(start, r.int(50, 70))
@@ -26,7 +26,7 @@ export const lockIn: Template = {
       'the Hammer and Anvil',
       'the Fox and Barrel taproom',
     ])
-    const loginOffset = r.int(20, 30)
+    const loginOffset = r.int(23, 30)
     const loginTime = addMinutes(start, loginOffset)
 
     return {
@@ -72,7 +72,7 @@ export const lockIn: Template = {
         {
           id: 'e5', type: 'witness',
           linkedBeats: ['t1'],
-          claim: `${staffer.name}, a bar staff member, overheard the suspect say ${victim.name} was "not going to force me out of my own pub" earlier that week.`,
+          claim: `A regular customer recalls the suspect saying "${victim.name} is not going to force me out of my own pub" at the bar earlier that week.`,
           vulnerability: `People say things like that about business disputes all the time without meaning it literally — it's the kind of frustrated remark that gets said in every stressed small business, not a declared threat.`,
         },
       ],
@@ -93,11 +93,11 @@ export const lockIn: Template = {
 
       suspectPersona: {
         personality: `Businesslike and practical-sounding even under pressure, treats the whole interview as a logistics problem to be managed — a tell in itself, since most people in this situation would be visibly distressed rather than composed. Cracks only when pushed specifically on the till login timing.`,
-        coverStory: `Stayed behind with ${victim.name} to go through the buyout paperwork, which got heated but ended with both of them agreeing to speak again in the morning once tempers cooled. The suspect left first. Came back the next day to find the back door smashed and ${victim.name} dead — assumed a break-in gone wrong.`,
+        coverStory: `Stayed behind with ${victim.name} to go through the buyout paperwork, which got heated but ended with both of them agreeing to speak again in the morning once tempers cooled. The suspect left first, about ${addMinutes(start, 20)}. Came back the next day to find the back door smashed and ${victim.name} dead — assumed a break-in gone wrong.`,
         breakingPoints: ['the till login timing', 'the direction of the broken glass', 'the bar stool', 'what was actually agreed about the buyout before they "left"'],
         guiltyKnowledge: [
-          `The break-in was staged after the fact, not a real intrusion`,
-          `${victim.name}'s own credentials were used deliberately to fake a login`,
+          `The back door was smashed from inside the bar, then the suspect stepped through the gap — not the other way around`,
+          `The suspect knew ${victim.name}'s till PIN because they'd watched ${vp.obj} type it dozens of times — it wasn't guessed`,
           `${victim.name} did not leave the building alive that night`,
         ],
       },

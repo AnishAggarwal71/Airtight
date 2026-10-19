@@ -15,8 +15,8 @@ export const allergy: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const otherGuest = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const otherGuest = namedPerson(r, [victim.name, suspect.name])
     const op = pronouns(otherGuest.pronoun)
     const start = hhmm(19, r.int(30, 55))
     const end = addMinutes(start, r.int(90, 120))
@@ -38,7 +38,7 @@ export const allergy: Template = {
 
       truth: beats(
         ['t1', start, `The suspect hosted a dinner at ${house} to "talk things through" about selling the inherited house, which ${victim.name} had been blocking.`],
-        ['t2', addMinutes(start, 15), `Earlier that afternoon the suspect had worked a measured amount of ${allergen} paste into the sauce for ${victim.name}'s plate specifically, knowing about the allergy.`],
+        ['t2', addMinutes(start, 15), `Earlier that evening the suspect had worked a measured amount of ${allergen} paste into the sauce for ${victim.name}'s plate specifically, knowing about the allergy.`],
         ['t3', addMinutes(start, 25), `${victim.name} ate the main course and began showing signs of a reaction within minutes.`],
         ['t4', reactionTime, `The suspect delayed fetching ${victim.name}'s epinephrine auto-injector, claiming they couldn't find it, costing several critical minutes.`],
         ['t5', addMinutes(reactionTime, 6), `Paramedics were called, but by the time they arrived ${victim.name} had stopped breathing.`],
@@ -59,10 +59,10 @@ export const allergy: Template = {
           vulnerability: `The suspect says they rinsed it on autopilot while panicking and calling 999 — an understandable, if unlucky-looking, reflex rather than evidence of concealment.`,
         },
         {
-          id: 'e3', type: 'witness',
+          id: 'e3', type: 'physical',
           linkedBeats: ['t4'],
-          claim: `${otherGuest.name}, another guest, says the suspect "seemed to take a while" finding the auto-injector everyone knew was kept in the hallway drawer.`,
-          vulnerability: `Panicked people searching a familiar house for a small object under pressure often take longer than they would normally — a few delayed seconds reads very differently in hindsight than it did in the moment.`,
+          claim: `Paramedic records show a ${Math.round(reactionOffset * 0.3)}-minute gap between the onset of anaphylaxis symptoms and the administration of the auto-injector — longer than expected given the device was reportedly kept in the hallway.`,
+          vulnerability: `Panicked people searching a familiar house for a small object under pressure often take longer than they would normally — a few delayed minutes reads very differently in hindsight than it did in the moment.`,
         },
         {
           id: 'e4', type: 'financial',
@@ -72,9 +72,9 @@ export const allergy: Template = {
         },
         {
           id: 'e5', type: 'circumstantial',
-          linkedBeats: ['t1'],
-          claim: `Text messages show the suspect was frustrated that ${victim.name} had refused three separate offers to sell the house that year.`,
-          vulnerability: `Siblings arguing about an inherited property is one of the most common disputes there is — frustration over a stalled house sale is not, by itself, evidence of anything beyond a stressful year.`,
+          linkedBeats: ['t6'],
+          claim: `The kitchen bin was emptied that evening — the only night in months the bin was taken out before morning, according to the collection schedule.`,
+          vulnerability: `The suspect says they were tidying while waiting for the ambulance — emptying the bin is exactly the kind of automatic task people do under stress.`,
         },
       ],
 
@@ -83,10 +83,10 @@ export const allergy: Template = {
         name: otherGuest.name,
         relationship: `family friend who was also at the dinner`,
         personality: `Shaken by what happened and eager to be useful, but second-guessing ${op.poss} own memory of a fast-moving, frightening evening.`,
-        knowledgeBoundary: `Was at the table and saw ${victim.name} start struggling to breathe. Saw the suspect go to look for the injector and thought it took longer than expected, though can't say exactly how long. Didn't see the kitchen or the cooking. Has no idea the sauce was tampered with.`,
+        knowledgeBoundary: `Was at the table and saw ${victim.name} start struggling to breathe. Noticed earlier that the suspect had plated a separate ramekin of sauce for ${victim.name}'s portion, which ${op.subj} thought was considerate at the time. Didn't see the actual cooking. Has no idea the sauce was tampered with.`,
         suspectContradictions: [
           `If the suspect claims they found the injector immediately, ${op.subj} remembers it taking a while.`,
-          `If the suspect claims the dinner was a normal, friendly gathering, ${op.subj} remembers it being called specifically to discuss selling the house, and that it was tense.`,
+          `If the suspect claims everyone ate the same food, ${op.subj} noticed the suspect plating a separate ramekin of sauce for ${victim.name}'s portion — ${op.subj} thought it was considerate at the time.`,
         ],
       },
 
@@ -94,7 +94,7 @@ export const allergy: Template = {
 
       suspectPersona: {
         personality: `Grief-stricken and guilt-ridden in a way that reads, at first, as pure sibling loss rather than concealment — genuinely did love their sibling, which makes the self-justification underneath harder to access. Gets defensive fast about "being blamed for an accident."`,
-        coverStory: `Hosted a normal family dinner to patch things up about the house. Didn't know ${victim.name}'s allergy had gotten that severe recently — thought a small amount wouldn't matter, if it even came from this meal at all. Looked for the injector as fast as they could. Rinsed the ramekin without thinking, out of pure habit, while waiting for the ambulance.`,
+        coverStory: `Everyone sat down about ${start} for a normal family dinner to patch things up about the house. Had no idea any of the ingredients could be a problem — the recipe was one the family has made for years, and nobody mentioned the allergy had gotten worse. Looked for the injector as fast as they could. Rinsed the ramekin without thinking, out of pure habit, while waiting for the ambulance.`,
         breakingPoints: ['the receipt for the allergen paste', 'exactly how long they searched for the injector', 'the rinsed ramekin', 'what the dinner was actually called to discuss'],
         guiltyKnowledge: [
           `The allergen was deliberately worked into ${victim.name}'s specific portion, not a general ingredient`,

@@ -15,8 +15,8 @@ export const openWater: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const dogWalker = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const dogWalker = namedPerson(r, [victim.name, suspect.name])
     const dp = pronouns(dogWalker.pronoun)
     const start = hhmm(18, r.int(15, 45))
     const end = addMinutes(start, r.int(45, 65))
@@ -48,7 +48,7 @@ export const openWater: Template = {
         {
           id: 'e1', type: 'digital',
           linkedBeats: ['t6'],
-          claim: `The suspect's phone pinged a tower covering the lake and its car park at ${pingTime}, forty minutes after the time they say they left.`,
+          claim: `The suspect's phone pinged a tower covering the lake and its car park at ${pingTime}, ${pingOffset - 20} minutes after the time they say they left.`,
           vulnerability: `That tower's coverage radius is wide and imprecise, overlapping the public car park and a stretch of the main road — the ping shows the phone was somewhere in a broad area, not specifically at the jetty.`,
         },
         {
@@ -64,16 +64,16 @@ export const openWater: Template = {
           vulnerability: `An affair gives a motive for divorce, not necessarily for murder — plenty of marriages survive discovered affairs, and the messages don't show the suspect wanting ${victim.name} dead, only wanting to avoid losing everything in a split.`,
         },
         {
-          id: 'e4', type: 'witness',
+          id: 'e4', type: 'digital',
           linkedBeats: ['t5'],
-          claim: `${dogWalker.name}, walking a dog nearby, saw someone matching the suspect's description walking briskly away from the jetty along the tree line, not the main path.`,
-          vulnerability: `The tree line is a well-used shortcut to the car park that avoids the muddy main path after rain — taking it isn't itself suspicious, and the description is vague enough to fit several regular joggers.`,
+          claim: `CCTV from the lake car park shows only the suspect's car leaving that evening — ${victim.name}'s car remained in the car park overnight.`,
+          vulnerability: `${victim.name} often walked to the lake from home rather than driving — ${vp.poss} car not being there could mean ${vp.subj} walked, not that ${vp.subj} never left.`,
         },
         {
-          id: 'e5', type: 'financial',
-          linkedBeats: ['t2'],
-          claim: `Divorce paperwork drafted by ${victim.name}'s solicitor, dated the day before the death, demands an even split of the marital assets.`,
-          vulnerability: `Drafted paperwork that was never filed shows an intention, not an action — plenty of people draft divorce papers as leverage in an argument without ever actually filing them.`,
+          id: 'e5', type: 'physical',
+          linkedBeats: ['t4'],
+          claim: `Post-mortem bruising on ${victim.name}'s shoulders is consistent with downward pressure from above — the pathologist says the marks don't match the head injury from the submerged post.`,
+          vulnerability: `The lakeside current could press a floating body against mooring posts, and the pathologist concedes a strong undertow might produce similar marks to manual pressure.`,
         },
       ],
 
@@ -93,12 +93,12 @@ export const openWater: Template = {
 
       suspectPersona: {
         personality: `Performs grief convincingly and leans hard into the "devoted but imperfect spouse" framing, treating the affair as the real crime they're ashamed of rather than deflecting from the death itself. Becomes clipped and evasive specifically around the moment ${victim.name} went into the water.`,
-        coverStory: `Went for an evening walk together to talk things through after the affair came out. Things were tense but calm. ${victim.name} wanted some time alone on the jetty to think, so the suspect walked back ahead through the trees to give ${vp.obj} space. Found out the next day what had happened and has been in shock since.`,
+        coverStory: `Got there about ${start}. Went for an evening walk together to talk things through after the affair came out. Things were tense but calm. ${victim.name} wanted some time alone on the jetty to think, so the suspect walked back ahead through the trees to give ${vp.obj} space. Must have left about ${addMinutes(start, 20)}. Found out the next day what had happened and has been in shock since.`,
         breakingPoints: ['the phone ping near the car park', 'exactly what was said on the jetty', `why they left ${victim.name} alone there`, 'the route they took back'],
         guiltyKnowledge: [
           `${victim.name} went into the water from the jetty during the argument, not afterward alone`,
           `${victim.name} was held under rather than struggling unassisted`,
-          `The suspect was still at the lake well after the time they claim to have left`,
+          `The suspect threw ${victim.name}'s phone into the deep water from the jetty before leaving`,
         ],
       },
 

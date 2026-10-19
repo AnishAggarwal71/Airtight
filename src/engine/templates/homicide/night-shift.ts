@@ -15,8 +15,8 @@ export const nightShift: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const coworker = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const coworker = namedPerson(r, [victim.name, suspect.name])
     const cp = pronouns(coworker.pronoun)
     const start = hhmm(2, r.int(5, 35))
     const end = addMinutes(start, r.int(40, 55))
@@ -28,8 +28,11 @@ export const nightShift: Template = {
     ])
     const badgeOffset = r.int(10, 16)
     const badgeTime = addMinutes(start, badgeOffset)
-    const breakStart = addMinutes(start, r.int(-10, -4))
-    const breakEnd = addMinutes(badgeTime, r.int(4, 9))
+    const breakStartOffset = r.int(0, 3)
+    const breakStart = addMinutes(start, breakStartOffset)
+    const breakEndOffset = badgeOffset + r.int(4, 9)
+    const breakEnd = addMinutes(start, breakEndOffset)
+    const gapMinutes = breakEndOffset - breakStartOffset
 
     return {
       suspect: { name: suspect.name, occupation: 'warehouse operative', pronoun: suspect.pronoun },
@@ -40,8 +43,8 @@ export const nightShift: Template = {
       truth: beats(
         ['t1', start, `${victim.name} called the suspect up to the mezzanine office to tell them the theft investigation naming them for £${theftAmount.toLocaleString()} in missing stock was going to HR in the morning.`],
         ['t2', addMinutes(start, 3), `The suspect pleaded, then threatened. ${victim.name} said it was already out of ${vp.poss} hands.`],
-        ['t3', addMinutes(start, 6), `The suspect shoved ${victim.name} toward the mezzanine stair rail during the argument. ${vp.Subj} went over and fell to the floor below.`],
-        ['t4', addMinutes(start, 9), `The suspect went down, found ${victim.name} not breathing, and used ${vp.poss} badge to override the loading bay's safety lockout so the scene would read as an unwitnessed equipment accident.`],
+        ['t3', addMinutes(start, 6), `The suspect grabbed a ratchet strap from the loading bay pallet and looped it around ${victim.name}'s neck from behind. ${vp.Subj} collapsed on the mezzanine floor.`],
+        ['t4', addMinutes(start, 9), `The suspect dragged the body to the top of the mezzanine stairs and pushed it down to make the death look like an unwitnessed fall, then used ${vp.poss} badge to override the loading bay's safety lockout so the scene would read as an equipment accident.`],
         ['t5', badgeTime, `The badge override was logged against ${victim.name}'s own credentials.`],
         ['t6', breakEnd, `The suspect clocked back in from "break" and resumed their round on the far side of the warehouse.`],
       ),
@@ -56,8 +59,8 @@ export const nightShift: Template = {
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t3', 't4'],
-          claim: `The pathologist notes bruising on ${victim.name}'s shoulder consistent with being pushed, not with an unassisted fall from the mezzanine.`,
-          vulnerability: `The mezzanine rail is narrow and the stairs are steep — a stumble into the rail before falling could produce a similar shoulder bruise, and the report concedes this reading isn't ruled out.`,
+          claim: `The pathologist notes a ligature mark on ${victim.name}'s neck inconsistent with the claimed fall — the pattern suggests compression from a flat, wide object like a strap, not a stairway impact.`,
+          vulnerability: `Ratchet straps are strung everywhere on that mezzanine for securing pallets — the pathologist concedes that getting tangled in one during a fall could produce a similar mark, though it's a stretch.`,
         },
         {
           id: 'e3', type: 'financial',
@@ -68,13 +71,13 @@ export const nightShift: Template = {
         {
           id: 'e4', type: 'digital',
           linkedBeats: ['t6'],
-          claim: `The suspect's own badge shows no activity for an 11-minute gap starting around ${breakStart}, logged as a break.`,
+          claim: `The suspect's own badge shows no activity for a ${gapMinutes}-minute gap starting around ${breakStart}, logged as a break.`,
           vulnerability: `Breaks on that shift are self-logged and routinely run long or get back-filled after the fact — an unlogged gap is normal shift behaviour, not proof of where someone physically was.`,
         },
         {
           id: 'e5', type: 'witness',
           linkedBeats: ['t1'],
-          claim: `${victim.name}'s calendar shows a note: "see [suspect] re: audit — tonight, mezzanine."`,
+          claim: `${victim.name}'s calendar shows a note: "see ${suspect.name} re: audit — tonight, mezzanine."`,
           vulnerability: `A scheduled meeting proves the conversation happened, not how it ended. Plenty of difficult meetings on that shift end with nothing worse than hurt feelings.`,
         },
       ],
@@ -91,16 +94,16 @@ export const nightShift: Template = {
         ],
       },
 
-      fatalFact: `The badge override at loading bay 4 happened minutes after ${victim.name} stopped responding — the suspect staged it, they didn't stumble into it afterward.`,
+      fatalFact: `${victim.name} was strangled on the mezzanine before the fall — the stairway injuries are staging, not the cause of death.`,
 
       suspectPersona: {
         personality: `Defensive and quick to pivot to grievance about the theft accusation itself, as if re-litigating the audit will make the real question go away. Clipped, impatient tone that reads as exhaustion from a long shift rather than guilt — until pressed on the mezzanine specifically.`,
-        coverStory: `Got called up to see ${victim.name} about the audit, had a tense but short conversation, then went on break because they needed to clear their head. Came back and finished the shift. Found out about the fall when everyone else did, when the shift supervisor radioed it in.`,
-        breakingPoints: ['the badge override', 'the shoulder bruising', 'exactly how long the "break" lasted', 'what was actually said in the mezzanine office'],
+        coverStory: `Got called up around ${start} to see ${victim.name} about the audit, had a tense but short conversation, then went on break because they needed to clear their head. Came back and finished the shift. Found out about the fall when everyone else did, when the shift supervisor radioed it in.`,
+        breakingPoints: ['the badge override', 'the ligature mark', 'exactly how long the "break" lasted', 'what was actually said in the mezzanine office'],
         guiltyKnowledge: [
-          `${victim.name} was pushed, not simply fell`,
-          `The badge override was staged using ${victim.name}'s own credentials, not the suspect's`,
-          `The argument was specifically about the theft going to HR the next morning`,
+          `${victim.name} was strangled with a ratchet strap on the mezzanine, not simply fell`,
+          `The suspect took the badge from ${victim.name}'s body — it was in ${vp.poss} top pocket, not at the desk`,
+          `${victim.name} had already drafted the email to HR — it was sitting unsent in ${vp.poss} drafts, and the suspect saw it on the screen`,
         ],
       },
 
@@ -108,7 +111,7 @@ export const nightShift: Template = {
         victimSummary: `${victim.name}, the night shift manager, was found at the base of the mezzanine stairs near loading bay 4 at ${site}. Initial read was an unwitnessed workplace accident.`,
         suspectSummary: `${suspect.name}, a warehouse operative on the same shift, was the subject of a theft investigation ${victim.name} was about to escalate to HR.`,
         sceneSummary: `${site}, loading bay 4. Body found at the base of the mezzanine stairs. Time of death window: ${start}–${end}.`,
-        crimeSummary: `${victim.name} was shoved from the mezzanine rail during a confrontation and the scene staged as an equipment accident using the victim's own badge. The suspect is a warehouse operative on ${victim.name}'s shift, named in a £${theftAmount.toLocaleString()} stock-theft investigation that was days from going to HR.`,
+        crimeSummary: `${victim.name} was strangled with a ratchet strap on the mezzanine during a confrontation, then the body was pushed down the stairs and the scene staged as an equipment accident using the victim's own badge. The suspect is a warehouse operative on ${victim.name}'s shift, named in a £${theftAmount.toLocaleString()} stock-theft investigation that was days from going to HR.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

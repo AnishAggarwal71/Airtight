@@ -15,8 +15,8 @@ export const overdose: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const carer = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const carer = namedPerson(r, [victim.name, suspect.name])
     const cp = pronouns(carer.pronoun)
     const start = hhmm(20, r.int(0, 30))
     const end = addMinutes(start, r.int(60, 90))
@@ -70,10 +70,10 @@ export const overdose: Template = {
           vulnerability: `The will predates the death by years and reflects an existing, long-settled family arrangement — it's evidence of motive in the abstract, not of anything done this particular evening.`,
         },
         {
-          id: 'e5', type: 'witness',
-          linkedBeats: ['t6'],
-          claim: `A hospice nurse who visited that week says the suspect seemed "at the end of their rope" with the caregiving burden and had said as much more than once.`,
-          vulnerability: `Caregiver exhaustion is near-universal in long-term home care and is exactly the kind of thing hospice staff are trained to listen for and support — expressing exhaustion is not a confession.`,
+          id: 'e5', type: 'physical',
+          linkedBeats: ['t6', 't1'],
+          claim: `Pharmacy dispensing records show ${Math.abs(refillOffset) + 4} tablets of ${medication} supplied over the past month; only ${Math.abs(refillOffset) + 1} are accounted for in the blister pack and the care diary — at least 3 tablets are missing.`,
+          vulnerability: `Tablet counts in home care are notoriously unreliable — pills get dropped, miscounted, or taken by the patient themselves in confusion.`,
         },
       ],
 
@@ -93,7 +93,7 @@ export const overdose: Template = {
 
       suspectPersona: {
         personality: `Visibly worn down by months of caregiving, which reads as genuine exhaustion rather than performance — because it is genuine, which makes the deliberate act underneath harder for the suspect to reconcile even in their own account. Defensive about being "blamed for doing their best."`,
-        coverStory: `Gave the normal evening dose, same as always, following the care diary. ${victim.name} seemed tired but not unusual at first. When ${vp.poss} breathing changed, the suspect tried to figure out if it was serious before panicking and calling for help — didn't want to overreact and waste the ambulance crew's time over nothing.`,
+        coverStory: `Gave ${vp.obj} the normal evening dose about ${start}, same as always, following the care diary. ${victim.name} seemed tired but not unusual at first. When ${vp.poss} breathing changed, the suspect tried to figure out if it was serious before panicking and calling for help — didn't want to overreact and waste the ambulance crew's time over nothing.`,
         breakingPoints: ['the early prescription refill', 'the exact dose given that evening', 'the 35-minute gap before calling 999', 'the missing surplus medication'],
         guiltyKnowledge: [
           `The dose given was deliberately beyond the prescribed amount, not a normal dose`,

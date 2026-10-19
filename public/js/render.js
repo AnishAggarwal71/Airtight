@@ -160,7 +160,6 @@ function renderBriefing(state) {
   el('dossier-victim-summary').textContent = pc.briefing.victimSummary
   el('dossier-suspect-summary').textContent = pc.briefing.suspectSummary
   el('dossier-scene-summary').textContent = pc.briefing.sceneSummary
-  el('dossier-crime-summary').textContent = pc.briefing.crimeSummary
   el('dossier-evidence-summary').textContent = pc.briefing.evidenceSummary
 
   const list = el('dossier-evidence-list')

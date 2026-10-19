@@ -15,8 +15,8 @@ export const charityGala: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const caterer = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const caterer = namedPerson(r, [victim.name, suspect.name])
     const cp = pronouns(caterer.pronoun)
     const start = hhmm(21, r.int(20, 50))
     const end = addMinutes(start, r.int(70, 90))
@@ -28,6 +28,7 @@ export const charityGala: Template = {
     ])
     const serviceStairOffset = r.int(30, 40)
     const fallTime = addMinutes(start, serviceStairOffset)
+    const cctvReturnMinutes = r.pick([4, 5, 6, 7])
 
     return {
       suspect: { name: suspect.name, occupation: r.pick(['fundraising manager', 'events director', 'communications lead', 'account director']), pronoun: suspect.pronoun },
@@ -39,7 +40,7 @@ export const charityGala: Template = {
         ['t1', start, `At the gala's open bar, the suspect handed ${victim.name} a drink laced with a sedative, timed around the toasts so the dose would peak once the crowd thinned.`],
         ['t2', addMinutes(start, 20), `${victim.name} began to seem unusually drowsy and unsteady, which others at the gala put down to the free-flowing wine.`],
         ['t3', addMinutes(start, 28), `The suspect offered to walk ${victim.name} to the service corridor for air, away from the main room.`],
-        ['t4', fallTime, `At the top of the service stairwell, the suspect pushed ${victim.name}, who was too sedated to catch themselves properly on the way down.`],
+        ['t4', fallTime, `The suspect left ${victim.name} in the service corridor, already heavily sedated. ${victim.name} collapsed on the stairs while trying to walk alone.`],
         ['t5', addMinutes(fallTime, 5), `The suspect returned to the main ballroom and resumed mingling as if nothing had happened.`],
         ['t6', addMinutes(fallTime, 25), `${victim.name} was discovered by kitchen staff doing a supply run and the gala was brought to a halt.`],
       ),
@@ -59,15 +60,15 @@ export const charityGala: Template = {
         },
         {
           id: 'e3', type: 'physical',
-          linkedBeats: ['t4'],
-          claim: `Bruising on ${victim.name}'s upper arms is consistent with being gripped and guided, not merely falling alone.`,
-          vulnerability: `${victim.name} was visibly unsteady from the sedative by that point — anyone nearby, including kitchen staff, may have grabbed their arms simply trying to help them walk, which could leave the same marks.`,
+          linkedBeats: ['t3', 't4'],
+          claim: `Bruising on ${victim.name}'s upper arms is consistent with being supported or walked while heavily sedated — the marks suggest ${vp.subj} was physically moved into the service corridor.`,
+          vulnerability: `${victim.name} was visibly unsteady from the sedative by that point — anyone nearby, including kitchen staff, may have grabbed ${vp.poss} arms simply trying to help ${vp.obj} walk, which could leave the same marks.`,
         },
         {
-          id: 'e4', type: 'circumstantial',
-          linkedBeats: ['t3'],
-          claim: `The suspect was the last person seen with ${victim.name} before ${vp.subj} was found at the bottom of the stairwell.`,
-          vulnerability: `Being last seen together is a function of who happened to be near the service corridor at that moment — several other guests passed through there in the same stretch, caterers included.`,
+          id: 'e4', type: 'digital',
+          linkedBeats: ['t3', 't5'],
+          claim: `CCTV from the main ballroom shows the suspect leaving through the service corridor door at ${addMinutes(start, 27)} and returning ${cctvReturnMinutes} minutes later, without ${victim.name}.`,
+          vulnerability: `The service corridor leads to the restrooms as well as the stairwell — the suspect could have been going to or from the toilets, and ${victim.name} may have stayed behind or gone elsewhere.`,
         },
         {
           id: 'e5', type: 'financial',
@@ -85,20 +86,20 @@ export const charityGala: Template = {
         knowledgeBoundary: `Was doing supply runs through the service corridor most of the evening and saw two people near the top of the service stairwell around the time in question, but was focused on a tray and didn't get a clear look at faces. Found ${victim.name} at the bottom on a later run. Has no knowledge of the drink or the sedative.`,
         suspectContradictions: [
           `If the suspect claims they never went near the service corridor that night, ${cp.subj} saw two people near the stairwell at roughly that time.`,
-          `If the suspect claims they parted ways with ${victim.name} in the main ballroom well before the fall, ${cp.subj}'s supply-run timing puts two people at the stairwell much closer to when ${victim.name} was found.`,
+          `If the suspect claims they parted ways with ${victim.name} in the main ballroom well before the fall, ${cp.poss} supply-run timing puts two people at the stairwell much closer to when ${victim.name} was found.`,
         ],
       },
 
-      fatalFact: `The suspect guided ${victim.name}, already sedated, specifically to the top of the service stairwell before the fall — this was not an unlucky accident after a few too many drinks.`,
+      fatalFact: `The suspect administered a lethal dose of sedative via the drink and left ${victim.name} in the service corridor to die — this was not an accidental overdose from a few too many drinks.`,
 
       suspectPersona: {
         personality: `Polished and professionally composed even under direct questioning — the same skill that makes them good at the job makes them hard to read here. Frames the promotion rivalry as "healthy competition" to downplay motive, and expresses performative shock about the "accident."`,
-        coverStory: `Saw ${victim.name} looking unsteady near the bar and assumed ${vp.subj}'d had too much to drink, like plenty of people that night. Didn't walk ${vp.obj} anywhere — last saw ${vp.obj} heading toward the restrooms, which happen to be past the service corridor. Went back to mingling and only learned about the fall when the gala was interrupted.`,
+        coverStory: `Saw ${victim.name} looking unsteady near the bar around ${addMinutes(start, 15)} and assumed ${vp.subj}'d had too much to drink, like plenty of people that night. Didn't walk ${vp.obj} anywhere — last saw ${vp.obj} heading toward the restrooms, which happen to be past the service corridor. Went back to mingling and only learned about the fall when the gala was interrupted.`,
         breakingPoints: ['the CCTV of handing over the drink', 'what exactly happened in the service corridor', 'the timing of the supply-run witness sighting', 'the promotion decision due the following week'],
         guiltyKnowledge: [
           `The drink was deliberately laced with a sedative, not just normal party drinking`,
           `${victim.name} was guided to the stairwell specifically, not heading to the restrooms alone`,
-          `${victim.name} was pushed, not simply stumbled while unsteady`,
+          `The dose was calculated to be lethal — ${victim.name} was not going to recover regardless of whether anyone found ${vp.obj}`,
         ],
       },
 
@@ -106,7 +107,7 @@ export const charityGala: Template = {
         victimSummary: `${victim.name} was found dead at the base of the service stairwell at ${venue} during a charity gala. Initial assessment leaned toward an intoxicated accidental fall.`,
         suspectSummary: `${suspect.name}, a colleague of ${victim.name}'s, was the other finalist for the same ${promotion} role, with a decision due the following week.`,
         sceneSummary: `${venue}, service stairwell behind the kitchen. Time window: ${start}–${end}.`,
-        crimeSummary: `${victim.name} was sedated via a drink at the open bar, then pushed down the service stairwell while too impaired to catch themselves. The suspect is a colleague of ${victim.name}'s, the other finalist for the same ${promotion} role with a decision due the following week.`,
+        crimeSummary: `${victim.name} was given a lethal dose of sedative via a drink at the open bar and left to die in the service corridor. The body was found at the base of the service stairwell where ${vp.subj} collapsed. The suspect is a colleague of ${victim.name}'s, the other finalist for the same ${promotion} role with a decision due the following week.`,
         evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
       },
     }

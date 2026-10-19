@@ -15,8 +15,8 @@ export const allotment: Template = {
   build: (r, _detective) => {
     const victim = namedPerson(r)
     const vp = pronouns(victim.pronoun)
-    const suspect = namedPerson(r)
-    const otherHolder = namedPerson(r)
+    const suspect = namedPerson(r, [victim.name])
+    const otherHolder = namedPerson(r, [victim.name, suspect.name])
     const op = pronouns(otherHolder.pronoun)
     const start = hhmm(19, r.int(10, 40))
     const end = addMinutes(start, r.int(45, 60))
@@ -66,9 +66,9 @@ export const allotment: Template = {
         },
         {
           id: 'e4', type: 'circumstantial',
-          linkedBeats: ['t1'],
-          claim: `The suspect had complained to three separate neighbours that ${victim.name} was "going to get what's coming" over ${dispute}.`,
-          vulnerability: `People say things like that about allotment feuds constantly — it's a figure of speech on that site, not a threat anyone took literally at the time.`,
+          linkedBeats: ['t2'],
+          claim: `A watering can on ${victim.name}'s plot was knocked over near the bean canes, consistent with a sudden interruption or struggle — yet the suspect claims the conversation was brief and calm.`,
+          vulnerability: `A watering can next to runner beans gets knocked over by wind, foxes, or anyone walking between the rows — it's hardly proof of a struggle.`,
         },
         {
           id: 'e5', type: 'digital',
@@ -83,7 +83,7 @@ export const allotment: Template = {
         name: otherHolder.name,
         relationship: `fellow plot-holder — tends the plot backing onto ${victim.name}'s`,
         personality: `Blunt and a little gossipy, enjoys being asked for an opinion. Will volunteer rumour as readily as fact unless pressed to separate the two. Genuinely liked the victim.`,
-        knowledgeBoundary: `Was watering nearby and heard the suspect and victim talking, tone rising, around the time of the visit. Didn't see the confrontation itself — the sheds blocked the view. Heard what sounded like the shed door later, around ${addMinutes(start, 16)}. Has no idea how the victim actually died.`,
+        knowledgeBoundary: `Was watering nearby and heard the suspect and victim talking, tone rising, around the time of the visit. Didn't see the confrontation itself — the sheds blocked the view. Heard what sounded like the shed door later, around ${addMinutes(start, latchOffset - 1)}. Has no idea how the victim actually died.`,
         suspectContradictions: [
           `If the suspect claims they never went near ${victim.name}'s plot that evening, ${op.subj} heard them talking right there.`,
           `If the suspect claims the conversation was calm, ${op.subj} heard raised voices.`,

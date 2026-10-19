@@ -159,6 +159,12 @@ const pass = (msg: string) => console.log(`  \x1b[32mok\x1b[0m   ${msg}`)
         clean = false
       }
 
+      // crimeSummary must stay hidden (M14)
+      if (pub.includes(file.detectiveBriefing.crimeSummary)) {
+        fail(`crimeSummary leaked into public case (${seed}/${crime})`)
+        clean = false
+      }
+
       // Evidence claims SHOULD be visible (inverted from V1) — compare the
       // structured public evidence array directly rather than substring-matching
       // a JSON.stringify()'d blob, since claims containing literal `"` characters

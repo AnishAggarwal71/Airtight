@@ -86,6 +86,8 @@ export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile
  * only in the post-game breakdown).
  */
 export function toPublicCase(file: CaseFile): PublicCase {
+  // Strip crimeSummary from briefing — player-detective must not see it (M14)
+  const { crimeSummary: _cs, ...publicBriefing } = file.detectiveBriefing
   return {
     seed: file.seed,
     crime: file.crime,
@@ -95,7 +97,7 @@ export function toPublicCase(file: CaseFile): PublicCase {
     victim: file.victim,
     location: file.location,
     window: file.window,
-    briefing: file.detectiveBriefing,
+    briefing: publicBriefing,
     evidence: file.evidence.map((e, index) => ({
       id: e.id,
       type: e.type,

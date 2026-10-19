@@ -58,6 +58,9 @@ export type DetectiveBriefing = {
   evidenceSummary: string
 }
 
+/** Briefing as shown to the player — crimeSummary stripped (M14). */
+export type PublicBriefing = Omit<DetectiveBriefing, 'crimeSummary'>
+
 /** Witness NPC profile — name and relationship shown to the player, strategy hidden. */
 export type WitnessProfile = {
   id: string
@@ -99,7 +102,7 @@ export type PublicCase = {
   victim: { name: string; relationship: string }
   location: string
   window: { start: string; end: string }
-  briefing: DetectiveBriefing
+  briefing: PublicBriefing
   evidence: {
     id: string
     type: EvidenceType
