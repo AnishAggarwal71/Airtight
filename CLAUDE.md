@@ -99,8 +99,9 @@ Break any of these and the game stops working. `src/cli/verify.ts` enforces
    the suspect's strategy — `suspectPersona` (personality, cover story,
    breaking points, guilty knowledge), every evidence item's `vulnerability`,
    the witness's `personality`/`knowledgeBoundary`/`suspectContradictions`,
-   the truth timeline, and the `fatalFact`. If any of that reaches the
-   player, the game is solved by reading the inspect output.
+   the truth timeline, the `fatalFact`, and `crimeSummary` (stripped via
+   `PublicBriefing` type — M14). If any of that reaches the player, the game
+   is solved by reading the inspect output.
 
 3. **The suspect acts; the invigilator judges; the engine scores.** All Case
    Strength arithmetic lives in `SCORING_CONFIG` (`src/engine/score.ts`),
@@ -198,8 +199,11 @@ src/engine/
   types.ts              All domain types — SuspectResponse, WitnessResponse,
                           InvigilatorSuspectResponse, InvigilatorWitnessResponse,
                           GameSession, InterrogationDetail, WitnessDetail, etc.
+                          PublicBriefing = Omit<DetectiveBriefing, 'crimeSummary'>
+                          used in PublicCase to strip crimeSummary from player view.
   rng.ts                Seeded deterministic RNG (cyrb128 + sfc32) — unchanged from V1
-  generate.ts           seed + crime → CaseFile; toPublicCase() inverted security boundary
+  generate.ts           seed + crime → CaseFile; toPublicCase() strips crimeSummary via
+                          PublicBriefing destructuring, inverted security boundary
   ledger.ts             Claim accumulation — 'c' prefix (suspect), 'wc' prefix (witness)
   adjudicate.ts         Persona agent (suspect mode): system prompt, SuspectResponseSchema,
                           interrogateSuspect(). Exports MODEL — the one-line provider swap.
@@ -215,7 +219,10 @@ src/engine/
                           flow: persona → ledger → invigilator → score), playWitnessTurn(),
                           resolveVerdict(), parsePlayerInput()
   templates/
-    shared.ts           Template contract (TemplateBuild) + name-generation helpers
+    shared.ts           Template contract (TemplateBuild) + name-generation helpers.
+                          namedPerson(r, exclude) has a collision guard (re-draws up to 5×
+                          if name matches exclude list or first===last). Thomas replaced
+                          with Barton in LAST_NAMES.
     homicide.ts         Aggregator — imports 10 templates from homicide/ subfolder
     homicide/           10 distinct scenario files: stairwell, allotment, night-shift,
                           allergy, open-water, overdose, lock-in, hiking-trail,
@@ -449,9 +456,16 @@ This project demonstrates:
   then delete the rest. Don't delete early — there's nothing to summarize
   from yet beyond what `docs/playtest-notes.md` already captured.
 - **Layer 2 eval numbers are stale.** The 60% `CHARGED_STRONG` / mean CS 77
-  figures in `docs/eval-v3-results.md` predate the 2026-10-15 witness/clamp
-  rule changes (mid-game witness unlock, ending reframe). A re-run
-  (`npm run eval -- --layer2-only 50`) is needed before those numbers can be
-  cited again, and is also the trigger for the playtest-logs/eval-results
-  cleanup above.
+  figures in `docs/eval-v3-results.md` predate both the 2026-10-15
+  witness/clamp rule changes (mid-game witness unlock, ending reframe) and
+  the 2026-10-19 comprehensive case-template rework (100+ rule fixes across
+  all 10 templates — method changes in Night Shift and Charity Gala, setting/
+  motive changes in Smart Garage, new evidence items in most templates,
+  `crimeSummary` stripped from player view; see `docs/case-audit.md`). A
+  re-run (`npm run eval -- --layer2-only 50`) is needed before those numbers
+  can be cited again, and is also the trigger for the playtest-logs/
+  eval-results cleanup above.
+- **Case audit complete (2026-10-19).** All 10 homicide templates pass all
+  M/J/S rules. Full report in `docs/case-audit.md`. Layer 1 eval cases
+  updated to match the reworked templates.
 

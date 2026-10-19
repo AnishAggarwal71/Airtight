@@ -10,6 +10,8 @@ export type EvalCase = {
   category: 'guilty_knowledge' | 'contradiction' | 'evidence_handling' | 'clean' | 'demeanor'
   description: string
   seed: string
+  /** Forces a specific template — without this, the seed's RNG picks one at random. */
+  templateId?: string
   turnNumber: number
   priorClaims: { id: string; text: string; turn: number; checkable: boolean }[]
   presentedEvidenceIds: string[]

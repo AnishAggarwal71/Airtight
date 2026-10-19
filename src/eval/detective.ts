@@ -120,7 +120,7 @@ export async function runEvalCase(
   evalCase: EvalCase,
   onProgress?: (msg: string) => void,
 ): Promise<EvalResult> {
-  const caseFile = generate({ seed: evalCase.seed, crime: 'homicide' })
+  const caseFile = generate({ seed: evalCase.seed, crime: 'homicide', templateId: evalCase.templateId })
 
   // Build prior claims in ledger format
   const suspectClaims: Claim[] = evalCase.priorClaims.map((pc) => ({

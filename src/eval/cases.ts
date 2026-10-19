@@ -1,7 +1,9 @@
 /**
  * Hand-crafted eval cases for invigilator accuracy testing (Layer 1).
  *
- * All cases use the homicide-stairwell template with seed 'eval-stairwell'.
+ * All cases use the homicide-stairwell template (pinned via templateId) with
+ * seed 'eval-stairwell'. Without the explicit templateId the seed's RNG picks
+ * a different template from the pool, so every case must carry it.
  * Each case provides a hand-written suspect dialogue with planted signals
  * and the expected invigilator findings a human would judge.
  *
@@ -19,6 +21,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'guilty_knowledge',
     description: 'Suspect mentions the bottle ending up in the canal — only the killer knows this',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 5,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a brief friendly chat around the start of the time window.', turn: 1, checkable: true },
@@ -42,6 +45,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'guilty_knowledge',
     description: 'Suspect references leaving through the bin store — an unusual route only the killer used',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 4,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a brief friendly chat.', turn: 1, checkable: true },
@@ -63,6 +67,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'guilty_knowledge',
     description: 'Suspect references body being at the bottom of the stairs before this was disclosed',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 2,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim briefly and left early.', turn: 1, checkable: true },
@@ -83,6 +88,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'guilty_knowledge',
     description: 'Suspect identifies the weapon as a bottle before the detective mentioned it',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 3,
     priorClaims: [
       { id: 'c1', text: 'The suspect had a friendly visit and left before half past.', turn: 1, checkable: true },
@@ -107,6 +113,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'contradiction',
     description: 'Suspect previously said they left before half past, now says they stayed until quarter to',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 3,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a brief friendly chat.', turn: 1, checkable: true },
@@ -129,6 +136,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'contradiction',
     description: 'Suspect said brief visit in turn 1, now says they were there for over an hour',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 4,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for about twenty minutes.', turn: 1, checkable: true },
@@ -152,6 +160,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'contradiction',
     description: 'Suspect claimed to leave via main entrance, now says they went through the ground floor',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 4,
     priorClaims: [
       { id: 'c1', text: 'The suspect left through the main entrance after the visit.', turn: 2, checkable: true },
@@ -173,6 +182,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'contradiction',
     description: 'Suspect said they hadn\'t discussed money, now admits they argued about the debt',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 5,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a friendly chat.', turn: 1, checkable: true },
@@ -198,6 +208,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'evidence_handling',
     description: 'Suspect gives a terrible response to wifi evidence — claims they weren\'t in the building',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 3,
     priorClaims: [
       { id: 'c1', text: 'The suspect was inside the building visiting the victim.', turn: 1, checkable: true },
@@ -219,6 +230,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'evidence_handling',
     description: 'Suspect gives a decent deflection on the debt motive — argues dead debtor is worse',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 4,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim to discuss the debt repayment.', turn: 2, checkable: true },
@@ -239,6 +251,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'evidence_handling',
     description: 'Suspect gives an airtight response to the pathology evidence',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 5,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a friendly chat.', turn: 1, checkable: true },
@@ -262,6 +275,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'demeanor',
     description: 'Suspect becomes visibly nervous when pressed on the exact time they left',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 3,
     priorClaims: [
       { id: 'c1', text: 'The suspect left the building before half past.', turn: 1, checkable: true },
@@ -282,6 +296,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'demeanor',
     description: 'Suspect stays calm and measured under a routine question — no shift expected',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 1,
     priorClaims: [],
     presentedEvidenceIds: [],
@@ -303,6 +318,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'clean',
     description: 'Suspect handles a tough question well — no signals should fire',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 2,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for about twenty minutes.', turn: 1, checkable: true },
@@ -324,6 +340,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'clean',
     description: 'Suspect expresses genuine-sounding grief — should not be flagged as suspicious',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 2,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a brief chat.', turn: 1, checkable: true },
@@ -344,6 +361,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'clean',
     description: 'Suspect asks why they\'re being treated as a suspect — standard deflection, no signal',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 3,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim briefly.', turn: 1, checkable: true },
@@ -365,6 +383,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'clean',
     description: 'Suspect gives a vague answer that doesn\'t contradict anything or leak knowledge',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 4,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for about twenty minutes.', turn: 1, checkable: true },
@@ -387,6 +406,7 @@ export const EVAL_CASES: EvalCase[] = [
     category: 'clean',
     description: 'Suspect redirects conversation to the victim\'s lifestyle — clean misdirection',
     seed: 'eval-stairwell',
+    templateId: 'homicide-stairwell',
     turnNumber: 3,
     priorClaims: [
       { id: 'c1', text: 'The suspect visited the victim for a brief chat.', turn: 1, checkable: true },
