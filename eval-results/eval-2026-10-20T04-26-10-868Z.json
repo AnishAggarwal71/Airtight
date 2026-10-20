@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-10-20T04:26:10.861Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 0,
+    "passed": 0,
+    "precision": 0,
+    "recall": 0,
+    "results": []
+  },
+  "layer2": {
+    "gamesRequested": 3,
+    "gamesCompleted": 3,
+    "gamesAbandoned": 0,
+    "endingDistribution": {
+      "CHARGED_STRONG": 3
+    },
+    "caseStrength": {
+      "mean": 91,
+      "median": 89,
+      "min": 83,
+      "max": 100
+    },
+    "signalFrequency": {
+      "contradictions/game": 3,
+      "guiltyKnowledgeLeaks/game": 0,
+      "demeanorShifts/game": 1.67,
+      "witnessContradictions/game": 0
+    },
+    "games": [
+      {
+        "seed": "eval-game-0-1792470248994",
+        "completed": true,
+        "finalCaseStrength": 83,
+        "ending": "CHARGED_STRONG",
+        "turns": 6,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          23,
+          8,
+          23,
+          3,
+          11
+        ],
+        "tokenUsage": {
+          "inputTokens": 27595,
+          "outputTokens": 3274
+        }
+      },
+      {
+        "seed": "eval-game-1-1792470300615",
+        "completed": true,
+        "finalCaseStrength": 100,
+        "ending": "CHARGED_STRONG",
+        "turns": 5,
+        "signalCounts": {
+          "contradictions": 4,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 3,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          31,
+          26,
+          55
+        ],
+        "tokenUsage": {
+          "inputTokens": 22108,
+          "outputTokens": 2656
+        }
+      },
+      {
+        "seed": "eval-game-2-1792470343624",
+        "completed": true,
+        "finalCaseStrength": 89,
+        "ending": "CHARGED_STRONG",
+        "turns": 3,
+        "signalCounts": {
+          "contradictions": 3,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          20,
+          3,
+          51
+        ],
+        "tokenUsage": {
+          "inputTokens": 12932,
+          "outputTokens": 1863
+        }
+      }
+    ]
+  }
+}
