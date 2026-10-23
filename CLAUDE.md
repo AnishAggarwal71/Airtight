@@ -247,7 +247,8 @@ src/cli/
   play.ts               Interactive terminal game: murder only, briefing → interrogation →
                           witness → verdict → post-game breakdown with per-turn invigilator
                           analysis (reasoning, signals, evidence quality, claim contradictions)
-  verify.ts             Determinism, leak-safety, template integrity, coverage, variance
+  verify.ts             Determinism, leak-safety, template integrity, coverage, variance,
+                          seed-never-leaves-the-server (#8), session store (#9)
                           (homicide only in active checks)
   inspect.ts            Dump a full case file, or --public for exactly what the player sees
                           (homicide only)
@@ -346,9 +347,14 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   run `src/server/index.ts`, which binds a port. `vercel dev` uses
   `src/index.ts`. Vercel has no persistent disk or shared memory, so the
   hardening work (sessions, spend caps, rate limits, transcripts → Upstash
-  Redis) is tracked in the 2026-10-23 decision entry; until those steps land
-  the in-memory server state is NOT safe to deploy. `ANTHROPIC_API_KEY` is a
-  server-side-only env var, never shipped to the client.
+  Redis) is tracked in the 2026-10-23 decision entry. **Done so far:** step 1
+  (seed never sent to clients) and step 2 (sessions live in the shared
+  `Store`, `src/server/store.ts`: Upstash Redis when `UPSTASH_REDIS_REST_URL`
+  + `_TOKEN` — or the Marketplace names `KV_REST_API_URL` + `_TOKEN` — are
+  set, `MemoryStore` locally, boot error on Vercel with no credentials).
+  **Still in-memory and NOT safe to deploy until steps 3-4 land:** the spend
+  counters in `budget.ts` and (step 9) file transcripts. `ANTHROPIC_API_KEY`
+  is a server-side-only env var, never shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.
   `/var/data/playtest-logs`) in production. Every persistent-disk host
@@ -364,8 +370,12 @@ $5.00/1M output) if the cost figure needs re-verifying later.
 
 Carried over from V1 where still applicable, V3-specific ones added:
 
-- **No database.** CLI process holds the seed; state is regenerated from it.
-  Nothing to persist, nothing to leak.
+- **No game database.** The case is a pure function of the seed (CLI holds
+  it in memory). The web server stores per-session state — the full
+  `GameSession` including the `CaseFile` snapshot — as a JSON blob in Upstash
+  Redis (`sess:<uuid>`, 1h TTL refreshed on each completed turn; see
+  `src/server/sessions.ts`), because serverless instances share no memory.
+  Each request loads a private copy, mutates it, and saves only on success.
 - **Post-game breakdown costs zero model calls.** Everything needed is
   already in session state: truth timeline, full annotated claim ledgers
   (with invigilator contradiction tags), which evidence was presented and the

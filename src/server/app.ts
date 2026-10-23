@@ -9,13 +9,23 @@ import path from 'node:path'
 import { gameRouter } from './routes/game'
 import { ApiError } from './errors'
 import { assertSeedConfig } from './seed'
+import { createStore, type Store } from './store'
 
 const PUBLIC_DIR = path.join(import.meta.dirname, '../../public')
 
-export function createApp(): Express {
-  // Fail fast on a misconfigured Vercel deploy (missing SESSION_SECRET).
+export type AppOptions = {
+  /** Shared-state backend. Defaults to createStore() (Upstash from env, MemoryStore locally). */
+  store?: Store
+}
+
+export function createApp(options: AppOptions = {}): Express {
+  // Fail fast on a misconfigured Vercel deploy (missing SESSION_SECRET / Redis).
   assertSeedConfig()
   const app = express()
+
+  // Routes reach the store through app.locals (see storeOf in routes/game.ts)
+  // so the router stays a module-level constant while tests inject their own.
+  app.locals.store = options.store ?? createStore()
 
   app.use(express.json({ limit: '32kb' }))
   app.use(express.static(PUBLIC_DIR))

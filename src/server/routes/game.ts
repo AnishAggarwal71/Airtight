@@ -4,7 +4,7 @@
  * orchestration layer (src/engine/session.ts) — no game logic lives here.
  */
 
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import { toPublicCase } from '../../engine/generate'
 import {
   createSession,
@@ -18,7 +18,8 @@ import type { GameSession, TokenUsage } from '../../engine/types'
 import { buildBreakdown, buildTranscript } from '../breakdown'
 import { checkBudget, estimateCostUsd, recordSpend } from '../budget'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
-import { getSession, getTranscriptPath, createSessionId, putSession } from '../sessions'
+import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
+import type { Store } from '../store'
 import { chooseSeed } from '../seed'
 import {
   appendTranscriptExchange,
@@ -82,10 +83,16 @@ function incrementalCostUsd(before: TokenUsage, after: TokenUsage): number {
 
 export const gameRouter = Router()
 
-function requireSession(sessionId: string): GameSession {
-  const session = getSession(sessionId)
-  if (!session) throw notFoundSession(sessionId)
-  return session
+/** The shared-state store injected by createApp() (see app.ts). */
+function storeOf(req: Request): Store {
+  return req.app.locals.store as Store
+}
+
+/** Loads a session record from the store or throws a 404. The returned object is a private copy. */
+async function requireSession(req: Request, sessionId: string): Promise<StoredSession> {
+  const stored = await getSession(storeOf(req), sessionId)
+  if (!stored) throw notFoundSession(sessionId)
+  return stored
 }
 
 /**
@@ -151,7 +158,7 @@ gameRouter.post(
 
     const sessionId = createSessionId()
     const transcriptPath = await createTranscriptLog(seed, 'homicide', sessionId)
-    putSession(sessionId, session, transcriptPath)
+    await putSession(storeOf(req), sessionId, session, transcriptPath)
 
     // Server-side only: the one place the derived seed is recorded, so a
     // case can be replayed with `npm run case <seed> homicide`. It must never
@@ -182,7 +189,7 @@ gameRouter.post(
 gameRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    const session = requireSession(req.params.id)
+    const { session } = await requireSession(req, req.params.id)
     res.json({
       publicCase: toPublicCase(session.caseFile),
       phase: session.phase,
@@ -205,7 +212,8 @@ gameRouter.post(
   '/:id/interrogate',
   asyncHandler(async (req, res) => {
     const sessionId = req.params.id
-    const session = requireSession(sessionId)
+    const stored = await requireSession(req, sessionId)
+    const { session } = stored
     const body = (req.body ?? {}) as Record<string, unknown>
     const input = validateQuestionInput(body.input, 'input')
 
@@ -217,7 +225,7 @@ gameRouter.post(
     }
     checkBudget(session)
 
-    const transcriptPath = getTranscriptPath(sessionId)
+    const transcriptPath = stored.transcriptPath || undefined
     const turn = session.interrogationTurn + 1
     const parsedInput = parsePlayerInput(input, session.caseFile.evidence)
     if (transcriptPath) {
@@ -259,6 +267,9 @@ gameRouter.post(
       throw err
     }
     recordSpend(incrementalCostUsd(usageBefore, session.usage))
+    // Persist only after the turn succeeded: a thrown persona call skips this,
+    // so the stored session keeps the pre-turn counters and evidence flags.
+    await saveSession(storeOf(req), sessionId, stored)
 
     if (transcriptPath) {
       await appendTranscriptExchange(transcriptPath, {
@@ -304,7 +315,8 @@ gameRouter.post(
   '/:id/witness',
   asyncHandler(async (req, res) => {
     const sessionId = req.params.id
-    const session = requireSession(sessionId)
+    const stored = await requireSession(req, sessionId)
+    const { session } = stored
     const body = (req.body ?? {}) as Record<string, unknown>
     const question = validateQuestionInput(body.question, 'question')
 
@@ -320,7 +332,7 @@ gameRouter.post(
     }
     checkBudget(session)
 
-    const transcriptPath = getTranscriptPath(sessionId)
+    const transcriptPath = stored.transcriptPath || undefined
     const turn = session.witnessTurn + 1
     if (transcriptPath) {
       await appendTranscriptTurnStarted(transcriptPath, {
@@ -355,6 +367,7 @@ gameRouter.post(
       throw err
     }
     recordSpend(incrementalCostUsd(usageBefore, session.usage))
+    await saveSession(storeOf(req), sessionId, stored)
 
     if (transcriptPath) {
       await appendTranscriptExchange(transcriptPath, {
@@ -392,7 +405,7 @@ gameRouter.post(
 gameRouter.get(
   '/:id/breakdown',
   asyncHandler(async (req, res) => {
-    const session = requireSession(req.params.id)
+    const { session } = await requireSession(req, req.params.id)
     if (!session.ending) {
       throw conflict('The breakdown is only available after the case is resolved.')
     }

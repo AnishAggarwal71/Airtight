@@ -32,6 +32,8 @@ import type { CrimeType, InvigilatorSuspectResponse, InvigilatorWitnessResponse 
 import { deriveSuspectVerdictType, deriveWitnessVerdictType, deriveVerdictReason } from '../server/verdict'
 import { createApp } from '../server/app'
 import { assertSeedConfig, chooseSeed, deriveSeed } from '../server/seed'
+import { MemoryStore, createStore, type Store } from '../server/store'
+import { getSession, saveSession, SESSION_TTL_SECONDS } from '../server/sessions'
 import { buildBreakdown } from '../server/breakdown'
 import { mkdtemp } from 'node:fs/promises'
 import os from 'node:os'
@@ -593,6 +595,189 @@ await (async () => {
   } finally {
     restore()
     server?.close()
+  }
+})()
+
+// 9. Session persistence over the Store. Sessions must live in the shared
+// store (Redis in production), not in process memory: two separate app
+// instances sharing one store must see the same session (the serverless
+// case), saved changes must round-trip, TTL expiry must read as "not found",
+// and a failing store must surface a generic 503 that leaks nothing. Uses
+// MemoryStore behind the same interface as Upstash, so this proves the
+// protocol, not Redis itself. No API key or model call.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const savedErr = console.error
+  const errLines: string[] = []
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+
+    // MemoryStore semantics: JSON copy on write and read, TTL via injected clock.
+    let clock = 1_000_000
+    const mem = new MemoryStore(() => clock)
+    const original = { n: 1, nested: { a: [1, 2] } }
+    await mem.setJson('k', original, 10)
+    original.nested.a.push(3)
+    const read1 = (await mem.getJson('k')) as typeof original
+    if (read1.nested.a.length !== 2) {
+      fail('MemoryStore stored a live reference; it must snapshot as JSON like Redis does')
+      return
+    }
+    read1.n = 99
+    if (((await mem.getJson('k')) as typeof original).n !== 1) {
+      fail('MemoryStore returned a shared object; reads must be private copies')
+      return
+    }
+    clock += 9_999
+    if ((await mem.getJson('k')) === null) {
+      fail('MemoryStore expired a key before its TTL')
+      return
+    }
+    clock += 2
+    if ((await mem.getJson('k')) !== null) {
+      fail('MemoryStore returned a key after its TTL')
+      return
+    }
+
+    // Two app instances, one shared store (what two Vercel function instances look like).
+    const shared = new MemoryStore(() => clock)
+    const appA = createApp({ store: shared })
+    const appB = createApp({ store: shared })
+    const sA = appA.listen(0)
+    const sB = appB.listen(0)
+    servers.push(sA, sB)
+    const urlA = `http://127.0.0.1:${(sA.address() as { port: number }).port}`
+    const urlB = `http://127.0.0.1:${(sB.address() as { port: number }).port}`
+
+    const created = await fetch(`${urlA}/api/game`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    if (created.status !== 201) {
+      fail(`session persistence check: create returned ${created.status}`)
+      return
+    }
+    const { sessionId, publicCase } = (await created.json()) as { sessionId: string; publicCase: { caseNumber: string } }
+
+    const viaB = await fetch(`${urlB}/api/game/${sessionId}`)
+    const viaBBody = (await viaB.json()) as { publicCase?: { caseNumber: string } }
+    if (viaB.status !== 200 || viaBBody.publicCase?.caseNumber !== publicCase.caseNumber) {
+      fail('a session created on one app instance was not readable from another sharing the store')
+      return
+    }
+
+    // saveSession round-trip: mutate the private copy, nothing persists until saved.
+    const loaded = await getSession(shared, sessionId)
+    if (!loaded) {
+      fail('getSession() could not load a freshly created session')
+      return
+    }
+    loaded.session.caseStrength = 42
+    const stillOld = await getSession(shared, sessionId)
+    if (stillOld?.session.caseStrength === 42) {
+      fail('mutating a loaded session changed the stored one before saveSession()')
+      return
+    }
+    await saveSession(shared, sessionId, loaded)
+    if ((await getSession(shared, sessionId))?.session.caseStrength !== 42) {
+      fail('saveSession() did not persist the change')
+      return
+    }
+
+    // Malformed and unknown ids read as 404 and never reach the store.
+    let storeTouched = false
+    const spy: Store = {
+      getJson: async () => {
+        storeTouched = true
+        return null
+      },
+      setJson: async () => {},
+      del: async () => {},
+    }
+    if ((await getSession(spy, '../../etc/passwd')) !== undefined || storeTouched) {
+      fail('a malformed session id reached the store (must be rejected by the id pattern first)')
+      return
+    }
+    const unknown = await fetch(`${urlA}/api/game/00000000-0000-4000-8000-000000000000`)
+    if (unknown.status !== 404) {
+      fail(`unknown session id returned ${unknown.status}, want 404`)
+      return
+    }
+
+    // TTL: an idle session expires and reads as not found.
+    clock += SESSION_TTL_SECONDS * 1000 + 1
+    const expired = await fetch(`${urlB}/api/game/${sessionId}`)
+    if (expired.status !== 404) {
+      fail(`an expired session returned ${expired.status}, want 404`)
+      return
+    }
+
+    // Store outage: generic 503, backend detail only in the server log.
+    const MARKER = 'SECRET-REDIS-URL-https://leak.example/token=abc123'
+    const broken: Store = {
+      getJson: async () => {
+        throw new Error(MARKER)
+      },
+      setJson: async () => {
+        throw new Error(MARKER)
+      },
+      del: async () => {},
+    }
+    console.error = (...args: unknown[]) => {
+      errLines.push(args.map(String).join(' '))
+    }
+    const sBroken = createApp({ store: broken }).listen(0)
+    servers.push(sBroken)
+    const urlBroken = `http://127.0.0.1:${(sBroken.address() as { port: number }).port}`
+    const down1 = await fetch(`${urlBroken}/api/game`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    const down2 = await fetch(`${urlBroken}/api/game/00000000-0000-4000-8000-000000000000`)
+    const downText = (await down1.text()) + (await down2.text())
+    console.error = savedErr
+    if (down1.status !== 503 || down2.status !== 503) {
+      fail(`store outage returned ${down1.status}/${down2.status}, want 503/503`)
+      return
+    }
+    if (downText.includes(MARKER) || downText.includes('leak.example')) {
+      fail('a store failure leaked backend detail into the HTTP response')
+      return
+    }
+    if (!errLines.some((l) => l.includes(MARKER))) {
+      fail('a store failure was not logged server-side (needed to diagnose outages)')
+      return
+    }
+
+    // Boot guard: Vercel without Redis credentials must refuse to start.
+    let bootRefused = false
+    try {
+      createStore({ VERCEL: '1' } as NodeJS.ProcessEnv)
+    } catch {
+      bootRefused = true
+    }
+    if (!bootRefused) {
+      fail('createStore() must throw on Vercel when Redis credentials are missing')
+      return
+    }
+    if (!(createStore({} as NodeJS.ProcessEnv) instanceof MemoryStore)) {
+      fail('createStore() without credentials must fall back to MemoryStore locally')
+      return
+    }
+
+    pass('sessions persist in the shared store across app instances; TTL expiry, id validation, and store-outage 503 (no leak) hold')
+  } catch (err) {
+    fail(`session persistence check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.error = savedErr
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const s of servers) s.close()
   }
 })()
 

@@ -53,6 +53,23 @@ the transcript file header still contains the seed (`transcript.ts`), which
 is server-side only today; step 9 moves transcripts to Redis, and the seed
 there is acceptable because it never reaches a response.
 
+**Step 2 notes (sessions in Redis):** new `src/server/store.ts` (`Store`
+interface: `getJson`/`setJson`+TTL/`del`; `MemoryStore` with injectable clock;
+`createStore()` picks Upstash from `UPSTASH_REDIS_REST_*` or `KV_REST_API_*`,
+MemoryStore locally, throws on Vercel with no credentials). The Upstash
+client is in `upstash-store.ts`, loaded lazily so local dev/verify never need
+the package. `sessions.ts` is now async: stored envelope
+`{v, session, transcriptPath, createdAt}` at `sess:<uuid>`, 1h TTL refreshed
+on each save; malformed ids are rejected before touching the store; a Redis
+failure becomes a generic 503 (`STORE_UNAVAILABLE`) with the cause logged
+server-side only. The in-memory `Map` and `setInterval` sweeper are gone. The
+whole `GameSession` (CaseFile snapshot included) is stored, not just the
+seed, so a template-code deploy can't change a case mid-game. The 404 message
+no longer says "the server restarted". Known and accepted until step 4: the
+route does load, then run, then save, so concurrent requests on one session
+can lose an update; step 4 adds the lock and versioned save. `@upstash/redis`
+added to `package.json` only; the lockfile was not touched.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

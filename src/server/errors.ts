@@ -21,8 +21,13 @@ export function notFoundSession(sessionId: string): ApiError {
   return new ApiError(
     404,
     'SESSION_NOT_FOUND',
-    `No session found for id "${sessionId}". It may have expired or the server restarted.`,
+    `No session found for id "${sessionId}". It may have expired.`,
   )
+}
+
+/** Shared-state backend (Redis) failed. Generic on purpose — the cause is logged, never sent. */
+export function storeUnavailable(): ApiError {
+  return new ApiError(503, 'STORE_UNAVAILABLE', 'The game service is temporarily unavailable. Please try again in a moment.')
 }
 
 export function badRequest(message: string): ApiError {
