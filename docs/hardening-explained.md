@@ -63,9 +63,14 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **Why:** The spend cap protects the money, but one script could still use up the whole day's budget in minutes and lock out every real player. Rate limits stop one person doing that.
 - **How:** A new `ratelimit.ts` counts requests per IP in Redis (the `@upstash/ratelimit` library, "sliding window", so there is no reset-at-the-top-of-the-hour loophole). It runs FIRST on every route, so a throttled request costs nothing: no lock, no spend, no model call. Which IP? On Vercel we trust Vercel's own `x-vercel-forwarded-for` header, which a visitor cannot fake. On your laptop we use the connection's real address and ignore forwarding headers, because there anyone can fake them. IPv6 visitors are grouped by their /64 block, since one home gets billions of addresses. If the limiter's Redis is down we let the request through (the spend cap and turn limits still protect us).
 
-## Steps 7-10 (planned)
+## Step 7: Timeouts
 
-- **7 Timeouts:** a stuck model call can't hang a request for ever.
+- **What:** A model call that goes quiet is cut off. The suspect or witness gets 25 seconds to answer, the judge (invigilator) gets 15 seconds per try, and the whole turn gets 50 seconds in total. If the suspect times out you see "The suspect took too long to answer. Your turn was not used, so please try again."
+- **Why:** Without a clock, one stuck call would hold your game's lock and a server slot until the platform killed the function (60 seconds), and you would just see a spinner. Now it ends quickly, cleanly, and costs you nothing.
+- **How:** The server starts one 50-second stopwatch when a turn begins and hands it to every model call; each call also gets its own shorter stopwatch. The first to ring cancels the call. A suspect timeout counts as a failed turn (same as Step 5: nothing is saved, no turn or evidence is lost). A judge timeout falls back to the existing "turn counts, no score change" behaviour, and once the 50 seconds are up the judge is not retried. The 50 seconds is deliberately below the 60-second function limit and the 70-second lock, so a lock can never run out while a turn is still going. No prompts or scoring changed.
+
+## Steps 8-10 (planned)
+
 - **8 Error handling and logging:** players see friendly messages, we log details privately.
 - **9 Transcripts to Redis:** playtest logs saved safely (14 days), with a notice in the UI.
 - **10 Repo hygiene:** keep secrets and logs out of git.

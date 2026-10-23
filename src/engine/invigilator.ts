@@ -11,6 +11,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { getModel } from './adjudicate'
+import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts'
 import { serializeLedger } from './ledger'
 import type {
   CaseFile,
@@ -221,9 +222,14 @@ const MAX_INVIGILATOR_RETRIES = 2
 /**
  * Evaluate one suspect interrogation turn. The invigilator sees the full
  * context and returns structured signals for the scoring engine.
+ *
+ * `opts` (optional): each attempt is capped at `invigilatorAttemptMs`, and the
+ * request-wide abort signal also stops further retries (an aborted deadline
+ * means every remaining attempt would fail instantly anyway).
  */
 export async function evaluateSuspectTurn(
   input: EvaluateSuspectInput,
+  opts: TurnCallOptions = {},
 ): Promise<EvaluateSuspectResult> {
   const systemPrompt = buildInvigilatorSystemPrompt(input.caseFile)
   const userMessage = buildSuspectEvalMessage(input)
@@ -237,6 +243,7 @@ export async function evaluateSuspectTurn(
         system: systemPrompt,
         prompt: userMessage,
         maxOutputTokens: 1024,
+        abortSignal: capSignal(opts.abortSignal, resolveTimeouts(opts.timeouts).invigilatorAttemptMs),
       })
 
       const usage: TokenUsage = {
@@ -249,6 +256,7 @@ export async function evaluateSuspectTurn(
       return { response: result.object as InvigilatorSuspectResponse, usage }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
+      if (opts.abortSignal?.aborted) break // request deadline hit: more attempts cannot succeed
       if (attempt < MAX_INVIGILATOR_RETRIES) continue
     }
   }
@@ -301,10 +309,11 @@ export type EvaluateWitnessResult = {
 
 /**
  * Evaluate one witness interrogation turn. Checks whether the witness's
- * testimony contradicts any suspect claim.
+ * testimony contradicts any suspect claim. `opts` works as in evaluateSuspectTurn.
  */
 export async function evaluateWitnessTurn(
   input: EvaluateWitnessInput,
+  opts: TurnCallOptions = {},
 ): Promise<EvaluateWitnessResult> {
   const systemPrompt = buildInvigilatorSystemPrompt(input.caseFile)
   const userMessage = buildWitnessEvalMessage(input)
@@ -318,6 +327,7 @@ export async function evaluateWitnessTurn(
         system: systemPrompt,
         prompt: userMessage,
         maxOutputTokens: 512,
+        abortSignal: capSignal(opts.abortSignal, resolveTimeouts(opts.timeouts).invigilatorAttemptMs),
       })
 
       const usage: TokenUsage = {
@@ -330,6 +340,7 @@ export async function evaluateWitnessTurn(
       return { response: result.object as InvigilatorWitnessResponse, usage }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
+      if (opts.abortSignal?.aborted) break // request deadline hit: more attempts cannot succeed
       if (attempt < MAX_INVIGILATOR_RETRIES) continue
     }
   }

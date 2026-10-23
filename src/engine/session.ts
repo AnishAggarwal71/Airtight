@@ -31,6 +31,7 @@ import {
   type EvaluateWitnessInput,
 } from './invigilator'
 import { addClaims } from './ledger'
+import type { TurnCallOptions } from './timeouts'
 import {
   scoreSuspectTurn,
   scoreWitnessTurn,
@@ -128,11 +129,16 @@ export type PlayInterrogationResult = {
  *
  * If the invigilator fails after retries, the turn is zero-delta (dialogue
  * shown, claims in ledger, no score change).
+ *
+ * `callOpts` (optional) carries the request deadline signal and timeout
+ * overrides down to the model calls (see timeouts.ts). A persona timeout throws
+ * like any persona failure; an invigilator timeout is the zero-delta path.
  */
 export async function playInterrogationTurn(
   session: GameSession,
   rawPlayerInput: string,
   config: ScoringConfig = SCORING_CONFIG,
+  callOpts: TurnCallOptions = {},
 ): Promise<PlayInterrogationResult> {
   // Suspect questioning can resume after a mid-game witness interruption, so
   // only 'verdict' (ending resolved) is left alone — any other phase reverts
@@ -163,7 +169,7 @@ export async function playInterrogationTurn(
     suspectClaims: session.suspectClaims,
   }
 
-  const { response: suspectResponse, usage: suspectUsage } = await interrogateSuspect(suspectInput)
+  const { response: suspectResponse, usage: suspectUsage } = await interrogateSuspect(suspectInput, callOpts)
   accumulateUsage(session.usage, suspectUsage)
 
   // Update claim ledger with suspect's new claims
@@ -194,7 +200,7 @@ export async function playInterrogationTurn(
       previousDemeanor,
     }
 
-    const { response: evalResponse, usage: evalUsage } = await evaluateSuspectTurn(evalInput)
+    const { response: evalResponse, usage: evalUsage } = await evaluateSuspectTurn(evalInput, callOpts)
     accumulateUsage(session.usage, evalUsage)
     invigilatorResponse = evalResponse
   } catch {
@@ -300,6 +306,7 @@ export async function playWitnessTurn(
   session: GameSession,
   playerQuestion: string,
   config: ScoringConfig = SCORING_CONFIG,
+  callOpts: TurnCallOptions = {},
 ): Promise<PlayWitnessResult> {
   if (session.witnessTurn === 0) session.witnessUsed = true
   session.phase = 'witness'
@@ -318,7 +325,7 @@ export async function playWitnessTurn(
     witnessClaims: session.witnessClaims,
   }
 
-  const { response: witnessResponse, usage: witnessUsage } = await interrogateWitness(witnessInput)
+  const { response: witnessResponse, usage: witnessUsage } = await interrogateWitness(witnessInput, callOpts)
   accumulateUsage(session.usage, witnessUsage)
 
   // Update witness claim ledger
@@ -344,7 +351,7 @@ export async function playWitnessTurn(
       witnessClaims: session.witnessClaims,
     }
 
-    const { response: evalResponse, usage: evalUsage } = await evaluateWitnessTurn(evalInput)
+    const { response: evalResponse, usage: evalUsage } = await evaluateWitnessTurn(evalInput, callOpts)
     accumulateUsage(session.usage, evalUsage)
     invigilatorResponse = evalResponse
   } catch {

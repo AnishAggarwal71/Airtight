@@ -13,6 +13,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { getModel } from './adjudicate'
+import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts'
 import type {
   CaseFile,
   Claim,
@@ -123,10 +124,12 @@ export type InterrogateWitnessResult = {
 /**
  * Make one witness interrogation call. Returns the structured response and
  * token usage. Model errors are surfaced so a failed request cannot masquerade
- * as an in-character response.
+ * as an in-character response. `opts` works as in interrogateSuspect (persona
+ * time cap + request-wide abort signal).
  */
 export async function interrogateWitness(
   input: InterrogateWitnessInput,
+  opts: TurnCallOptions = {},
 ): Promise<InterrogateWitnessResult> {
   const systemPrompt = buildWitnessSystemPrompt(input.caseFile)
   const userMessage = buildWitnessUserMessage(input)
@@ -138,6 +141,7 @@ export async function interrogateWitness(
       system: systemPrompt,
       prompt: userMessage,
       maxOutputTokens: 1024,
+      abortSignal: capSignal(opts.abortSignal, resolveTimeouts(opts.timeouts).personaMs),
     })
 
     const usage: TokenUsage = {
@@ -150,6 +154,6 @@ export async function interrogateWitness(
     return { response: result.object as WitnessResponse, usage }
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
-    throw new Error(`Witness model request failed: ${detail}`)
+    throw new Error(`Witness model request failed: ${detail}`, { cause: err })
   }
 }

@@ -188,6 +188,27 @@ that). `package.json` gained `@upstash/ratelimit`; the lockfile is NOT updated
 here (no installs on the build machine), so run `npm install` once on a machine
 with registry access and commit the lockfile before deploying.
 
+**Step 7 notes (timeouts):** `src/engine/timeouts.ts`. Three layers: one
+request-wide deadline (50s, a single `AbortSignal.timeout` made in the route at
+turn start), a 25s cap on the persona call, and a 15s cap on EACH invigilator
+attempt (3 attempts), combined with `AbortSignal.any`. 50s sits under the 60s
+function cap and the 70s lock TTL, so a lock cannot expire under a running turn.
+Worst case before: persona 25s + invigilator 3x15s = 70s, so the deadline is what
+actually bounds the turn; it also breaks the invigilator retry loop once
+aborted (further attempts would fail instantly). The signal is an optional
+`callOpts` parameter added to `playInterrogationTurn`/`playWitnessTurn`, the
+four `generateObject` call sites and `interrogate*`/`evaluate*`; omitted, they
+behave exactly as before (CLI and eval unchanged). Outcomes: persona timeout =
+failed turn (step 5 path: nothing saved, 504 `MODEL_TIMEOUT` with a friendly
+"your turn was not used" message, small fixed charge settled); invigilator
+timeout = existing zero-delta turn (full reservation charged). `isAbortError`
+walks the `cause` chain because the persona wrappers re-throw as a new `Error`
+(they now pass `{cause}`). The `ai` SDK's own `maxRetries` (default 2) runs
+INSIDE the persona cap, so retries cannot extend it. Open assumption:
+`vercel.json` has no `maxDuration` (removed in `ba62268`); with the platform
+default below 50s the platform would kill the function first. Restore
+`"functions": {"src/index.ts": {"maxDuration": 60}}` or confirm the plan default.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

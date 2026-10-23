@@ -5,6 +5,7 @@
  */
 
 import type { NextFunction, Request, Response } from 'express'
+import { isAbortError } from '../engine/timeouts'
 
 export class ApiError extends Error {
   status: number
@@ -50,6 +51,15 @@ export function budgetExceeded(message: string): ApiError {
  * safe to show the player as-is.
  */
 export function upstreamModelError(err: unknown): ApiError {
+  // A call we gave up on (timeout / request deadline) is not a provider fault:
+  // say so, and tell the player the turn was not used (nothing was saved).
+  if (isAbortError(err)) {
+    return new ApiError(
+      504,
+      'MODEL_TIMEOUT',
+      'The suspect took too long to answer. Your turn was not used, so please try again.',
+    )
+  }
   const message = err instanceof Error ? err.message : String(err)
   return new ApiError(502, 'MODEL_REQUEST_FAILED', message)
 }

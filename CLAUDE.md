@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (13/13 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (14/14 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -269,7 +269,7 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 13 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race, etc.
+npm run verify                        # 14 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -377,8 +377,17 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   40/10min shared by suspect+witness, read 120/min per IP; Upstash sliding
   window on Redis, in-memory locally; fails open; IP from
   `x-vercel-forwarded-for` on Vercel, socket address elsewhere, never client
-  forwarding headers). **Still NOT safe to deploy until steps 7-9 land:**
-  timeouts (7), error/log hygiene (8) and (step 9) file transcripts.
+  forwarding headers). Step 7 (timeouts): `src/engine/timeouts.ts` holds
+  `TURN_TIMEOUTS` (request deadline 50s, persona call 25s, each invigilator
+  attempt 15s); the route makes one `AbortSignal.timeout` per turn and passes it
+  as an optional `callOpts` through `playInterrogationTurn`/`playWitnessTurn`
+  into every `generateObject` `abortSignal`. A persona timeout is a failed turn
+  (504 `MODEL_TIMEOUT`, nothing saved, same as step 5); an invigilator timeout is
+  the existing zero-delta fallback, and an expired deadline stops its retries.
+  The 50s deadline and the 70s lock TTL assume the function is cut off at 60s:
+  keep `maxDuration` at 60 in `vercel.json` (currently absent, so the platform
+  default applies — check it). **Still NOT safe to deploy until steps 8-9 land:**
+  error/log hygiene (8) and (step 9) file transcripts.
   `ANTHROPIC_API_KEY` is a server-side-only env var, never shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.

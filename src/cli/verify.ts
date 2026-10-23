@@ -831,6 +831,8 @@ function installFakeModel() {
     calls: { suspect: 0, witness: 0, invigilator: 0 },
     gate: Promise.resolve() as Promise<void>,
     failKind: null as 'suspect' | 'witness' | 'invigilator' | null,
+    // Calls of this kind never answer; they end only when the SDK aborts them (timeout / deadline).
+    hangKind: null as 'suspect' | 'witness' | 'invigilator' | null,
   }
   setModel(
     new MockLanguageModelV4({
@@ -844,6 +846,15 @@ function installFakeModel() {
               : 'suspect'
         fm.calls[kind]++
         if (kind !== 'invigilator') await fm.gate
+        if (fm.hangKind === kind) {
+          const sig = options.abortSignal
+          await new Promise<void>((_, reject) => {
+            // No signal passed = nothing can cancel this call. Fail after 4s (longer than every cap the check uses) so the check reports it instead of hanging.
+            if (!sig) return void setTimeout(() => reject(new Error('fake model: no abort signal was passed')), 4000)
+            if (sig.aborted) return reject(sig.reason)
+            sig.addEventListener('abort', () => reject(sig.reason), { once: true })
+          })
+        }
         if (fm.failKind === kind) throw new Error('fake model outage')
         const object =
           kind === 'invigilator'
@@ -1652,6 +1663,154 @@ await (async () => {
     pass('rate limits: IP read from the trusted header only (spoofed X-Forwarded-For ignored, IPv6 by /64); sliding window with Retry-After; throttled requests cost nothing (no lock, spend or model call); turn routes share a bucket; limiter outage fails open')
   } catch (err) {
     fail(`rate limit check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.log = origLog
+    console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
+// 14. Timeouts. A hung model call must not hang the request. Proves, with a
+// fake model that never answers and short injected limits: a hung PERSONA call
+// ends within its cap as a 504 MODEL_TIMEOUT, leaves the stored session
+// byte-identical, releases the lock (the retry works) and charges only the small
+// failed-turn amount; a hung INVIGILATOR commits a zero-delta turn after its
+// per-attempt cap (3 attempts); the request-wide deadline cuts the invigilator
+// retries short (1 attempt) and still returns the turn; a timeout error never
+// echoes provider text. MemoryStore, no API key.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    console.log = (...a: unknown[]) => {
+      if (!String(a[0]).startsWith('{"evt"')) origLog(...a)
+    }
+    console.error = () => {}
+    const fm = installFakeModel()
+    const post = (base: string, route: string, body: unknown = {}) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const store = new MemoryStore()
+    const start = (turnTimeouts: { requestMs: number; personaMs: number; invigilatorAttemptMs: number }) => {
+      const srv = createApp({ store, rateLimiter: unlimitedRateLimiter, turnTimeouts }).listen(0)
+      servers.push(srv)
+      return `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    }
+    const newGame = async (base: string) => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
+    const rawOf = async (sid: string) => JSON.stringify(await store.getJson(`sess:${sid}`))
+    const spentOf = async (sid: string) => Number(await store.getJson(`spend:sess:${sid}`)) || 0
+
+    // ── A. Persona cap: hung suspect call -> 504 within the cap, nothing saved ──
+    {
+      const base = start({ requestMs: 5000, personaMs: 200, invigilatorAttemptMs: 5000 })
+      const sid = await newGame(base)
+      const before = await rawOf(sid)
+      fm.hangKind = 'suspect'
+      const t0 = Date.now()
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'PRESENT e1: Explain this.' })
+      const took = Date.now() - t0
+      fm.hangKind = null
+      const body = (await res.json()) as { error?: { code?: string; message?: string } }
+      if (res.status !== 504 || body.error?.code !== 'MODEL_TIMEOUT') {
+        fail(`hung persona call: status ${res.status}, code ${body.error?.code}; want 504 MODEL_TIMEOUT`)
+        return
+      }
+      if (took > 2500) {
+        fail(`hung persona call took ${took}ms with a 200ms cap`)
+        return
+      }
+      if ((await rawOf(sid)) !== before) {
+        fail('a timed-out persona call changed the stored session (must be byte-identical)')
+        return
+      }
+      if ((await spentOf(sid)) !== 3000) {
+        fail(`timed-out turn was charged ${await spentOf(sid)} micro-dollars, want the 3000 failed-turn amount`)
+        return
+      }
+      const retry = await post(base, `/api/game/${sid}/interrogate`, { input: 'PRESENT e1: Explain this.' })
+      if (retry.status !== 200) {
+        fail(`retry after a timeout returned ${retry.status}, want 200 (lock must be released, evidence unspent)`)
+        return
+      }
+    }
+
+    // ── B. Request deadline beats a longer persona cap ──────────────────
+    {
+      const base = start({ requestMs: 200, personaMs: 5000, invigilatorAttemptMs: 5000 })
+      const sid = await newGame(base)
+      fm.hangKind = 'witness'
+      const st = await getSession(store, sid)
+      if (!st) {
+        fail('could not load the session to unlock the witness')
+        return
+      }
+      st.session.caseStrength = 60
+      await saveSession(store, sid, st)
+      const before = await rawOf(sid)
+      const t0 = Date.now()
+      const res = await post(base, `/api/game/${sid}/witness`, { question: 'What did you see?' })
+      const took = Date.now() - t0
+      fm.hangKind = null
+      if (res.status !== 504 || took > 2500 || (await rawOf(sid)) !== before) {
+        fail(`witness past the request deadline: status ${res.status}, ${took}ms, unchanged ${(await rawOf(sid)) === before}; want 504, fast, unchanged`)
+        return
+      }
+    }
+
+    // ── C. Hung invigilator: per-attempt cap, 3 attempts, zero-delta turn ──
+    {
+      const base = start({ requestMs: 5000, personaMs: 5000, invigilatorAttemptMs: 150 })
+      const sid = await newGame(base)
+      fm.calls.invigilator = 0
+      fm.hangKind = 'invigilator'
+      const t0 = Date.now()
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      const took = Date.now() - t0
+      fm.hangKind = null
+      const body = (await res.json()) as { caseStrengthDelta?: number }
+      const st = await getSession(store, sid)
+      if (res.status !== 200 || body.caseStrengthDelta !== 0 || st?.session.interrogationTurn !== 1) {
+        fail(`hung invigilator: status ${res.status}, delta ${body.caseStrengthDelta}, turn ${st?.session.interrogationTurn}; want 200, 0, 1`)
+        return
+      }
+      if (fm.calls.invigilator !== 3 || took > 3500) {
+        fail(`hung invigilator: ${fm.calls.invigilator} attempts in ${took}ms; want 3 attempts, each cut at 150ms`)
+        return
+      }
+    }
+
+    // ── D. Request deadline stops invigilator retries ───────────────────
+    {
+      const base = start({ requestMs: 600, personaMs: 5000, invigilatorAttemptMs: 5000 })
+      const sid = await newGame(base)
+      fm.calls.invigilator = 0
+      fm.hangKind = 'invigilator'
+      const t0 = Date.now()
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      const took = Date.now() - t0
+      fm.hangKind = null
+      const body = (await res.json()) as { caseStrengthDelta?: number }
+      if (res.status !== 200 || body.caseStrengthDelta !== 0 || fm.calls.invigilator !== 1 || took > 3000) {
+        fail(`deadline during invigilator: status ${res.status}, delta ${body.caseStrengthDelta}, ${fm.calls.invigilator} attempts, ${took}ms; want 200, 0, exactly 1 attempt`)
+        return
+      }
+    }
+
+    pass('timeouts: a hung persona call ends at its cap as 504 MODEL_TIMEOUT with the session byte-identical, the lock released and only the small failed-turn charge; the request deadline overrides a longer cap; a hung invigilator is cut per attempt and commits a zero-delta turn; the deadline stops further invigilator retries')
+  } catch (err) {
+    fail(`timeout check threw: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     console.log = origLog
     console.error = origErr

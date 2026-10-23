@@ -26,6 +26,7 @@ import type {
 } from './types'
 export type { SuspectResponse }
 import { serializeLedger } from './ledger'
+import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts'
 import dotenv from 'dotenv'
 
 // Self-load env — see comment in V1 adjudicate.ts. Static imports evaluate
@@ -186,9 +187,15 @@ export type InterrogateSuspectResult = {
  * Make one suspect interrogation call. Returns the structured response and
  * token usage. Model errors are surfaced so a failed request cannot masquerade
  * as an in-character response.
+ *
+ * `opts` (optional) carries the request-wide abort signal and timeout
+ * overrides; the call is capped at `personaMs` and aborts early if the request
+ * deadline fires. A timeout throws like any other failure (original error kept
+ * as `cause`), so the caller treats it as a failed turn.
  */
 export async function interrogateSuspect(
   input: InterrogateSuspectInput,
+  opts: TurnCallOptions = {},
 ): Promise<InterrogateSuspectResult> {
   const systemPrompt = buildSuspectSystemPrompt(input.caseFile)
   const userMessage = buildSuspectUserMessage(input)
@@ -200,6 +207,7 @@ export async function interrogateSuspect(
       system: systemPrompt,
       prompt: userMessage,
       maxOutputTokens: 2048,
+      abortSignal: capSignal(opts.abortSignal, resolveTimeouts(opts.timeouts).personaMs),
     })
 
     const usage: TokenUsage = {
@@ -212,6 +220,6 @@ export async function interrogateSuspect(
     return { response: result.object as SuspectResponse, usage }
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
-    throw new Error(`Suspect model request failed: ${detail}`)
+    throw new Error(`Suspect model request failed: ${detail}`, { cause: err })
   }
 }

@@ -27,6 +27,7 @@ import {
 } from '../budget'
 import { rateLimit } from '../ratelimit'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
+import { resolveTimeouts, type TurnCallOptions, type TurnTimeouts } from '../../engine/timeouts'
 import { withSessionLock } from '../lock'
 import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
 import type { Store } from '../store'
@@ -107,6 +108,16 @@ function storeOf(req: Request): Store {
   return req.app.locals.store as Store
 }
 
+/**
+ * Per-turn model-call limits: one request-wide deadline signal plus the
+ * (possibly test-overridden) per-call caps. Created at the start of the turn
+ * so the deadline covers the persona call AND the invigilator together.
+ */
+function turnCallOptions(req: Request): TurnCallOptions {
+  const timeouts = req.app.locals.turnTimeouts as Partial<TurnTimeouts> | undefined
+  return { abortSignal: AbortSignal.timeout(resolveTimeouts(timeouts).requestMs), timeouts }
+}
+
 /** Loads a session record from the store or throws a 404. The returned object is a private copy. */
 async function requireSession(req: Request, sessionId: string): Promise<StoredSession> {
   const stored = await getSession(storeOf(req), sessionId)
@@ -130,9 +141,10 @@ async function requireSession(req: Request, sessionId: string): Promise<StoredSe
 async function playInterrogationTurnSafely(
   session: GameSession,
   input: string,
+  callOpts: TurnCallOptions,
 ): Promise<PlayInterrogationResult> {
   try {
-    return await playInterrogationTurn(session, input)
+    return await playInterrogationTurn(session, input, undefined, callOpts)
   } catch (err) {
     throw upstreamModelError(err)
   }
@@ -142,9 +154,10 @@ async function playInterrogationTurnSafely(
 async function playWitnessTurnSafely(
   session: GameSession,
   question: string,
+  callOpts: TurnCallOptions,
 ): Promise<PlayWitnessResult> {
   try {
-    return await playWitnessTurn(session, question)
+    return await playWitnessTurn(session, question, undefined, callOpts)
   } catch (err) {
     throw upstreamModelError(err)
   }
@@ -236,6 +249,7 @@ gameRouter.get(
  * client can see the response.
  */
 async function runInterrogationTurn(req: Request, sessionId: string, input: string) {
+    const callOpts = turnCallOptions(req)
     const stored = await requireSession(req, sessionId)
     const { session } = stored
 
@@ -272,7 +286,7 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
     const usageBefore = snapshotUsage(session.usage)
     let result: PlayInterrogationResult
     try {
-      result = await playInterrogationTurnSafely(session, input)
+      result = await playInterrogationTurnSafely(session, input, callOpts)
     } catch (err) {
       await settleFailedTurn(storeOf(req), reservation)
       if (transcriptPath) {
@@ -355,6 +369,7 @@ gameRouter.post(
 
 /** One witness turn, run under the session lock; same contract as runInterrogationTurn. */
 async function runWitnessTurn(req: Request, sessionId: string, question: string) {
+    const callOpts = turnCallOptions(req)
     const stored = await requireSession(req, sessionId)
     const { session } = stored
 
@@ -386,7 +401,7 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
     const usageBefore = snapshotUsage(session.usage)
     let result: PlayWitnessResult
     try {
-      result = await playWitnessTurnSafely(session, question)
+      result = await playWitnessTurnSafely(session, question, callOpts)
     } catch (err) {
       await settleFailedTurn(storeOf(req), reservation)
       if (transcriptPath) {

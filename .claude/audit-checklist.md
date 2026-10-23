@@ -1,7 +1,7 @@
-# AIRTIGHT audit checklist (hardening steps 0-6)
+# AIRTIGHT audit checklist (hardening steps 0-7)
 
 Hand this file to the agent on the Windows test machine. It runs the commands,
-fills in the PASS/FAIL table at the bottom, and reports back. Steps 7-10 add
+fills in the PASS/FAIL table at the bottom, and reports back. Steps 8-10 add
 their own sections to this file as they land.
 
 ## Rules for the agent running this
@@ -19,11 +19,11 @@ git status -sb                      # expect: dev, clean (playtest-logs may show
 git log --oneline -6
 npm ci                              # clean install from the lockfile
 npm run typecheck                   # expect: NO output at all (exit 0)
-npm run verify                      # expect: 15 lines starting "ok", then "V2 green."
+npm run verify                      # expect: 16 lines starting "ok", then "V2 green."
 ```
 
 Expected `verify` lines include: determinism, leak-safety, seed never in any
-response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`.
+response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`.
 
 | # | Check | Pass when |
 |---|-------|-----------|
@@ -214,6 +214,22 @@ Then in Upstash Data Browser look for keys starting `rl:create`, `rl:turn`, `rl:
 library really ran on Redis). Report the exact status sequence, and whether the 429 body is a
 friendly sentence. Note: the limit window is a sliding hour, so wait before re-testing.
 
+### C12. Timeouts (Step 7)
+
+The hang cases are proven offline by the `timeouts:` line in A2 (a fake model that never answers).
+Live, you can only confirm the limit and the normal path:
+
+```powershell
+# Normal turns finish well inside the 50s deadline; record the slowest of 3
+1..3 | ForEach-Object { (Measure-Command {
+  Invoke-RestMethod -Method Post -Uri "$LIVE/api/game/$sid/interrogate" -ContentType 'application/json' -Body '{"input":"Tell me again."}' | Out-Null
+}).TotalSeconds }
+```
+
+- Expect each turn under about 20 seconds. Report the slowest.
+- If you ever see HTTP 504 with code `MODEL_TIMEOUT`, report it and confirm the next identical request works and the turn counter did not move.
+- Re-check C8: the deployed function limit must be at least 60 seconds. If it is lower (for example 10 or 15 seconds on a Hobby default), report it as a BLOCKER.
+
 ## D. Things only a live Redis can prove (report any surprise)
 
 These are the pieces that tests on this machine cannot run (no Redis here):
@@ -244,6 +260,7 @@ If C3 and C4 pass, all three are working.
 | C9 injection | | |
 | C10 evidence after success | | |
 | C11 rate limits | | |
+| C12 timeouts / function limit | | |
 
 ## Audit report — 2026-10-24 (Asia/Colombo)
 

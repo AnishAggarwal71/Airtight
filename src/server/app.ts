@@ -8,6 +8,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import path from 'node:path'
 import { gameRouter } from './routes/game'
 import { ApiError } from './errors'
+import type { TurnTimeouts } from '../engine/timeouts'
 import { createRateLimiter, type RateLimiter } from './ratelimit'
 import { assertSeedConfig } from './seed'
 import { createStore, type Store } from './store'
@@ -19,6 +20,8 @@ export type AppOptions = {
   store?: Store
   /** Per-IP limiter. Defaults to createRateLimiter() (Upstash from env, in-memory locally). */
   rateLimiter?: RateLimiter
+  /** Overrides for the model-call time limits (src/engine/timeouts.ts). Tests use short values; production uses the defaults. */
+  turnTimeouts?: Partial<TurnTimeouts>
 }
 
 export function createApp(options: AppOptions = {}): Express {
@@ -31,6 +34,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.locals.store = options.store ?? createStore()
   // Same pattern for the per-IP limiter (see rateLimit() in ratelimit.ts).
   app.locals.rateLimiter = options.rateLimiter ?? createRateLimiter()
+  app.locals.turnTimeouts = options.turnTimeouts
 
   app.use(express.json({ limit: '32kb' }))
   app.use(express.static(PUBLIC_DIR))
