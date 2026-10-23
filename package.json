@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "verify": "tsx src/cli/verify.ts",
     "case": "tsx src/cli/inspect.ts",
     "case:public": "tsx src/cli/inspect.ts --public",

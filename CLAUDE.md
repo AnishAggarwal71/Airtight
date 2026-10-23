@@ -324,11 +324,17 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   static imports evaluate before an importing script's own `dotenv.config()`
   call runs, so provider factories that read `process.env` eagerly at import
   time need the env already loaded.
-- **Deployment target: Render**, chosen over Railway/Fly.io/a small VM for
-  its persistent-disk guarantee across restarts and redeploys (requires a
-  paid plan — no free-tier disk). `ANTHROPIC_API_KEY` is a server-side-only
-  Render environment variable, never shipped to the client. See
-  `docs/decisions.md` (2026-10-15) for the full host comparison.
+- **Deployment target: Vercel** (supersedes Render, 2026-10-23 — see
+  `docs/decisions.md`). The Express app is wrapped as one Vercel Function via
+  `src/index.ts` (default-exports `createApp()`); `vercel.json` sets
+  `maxDuration: 60`. `public/` is served by Vercel's CDN, so `express.static`
+  is inert there. Local dev is unchanged: `npm run dev` / `npm run server`
+  run `src/server/index.ts`, which binds a port. `vercel dev` uses
+  `src/index.ts`. Vercel has no persistent disk or shared memory, so the
+  hardening work (sessions, spend caps, rate limits, transcripts → Upstash
+  Redis) is tracked in the 2026-10-23 decision entry; until those steps land
+  the in-memory server state is NOT safe to deploy. `ANTHROPIC_API_KEY` is a
+  server-side-only env var, never shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.
   `/var/data/playtest-logs`) in production. Every persistent-disk host

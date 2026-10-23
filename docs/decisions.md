@@ -5,6 +5,38 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-23 — Deploy on Vercel (supersedes Render); production-hardening plan
+
+**Context:** First public deployment. Hard constraint: no changes to game
+design, scoring, prompts, or balance — security, reliability and
+deployability only. A pre-deploy audit found the in-memory session `Map` and
+module-level daily-spend counter cannot work on serverless, the case seed is
+returned to the client (and derives the whole case), the turn limits and
+spend cap race under concurrent requests, a failed persona call leaves
+`evidence.presented` committed, there is no per-IP rate limit, and model
+calls have no timeout.
+
+**Decisions:** Keep Express, wrapped as a single Vercel Function (Vercel's
+current Express support: entry at `src/index.ts`, default-export the app;
+`public/**` served by the CDN; function limit set in `vercel.json`).
+Server state moves to Upstash Redis (session blobs with TTL, atomic spend
+reservation, per-session turn lock, rate limits, transcripts with a 14-day
+TTL). Seed is never sent to the client; in production the server picks it
+with crypto randomness, optionally HMAC'd with a server secret outside
+`generate()` (which stays pure). Client seed/templateId only honoured when
+`ALLOW_CLIENT_SEED=1`. Launch daily spend cap $5.
+
+**Steps (one commit each):** 0 Vercel wiring · 1 seed leak · 2 sessions in
+Redis · 3 atomic spend cap · 4 turn-limit race · 5 failed-turn rollback · 6
+per-IP rate limiting · 7 timeouts · 8 error handling/logging · 9
+transcripts · 10 repo hygiene. Superseded: the Render persistent-disk
+rationale from 2026-10-15. Deferred: investigating the 0/18 Layer 1 eval.
+
+**Step 0 notes:** `maxDuration: 60` is below both Hobby and Pro defaults
+(300s). Not yet confirmed by a real `vercel build`: that Vercel's TypeScript
+handling resolves our extensionless relative ESM imports. Fallback if not: a
+bundling step.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

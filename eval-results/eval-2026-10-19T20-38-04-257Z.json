@@ -1,0 +1,367 @@
+{
+  "timestamp": "2026-10-19T20:38:04.253Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 18,
+    "passed": 0,
+    "precision": 1,
+    "recall": 0,
+    "results": [
+      {
+        "caseId": "gk-bottle-canal",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e5": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "gk-bin-store-exit",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "gk-staged-fall",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "gk-weapon-bottle",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "contra-time-discrepancy",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "contra-visit-length",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "contra-location-flip",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "contra-relationship-detail",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "ev-wifi-terrible",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "minor"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 0
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "ev-debt-decent",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "ev-pathology-airtight",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e2": 3
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "dem-shift-nervous",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "dem-stays-calm",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "clean-good-deflection",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "clean-expressing-grief",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "clean-why-suspect",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "clean-vague-nonanswer",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      },
+      {
+        "caseId": "clean-redirect-to-victim",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Invigilator call failed: Invigilator (suspect) failed after 3 attempts: Failed after 3 attempts. Last error: AI_APICallError: Cannot connect to API: unable to get local issuer certificate"
+      }
+    ]
+  },
+  "layer2": null
+}
