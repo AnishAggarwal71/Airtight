@@ -1,7 +1,7 @@
-# AIRTIGHT audit checklist (hardening steps 0-9)
+# AIRTIGHT audit checklist (hardening steps 0-10)
 
 Hand this file to the agent on the Windows test machine. It runs the commands,
-fills in the PASS/FAIL table at the bottom, and reports back. Step 10 adds
+fills in the PASS/FAIL table at the bottom, and reports back. Later steps add
 their own sections to this file as they land.
 
 ## Rules for the agent running this
@@ -270,6 +270,27 @@ LLEN tx:<sid>               # 3 after one turn; grows by 2 per turn
 - If `LRANGE` is empty or errors mentioning a script, report the exact message (the append Lua script or list read failed on real Redis). The turn must still have succeeded; look for `transcript_error` in the Vercel logs.
 - No `EROFS`/`ENOENT` file-write errors should appear in the Vercel logs.
 
+### C15. Repo hygiene (Step 10)
+
+Offline; run in the repo root on the test machine after `git pull`.
+
+```powershell
+# None of these may be tracked (expect no output)
+git ls-files | Select-String -Pattern '^playtest-logs/','^\.vercel/','(^|/)\.env($|\.)' | Where-Object { $_ -notmatch '\.env\.example$' }
+
+# Each must say it is ignored (expect 6 matching lines)
+'.env','.env.production','.env.local','.vercel/project.json','playtest-logs/x.jsonl','.env.development.local' | ForEach-Object { git check-ignore -v $_ }
+
+# The template must NOT be ignored (expect no output from check-ignore, and it appears in ls-files)
+git check-ignore .env.example; git ls-files .env.example
+
+# Key-shaped strings in tracked files: expect only the placeholder in .env.example
+git grep -nIE 'sk-ant-[A-Za-z0-9_-]{10,}' -- . ':!node_modules'
+```
+
+- `node --version` must be below 25 (package.json `engines.node` is `>=20.11 <25`); `npm ci` should print no EBADENGINE warning.
+- Pass when: first command prints nothing, six ignore lines, `.env.example` is tracked and not ignored, and the grep shows only `.env.example` (placeholder `sk-ant-paste_your_key_here`, plus possibly the planted fake key inside `src/cli/verify.ts`).
+
 ## D. Things only a live Redis can prove (report any surprise)
 
 These are the pieces that tests on this machine cannot run (no Redis here):
@@ -304,6 +325,7 @@ If C3 and C4 pass, all three are working.
 | C12 timeouts / function limit | | |
 | C13 friendly errors / clean logs | | |
 | C14 transcripts in Redis | | |
+| C15 repo hygiene | | |
 
 ## Audit report — 2026-10-24 (Asia/Colombo)
 

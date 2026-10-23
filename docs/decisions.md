@@ -244,6 +244,28 @@ must be removed by hand if recording is disabled. The CLI is unchanged. Raw
 player text is stored, which is why the notice asks players not to type
 personal information.
 
+**Step 10 notes (repo hygiene):** `.gitignore` now ignores `.env`, `.env.*`
+(with `!.env.example` so the template stays committed), `.vercel/` (trailing
+slash: it is a directory) and `playtest-logs/`. Before this only `.env.local`
+and `.vercel` were covered, so a `.env`, `.env.production` or a `vercel env
+pull` output would have been committable. `git ls-files` showed `.env.example`
+as the only env file tracked, and a scan of tracked files for key-shaped strings
+(`sk-ant-`, AWS, GitHub tokens, private keys) found only the placeholder in
+`.env.example`. The 35 `playtest-logs/` files were untracked with `git rm
+-r --cached` and stay on disk. They are still in git history; a scan found no
+`sk-ant-` or `Bearer` strings in them, but they contain raw playtest questions,
+so if the repo is made public with full history and that matters, rewrite
+history first (not done: destructive, and the user did not ask for it). This
+amends the 2026-10-19 retention policy for `playtest-logs/` only; `eval-results/`
+is unchanged and still tracked. `package-lock.json` has always been gitignored
+(not tracked, no commits touch it), so Vercel resolves dependencies from
+`package.json` on each build; if reproducible deploys are wanted, un-ignore and
+commit a lockfile generated against the public registry (the local one may point
+at an internal mirror). `engines.node` changed from `>=20.11` to `>=20.11 <25`:
+the open-ended range lets Vercel pick whatever newest Node it supports, so a
+platform default bump could change the runtime with no commit; `<25` pins the
+ceiling to what `verify` was run on (Node 24 here).
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

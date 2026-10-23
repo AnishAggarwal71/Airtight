@@ -1,7 +1,18 @@
 node_modules/
 .npmrc
-.env.local
+# Secrets: every env file is ignored except the committed template.
+# `vercel env pull` writes .env.local / .env.*.local; a stray `.env` or
+# `.env.production` must never reach git.
+.env
+.env.*
+!.env.example
 dist/
+
+# Playtest transcripts. The CLI writes these locally; the deployed web game
+# records to Redis instead (src/server/transcripts.ts). They hold raw
+# player-typed text, so they stay out of git. (eval-results/ is deliberately
+# still tracked, see CLAUDE.md "Open items".)
+playtest-logs/
 
 # macOS filesystem metadata — this machine only, meaningless anywhere else
 .DS_Store
@@ -12,4 +23,4 @@ dist/
 .certs/
 package-lock.json
 .claude/settings.local.json
-.vercel
+.vercel/

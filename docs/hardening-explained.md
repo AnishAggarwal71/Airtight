@@ -81,6 +81,12 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **Why:** Vercel has no disk that survives, so file logs would vanish. We still want playtest conversations to learn from. Recording what strangers type needs honesty (the notice) and care (no secrets stored, automatic deletion).
 - **How:** Each game gets one Redis list called `tx:<game id>`. Every event (game started, question asked, answer and score, failed turn, ending) is added to the end as one line of JSON. Before saving, every piece of text is scrubbed of anything that looks like a key or password. The list is capped at 200 entries and Redis deletes it 14 days after the last entry. If saving a transcript fails, the player's turn still works; we just log that the write failed. To read one, open the Upstash console and run `LRANGE tx:<game id> 0 -1`. The command-line game still writes its own files as before.
 
-## Step 10 (planned)
-- **10 Repo hygiene:** keep secrets and logs out of git.
-- **After 10, BYOK:** players can use their own Anthropic key.
+## Step 10: Repo hygiene
+
+- **What:** Git now refuses to track any `.env` file (except the blank template `.env.example`), the `.vercel/` folder, and the `playtest-logs/` folder. The 35 old playtest logs were taken out of git (still on your disk). The Node version setting got an upper limit.
+- **Why:** The code is about to be public. A stray `.env` with the Anthropic key is the classic way people leak keys, and before this only `.env.local` was covered. Playtest logs hold things real people typed. The Node limit stops Vercel from quietly switching to a newer Node version one day.
+- **How:** Edited `.gitignore` and ran `git rm --cached` on the logs (that removes them from git but leaves the files). We scanned the tracked files for anything shaped like a key: only the placeholder in `.env.example` showed up. One caveat: the old logs are still inside git's past commits. They contain no keys, but if you want them gone from a public repo's history, that needs a separate history rewrite.
+
+## Next: BYOK (planned, after step 10)
+
+- Players can use their own Anthropic key, kept only in their browser tab.

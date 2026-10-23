@@ -411,8 +411,14 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   (`src/cli/transcript.ts`, `playtest-logs/`) is unchanged. The start screen
   shows a recording notice (`#transcript-notice` in `public/index.html`); remove
   it if you turn transcripts off. Read one with `LRANGE tx:<sid> 0 -1` in the
-  Upstash console. **Still NOT safe to deploy until step 10 lands:** repo
-  hygiene (`.gitignore`, tracked `playtest-logs/`).
+  Upstash console. Step 10 (repo hygiene): `.gitignore` ignores `.env`, `.env.*`
+  (except the committed `.env.example`), `.vercel/` and `playtest-logs/`;
+  `playtest-logs/` was untracked with `git rm --cached` (files stay on disk,
+  but remain in git history). `package-lock.json` is also gitignored (it was
+  never tracked), so Vercel installs from `package.json` alone. `engines.node`
+  is `>=20.11 <25` so Vercel cannot silently move to a newer major. The
+  hardening plan is complete; remaining before going public: BYOK (planned),
+  and the user-side deploy steps (env vars, redeploy, live checklist).
   `ANTHROPIC_API_KEY` is a server-side-only env var, never shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in `src/cli/transcript.ts`)
   — CLI-only now: where `npm run play` writes its JSONL transcript (default
@@ -527,10 +533,12 @@ This project demonstrates:
   $0.05/run is already well under the $0.08 per-session budget cap
   (`src/server/budget.ts`) and not worth the complexity for a portfolio
   demo.
-- **`playtest-logs/`/`eval-results/` retention policy** (2026-10-19): kept
-  tracked and un-gitignored on this (build) machine on purpose — the testing
-  machine is separate hardware, and this machine needs real transcripts/eval
-  reports on hand to validate tuning changes. Plan: keep accumulating through
+- **`playtest-logs/`/`eval-results/` retention policy** (2026-10-19, amended
+  by hardening step 10): `eval-results/` stays tracked on purpose — the testing
+  machine is separate hardware, and this machine needs real eval reports on
+  hand to validate tuning changes. `playtest-logs/` is now gitignored and
+  untracked (the 35 existing files stay on disk and in git history), because
+  the repo is about to go public and they hold raw player-typed text. Plan: keep accumulating through
   the Layer 2 re-run (next open item below) and once the deployed game has
   produced its own logs (mechanism already exists — the web server
   records to Redis, `tx:<sid>`, for 14 days since step 9; deployed logs must be
