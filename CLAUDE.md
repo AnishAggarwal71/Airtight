@@ -352,9 +352,9 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   `Store`, `src/server/store.ts`: Upstash Redis when `UPSTASH_REDIS_REST_URL`
   + `_TOKEN` — or the Marketplace names `KV_REST_API_URL` + `_TOKEN` — are
   set, `MemoryStore` locally, boot error on Vercel with no credentials).
-  Step 3 (spend cap): `budget.ts` reserves each turn's worst case ($0.04)
-  atomically against a per-session ($0.50) and a per-UTC-day counter
-  (`MAX_DAILY_SPEND_USD`, default $5) in the `Store`, then settles to actual
+  Step 3 (spend cap): `budget.ts` reserves $0.01 per turn
+  atomically against a per-session ($0.08 = one full 8-turn game) and a per-UTC-day counter
+  (`MAX_DAILY_SPEND_USD`, default $2) in the `Store`, then settles to actual
   cost; over-cap turns get 429 before any model call, a store outage gives
   503 (fail closed). `adjudicate.ts` exports `getModel()`/`setModel()` so
   verify can run turns against a fake model. **Still NOT safe to deploy until
@@ -476,7 +476,7 @@ This project demonstrates:
   already the cheapest part — most of the cost is the 6-turn suspect
   phase's 12 calls), (c) switch to a cheaper/faster model for the
   invigilator specifically if Haiku 4.5 pricing changes — not done, since
-  $0.05/run is already well under the $0.50 per-session budget cap
+  $0.05/run is already well under the $0.08 per-session budget cap
   (`src/server/budget.ts`) and not worth the complexity for a portfolio
   demo.
 - **`playtest-logs/`/`eval-results/` retention policy** (2026-10-19): kept

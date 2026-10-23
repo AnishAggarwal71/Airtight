@@ -24,7 +24,7 @@ reservation, per-session turn lock, rate limits, transcripts with a 14-day
 TTL). Seed is never sent to the client; in production the server picks it
 with crypto randomness, optionally HMAC'd with a server secret outside
 `generate()` (which stays pure). Client seed/templateId only honoured when
-`ALLOW_CLIENT_SEED=1`. Launch daily spend cap $5.
+`ALLOW_CLIENT_SEED=1`. Launch daily spend cap $2 (revised from $5 at step 3).
 
 **Steps (one commit each):** 0 Vercel wiring · 1 seed leak · 2 sessions in
 Redis · 3 atomic spend cap · 4 turn-limit race · 5 failed-turn rollback · 6
@@ -71,11 +71,12 @@ can lose an update; step 4 adds the lock and versioned save. `@upstash/redis`
 added to `package.json` only; the lockfile was not touched.
 
 **Step 3 notes (atomic spend cap):** `budget.ts` rewritten; the module-level
-counters are gone. Each turn first *reserves* its worst-case cost
-(`turnReserveUsd` $0.04: persona at its 2048-token cap plus the invigilator on
-all 3 attempts) against two Redis counters in one atomic call — per session
-(`spend:sess:<id>`, cap $0.50, TTL 2h) and per UTC day (`spend:day:<date>`,
-cap `MAX_DAILY_SPEND_USD`, default $5, TTL 48h) — and a turn that does not fit
+counters are gone. Each turn first *reserves* its cost
+(`turnReserveUsd` $0.01: a typical turn is ~$0.006; deliberately below the
+~$0.035 theoretical worst case, so simultaneous pathological turns can
+overshoot a cap by ~$0.025 each until they settle) against two Redis counters in one atomic call — per session
+(`spend:sess:<id>`, cap $0.08 = 8 reservations, TTL 2h) and per UTC day (`spend:day:<date>`,
+cap `MAX_DAILY_SPEND_USD`, default $2, TTL 48h) — and a turn that does not fit
 gets 429 before any paid call. After the turn the reservation is *settled*
 by adding (actual - reserved). Counters are integer micro-dollars (INCRBY is
 integer-only). `Store` gained `reserve(limits, amount)` (all-or-nothing, a Lua
@@ -85,7 +86,7 @@ refused with a 503, because paid calls we cannot count are the failure mode
 this step exists to prevent; only the post-turn settle swallows errors (the
 model is already paid for; the leftover reservation over-counts). Charges: a
 persona failure costs `failedTurnChargeUsd` ($0.003, the call may have been
-billed); an invigilator failure costs the full reservation, because its
+billed); an invigilator failure costs the full $0.01 reservation, because its
 failed attempts are billed but never reach `session.usage`. Creating a game
 is refused with a friendly "resting for today" 429 when the day's remaining
 budget cannot cover one turn (a plain read; the atomic guard is the

@@ -42,7 +42,7 @@ npm run play -- test-seed-1 homicide
 
 Add `ANTHROPIC_API_KEY` to `.env.local`. The game uses Claude Haiku 4.5 (`claude-haiku-4-5`) for both the persona and invigilator agents. Keys are local only and must never be committed.
 
-Server spend cap (web deployment): each turn reserves its worst-case model cost against a per-session limit ($0.50) and a server-wide daily limit. The daily limit defaults to $5 and is set with the optional `MAX_DAILY_SPEND_USD` env var; when it is used up, new games are refused until the next UTC day.
+Server spend cap (web deployment): each turn reserves $0.01 of model cost against a per-session limit ($0.08, about one full game) and a server-wide daily limit. The daily limit defaults to $2 and is set with the optional `MAX_DAILY_SPEND_USD` env var; when it is used up, new games are refused until the next UTC day.
 
 During play:
 

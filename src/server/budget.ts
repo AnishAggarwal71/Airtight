@@ -33,22 +33,24 @@ const OUTPUT_USD_PER_TOKEN = 5.0 / 1_000_000
 
 /**
  * Current ceilings — change these numbers to retune the cap.
- * maxSessionSpendUsd: a full game is 16 model calls (~$0.05); this leaves
- *   generous headroom while still catching a runaway session.
+ * maxSessionSpendUsd: a full game is 16 model calls (~$0.05) over 8 turns, so
+ *   $0.08 = exactly 8 reservations of turnReserveUsd; catches a runaway session.
  * defaultDailySpendUsd: global ceiling across all sessions, used unless the
  *   MAX_DAILY_SPEND_USD env var overrides it (see dailyCapMicros).
- * turnReserveUsd: worst-case cost of ONE turn, reserved up front. Worst case =
- *   persona call at its 2048-token output cap (~$0.012 incl. ~2k input) plus
- *   the invigilator on all 3 attempts (~$0.0076 each at ~2.5k input and its
- *   1024-token output cap) ≈ $0.035, rounded up to $0.04.
+ * turnReserveUsd: cost reserved up front for ONE turn. A typical turn is
+ *   ~$0.006 (~$0.05 / 8 turns), so $0.01 covers it with margin. It is
+ *   deliberately BELOW the theoretical worst case (~$0.035: persona at its
+ *   2048-token cap plus 3 invigilator attempts), so a few simultaneous
+ *   pathological turns can overshoot a cap by up to ~$0.025 each before they
+ *   settle; settling keeps the counters accurate afterwards.
  * failedTurnChargeUsd: what a turn whose persona call threw is charged — about
  *   one persona-sized input (~2.5k tokens). The call may have been billed
  *   even though it errored (e.g. a timeout).
  */
 export const BUDGET_CONFIG = {
-  maxSessionSpendUsd: 0.5,
-  defaultDailySpendUsd: 5.0,
-  turnReserveUsd: 0.04,
+  maxSessionSpendUsd: 0.08,
+  defaultDailySpendUsd: 2.0,
+  turnReserveUsd: 0.01,
   failedTurnChargeUsd: 0.003,
 }
 
