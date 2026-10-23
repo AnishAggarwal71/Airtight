@@ -205,3 +205,40 @@ If C3 and C4 pass, all three are working.
 | C7 spend counters | | |
 | C8 function time limit | | |
 | C9 injection | | |
+
+## Audit report — 2026-10-24 (Asia/Colombo)
+
+Audit-only run on the Windows test machine. No application code, game
+configuration, or secrets were changed or printed. The temporary local server
+used for the smoke test was stopped when the test finished.
+
+| Item | PASS / FAIL | Notes (paste exact output on FAIL) |
+|------|-------------|------------------------------------|
+| A1 typecheck | PASS | `npm run typecheck` completed with exit code 0 and no TypeScript errors. |
+| A2 verify | PASS | `npm run verify` completed with exit code 0; all 13 `ok` checks ran and it ended `V2 green.` |
+| A3 deps | PASS | `package.json` contains `@upstash/redis`; `package-lock.json` contains `node_modules/@upstash/redis`. `npm ci` completed successfully. |
+| B1-B4 local smoke | FAIL | B1 passed (`seed` match: `False`); B2 passed (two client-supplied `abc` seeds produced different public cases); B3 passed (breakdown returned 409). B4 failed for a valid JSON request: `The remote server returned an error: (502) Bad Gateway.` The route returned the generic upstream-model failure response. |
+| C1 env names | FAIL | `vercel env ls --environment production` lists only `ANTHROPIC_API_KEY`. `SESSION_SECRET` and both Redis credential pairs (`UPSTASH_REDIS_REST_URL` + `_TOKEN`, or `KV_REST_API_URL` + `_TOKEN`) are absent. `SESSION_SECRET` length and `ALLOW_CLIENT_SEED` production status therefore could not be verified. |
+| C2 persistence | FAIL | The configured live URL returned 404 before a session could be created: `The remote server returned an error: (404) Not Found.` |
+| C3 two turns | BLOCKED | Blocked by C2: `/api/game` returns 404 on the live alias. |
+| C4 lock | BLOCKED | Blocked by C2: no live session can be created. |
+| C5 turn limit | BLOCKED | Blocked by C2: no live session can be created. |
+| C6 no leaks | BLOCKED | Blocked by C2: the live API route returns 404, so no game response could be inspected. |
+| C7 spend counters | BLOCKED | Production Redis credentials are absent (C1), and no live session was created (C2). |
+| C8 function time limit | BLOCKED | `vercel inspect https://airtight-rust.vercel.app` finds a Ready production deployment, but reports build duration only—not a function maximum duration. `vercel.json` has no per-function duration setting. Check the Vercel project’s Functions settings after deploying the API. |
+| C9 injection | BLOCKED | Blocked by C2: no live game session can be created. |
+
+### Deployment observation
+
+`vercel inspect https://airtight-rust.vercel.app` resolved the alias to the
+Ready production deployment `airtight-ej3ho9vuw-anish-e38d.vercel.app`, created
+2026-10-23 20:33:40 Asia/Colombo. Its build list shows only `.` with `0ms`,
+while the aliased `/api/game` route returns 404. Treat this as an undeployed or
+misconfigured API deployment until a fresh deployment exposes `/api/game`.
+
+### Required follow-up before re-running C2-C9
+
+1. Add a production `SESSION_SECRET` of at least 32 characters.
+2. Add one complete production Redis credential pair (Upstash or Vercel KV).
+3. Deploy the current project, then confirm `POST /api/game` returns 201 on
+   `https://airtight-rust.vercel.app` before spending turns on C3-C9.
