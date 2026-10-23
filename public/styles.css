@@ -252,7 +252,8 @@ body[data-phase="ended"] main > section[data-section="interrogation"] {
   margin-bottom: var(--sp-2);
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="password"] {
   display: block;
   width: 100%;
   background: var(--glass-deep);
@@ -263,7 +264,8 @@ input[type="text"] {
   border-radius: 2px;
   min-height: 44px;
 }
-input[type="text"]:focus { border-color: var(--cyan); }
+input[type="text"]:focus,
+input[type="password"]:focus { border-color: var(--cyan); }
 
 .entry-begin { width: 100%; min-height: 48px; font-size: 16px; }
 
@@ -275,6 +277,14 @@ input[type="text"]:focus { border-color: var(--cyan); }
   margin: var(--sp-4) 0 0;
   text-align: center;
 }
+
+/* "Use my own key" panel on the start screen (see docs/hardening-explained.md, BYOK). */
+.byok-panel { margin: var(--sp-4) 0 0; font-size: 13px; color: var(--ink-muted); }
+.byok-panel summary { cursor: pointer; text-align: center; }
+.byok-copy { line-height: 1.5; margin: var(--sp-4) 0 var(--sp-2, 8px); }
+.byok-row { display: flex; gap: 8px; }
+.byok-row input { flex: 1; min-width: 0; }
+.byok-status { margin: 8px 0 0; min-height: 1.5em; }
 
 /* ─── HUD strip (briefing + interrogation) ───────────────────────────── */
 

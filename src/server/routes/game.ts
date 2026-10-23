@@ -21,12 +21,14 @@ import {
   BUDGET_CONFIG,
   chargeForCompletedTurn,
   estimateCostUsd,
+  reserveSessionSpend,
   reserveSpend,
   settleSpend,
   type SpendReservation,
 } from '../budget'
+import { invalidApiKey, isAuthRejection, modelFromKey, readApiKey } from '../byok'
 import { rateLimit } from '../ratelimit'
-import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
+import { ApiError, asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
 import { resolveTimeouts, type TurnCallOptions, type TurnTimeouts } from '../../engine/timeouts'
 import { describeError, logError, logEvent } from '../log'
 import { withSessionLock } from '../lock'
@@ -92,8 +94,10 @@ function incrementalCostUsd(before: TokenUsage, after: TokenUsage): number {
  * may still have billed the request (e.g. a timeout after it was accepted),
  * so a small fixed charge is kept rather than refunding in full.
  */
-async function settleFailedTurn(store: Store, reservation: SpendReservation): Promise<void> {
-  await settleSpend(store, reservation, BUDGET_CONFIG.failedTurnChargeUsd)
+async function settleFailedTurn(store: Store, reservation: SpendReservation, err: unknown): Promise<void> {
+  // A refused key means the provider never ran the request, so nothing was billed.
+  const rejected = err instanceof ApiError && err.code === 'INVALID_API_KEY'
+  await settleSpend(store, reservation, rejected ? 0 : BUDGET_CONFIG.failedTurnChargeUsd)
 }
 
 export const gameRouter = Router()
@@ -135,6 +139,35 @@ async function requireSession(req: Request, sessionId: string): Promise<StoredSe
 }
 
 /**
+ * Converts a failed persona call into the player-facing error. On a BYOK turn
+ * (callOpts.model is set) a 401/403 from the provider means the player's own
+ * key was refused, which they can fix, so it gets the specific INVALID_API_KEY
+ * message. On the shared key the same status is OUR fault and stays a generic
+ * 502, so a server-side credential problem is never blamed on the player.
+ * The provider's text is never copied into the response either way.
+ */
+function turnError(err: unknown, callOpts: TurnCallOptions) {
+  if (callOpts.model && isAuthRejection(err)) return invalidApiKey(undefined, err)
+  return upstreamModelError(err)
+}
+
+/**
+ * For a BYOK session, reads the key from this request and puts a model built
+ * from it into callOpts; returns whether the turn is BYOK. A BYOK session
+ * whose request carries no key (tab closed, key cleared) gets a 401 BEFORE any
+ * reservation. A non-BYOK session ignores the header entirely.
+ */
+function attachByokModel(req: Request, stored: StoredSession, callOpts: TurnCallOptions): boolean {
+  if (!stored.byok) return false
+  const apiKey = readApiKey(req)
+  if (!apiKey) {
+    throw invalidApiKey('This game is using your own Anthropic key, but none was sent. Enter your key again to continue.')
+  }
+  callOpts.model = modelFromKey(req, apiKey)
+  return true
+}
+
+/**
  * Runs playInterrogationTurn and converts any failure into a clean 502.
  *
  * No manual rollback is needed (or wanted): the engine mutates the session
@@ -155,7 +188,7 @@ async function playInterrogationTurnSafely(
   try {
     return await playInterrogationTurn(session, input, undefined, callOpts)
   } catch (err) {
-    throw upstreamModelError(err)
+    throw turnError(err, callOpts)
   }
 }
 
@@ -168,7 +201,7 @@ async function playWitnessTurnSafely(
   try {
     return await playWitnessTurn(session, question, undefined, callOpts)
   } catch (err) {
-    throw upstreamModelError(err)
+    throw turnError(err, callOpts)
   }
 }
 
@@ -184,9 +217,14 @@ gameRouter.post(
       throw badRequest('Only homicide is available in this version.')
     }
 
+    // BYOK: a valid-looking key header makes this a game the player pays for.
+    // The key itself is not kept; only the flag is stored (see sessions.ts).
+    const byok = readApiKey(req) !== undefined
+
     // Once today's budget is spent, new games get a friendly "resting" 429
-    // instead of a session whose first question would be refused anyway.
-    await assertDailyCapacity(storeOf(req))
+    // instead of a session whose first question would be refused anyway. A BYOK
+    // game does not draw on the shared budget, so it is exempt.
+    if (!byok) await assertDailyCapacity(storeOf(req))
 
     // Seed policy lives in seed.ts: the server picks the seed, and client
     // seed/templateId are ignored unless ALLOW_CLIENT_SEED=1 (never in prod).
@@ -200,11 +238,12 @@ gameRouter.post(
     }
 
     const sessionId = createSessionId()
-    await putSession(storeOf(req), sessionId, session)
+    await putSession(storeOf(req), sessionId, session, { byok })
     await recordTranscript(storeOf(req), sessionId, {
       type: 'session',
       createdAt: new Date().toISOString(),
       seed,
+      ...(byok ? { byok: true } : {}),
       crime: 'homicide',
       format: 'airtight-transcript-v3',
     })
@@ -212,7 +251,7 @@ gameRouter.post(
     // Server-side only: the one place the derived seed is recorded, so a
     // case can be replayed with `npm run case <seed> homicide`. It must never
     // be added to the response below.
-    logEvent('session_created', { sid: sessionId, seed, templateId: session.caseFile.templateId })
+    logEvent('session_created', { sid: sessionId, seed, templateId: session.caseFile.templateId, byok })
 
     res.status(201).json({
       sessionId,
@@ -222,6 +261,7 @@ gameRouter.post(
       maxWitnessTurns: session.maxWitnessTurns,
       witnessAvailable: isWitnessAvailable(session),
       witnessUsed: session.witnessUsed,
+      byok,
     })
   }),
 )
@@ -232,8 +272,9 @@ gameRouter.get(
   '/:id',
   rateLimit('read'),
   asyncHandler(async (req, res) => {
-    const { session } = await requireSession(req, req.params.id)
+    const { session, byok } = await requireSession(req, req.params.id)
     res.json({
+      byok: byok === true,
       publicCase: toPublicCase(session.caseFile),
       phase: session.phase,
       caseStrength: session.caseStrength,
@@ -267,9 +308,13 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
     if (session.interrogationTurn >= session.maxInterrogationTurns) {
       throw conflict('No interrogation turns remaining.')
     }
+    const byok = attachByokModel(req, stored, callOpts)
     // Reserve this turn's worst-case cost atomically BEFORE any paid call;
-    // a 429 here means no turn counter moved and nothing was spent.
-    const reservation = await reserveSpend(storeOf(req), sessionId)
+    // a 429 here means no turn counter moved and nothing was spent. BYOK turns
+    // reserve against the session counter only (the player pays, not the shared budget).
+    const reservation = byok
+      ? await reserveSessionSpend(storeOf(req), sessionId)
+      : await reserveSpend(storeOf(req), sessionId)
 
     const turn = session.interrogationTurn + 1
     const parsedInput = parsePlayerInput(input, session.caseFile.evidence)
@@ -293,7 +338,7 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
     try {
       result = await playInterrogationTurnSafely(session, input, callOpts)
     } catch (err) {
-      await settleFailedTurn(storeOf(req), reservation)
+      await settleFailedTurn(storeOf(req), reservation, err)
       logTurnFailed(sessionId, 'interrogation', turn, err)
       await recordTranscript(storeOf(req), sessionId, {
         type: 'turn_failed',
@@ -380,7 +425,10 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
           : 'The witness is not available yet — Case Strength has not cleared the unlock threshold.',
       )
     }
-    const reservation = await reserveSpend(storeOf(req), sessionId)
+    const byok = attachByokModel(req, stored, callOpts)
+    const reservation = byok
+      ? await reserveSessionSpend(storeOf(req), sessionId)
+      : await reserveSpend(storeOf(req), sessionId)
 
     const turn = session.witnessTurn + 1
     await recordTranscript(storeOf(req), sessionId, {
@@ -397,7 +445,7 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
     try {
       result = await playWitnessTurnSafely(session, question, callOpts)
     } catch (err) {
-      await settleFailedTurn(storeOf(req), reservation)
+      await settleFailedTurn(storeOf(req), reservation, err)
       logTurnFailed(sessionId, 'witness', turn, err)
       await recordTranscript(storeOf(req), sessionId, {
         type: 'turn_failed',

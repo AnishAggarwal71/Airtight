@@ -2,6 +2,7 @@ import { state, resetForNewCase } from './state.js'
 import * as api from './api.js'
 import { buildPlayerInput } from './evidence.js'
 import { render } from './render.js'
+import { initByokPanel } from './byok.js'
 
 const SESSION_STORAGE_KEY = 'airtight-session-id'
 const CHAR_LIMIT = 300
@@ -291,4 +292,5 @@ async function tryReconnect() {
   }
 }
 
+initByokPanel()
 tryReconnect()

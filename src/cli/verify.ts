@@ -2175,6 +2175,220 @@ await (async () => {
   }
 })()
 
+// 17. BYOK: a player's own Anthropic key. Proves: the key is used for the turn
+// but appears nowhere (no response body or header, no log line, no stored
+// session, no transcript); BYOK games and turns never touch the shared daily
+// counter or the shared model, and keep working when the shared budget is
+// spent; the per-session cap still applies; a BYOK session with no key sent, a
+// malformed key, and a provider-rejected key each give a friendly 401 that
+// does not echo the key or the provider text, use no turn, and charge nothing;
+// and a key header on a normal (non-BYOK) game is ignored.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  const logged: string[] = []
+  const restore = () => {
+    console.log = origLog
+    console.error = origErr
+  }
+  const failOut = (msg: string) => {
+    restore()
+    fail(msg)
+  }
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    delete process.env.TRANSCRIPTS
+    process.env.SESSION_SECRET = 'verify-session-secret-0123456789abcdef'
+    console.log = (...a: unknown[]) => void logged.push(a.map(String).join(' '))
+    console.error = (...a: unknown[]) => void logged.push(a.map(String).join(' '))
+
+    const KEY = 'sk-ant-api03-BYOKSENTINEL0123456789ABCDEF'
+    const REJECTED = 'sk-ant-api03-REJECTEDKEY0123456789ABCDEF'
+    const fm = installFakeModel() // the SHARED model; BYOK turns must never reach it
+    const keysSeen: string[] = []
+    // Stand-in for the real per-key Anthropic provider: answers like the shared
+    // fake, but throws a 401 (with the key in its message, as a provider might) for REJECTED.
+    const modelForKey = (apiKey: string) =>
+      new MockLanguageModelV4({
+        doGenerate: async (options) => {
+          keysSeen.push(apiKey)
+          if (apiKey === REJECTED) {
+            throw Object.assign(new Error(`invalid x-api-key: ${apiKey}`), { statusCode: 401 })
+          }
+          const schema = JSON.stringify(options.responseFormat ?? {})
+          const object = schema.includes('guiltyKnowledgeLeak')
+            ? { reasoning: 'ok', signals: { contradictions: [], guiltyKnowledgeLeak: null, evidenceHandling: [], demeanorShift: false } }
+            : schema.includes('suspectContradiction')
+              ? { reasoning: 'ok', signals: { suspectContradiction: null } }
+              : { dialogue: 'I was at home.', claims: [{ text: 'The speaker was at home.', checkable: true }], demeanor: 'calm' }
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(object) }],
+            finishReason: { unified: 'stop' as const, raw: undefined },
+            usage: FAKE_USAGE,
+            warnings: [],
+          }
+        },
+      })
+
+    const store = new MemoryStore()
+    const srv = createApp({ store, rateLimiter: unlimitedRateLimiter, modelForKey }).listen(0)
+    servers.push(srv)
+    const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    const post = (route: string, body: unknown = {}, key?: string) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(key ? { 'X-Anthropic-Key': key } : {}) },
+        body: JSON.stringify(body),
+      })
+    const counter = async (k: string) => Number((await store.getJson(k)) ?? 0)
+    const dayNow = () => counter(dayKey(new Date()))
+    const shared = () => fm.calls.suspect + fm.calls.witness + fm.calls.invigilator
+    const newByok = async (key: string = KEY) => {
+      const res = await post('/api/game', {}, key)
+      return { res, body: (await res.clone().json()) as { sessionId: string; byok?: boolean } }
+    }
+
+    // ── A. A BYOK game and turn: works, uses the player's model, never the shared one ──
+    const created = await newByok()
+    if (created.res.status !== 201 || created.body.byok !== true) {
+      failOut(`BYOK create: status ${created.res.status}, byok=${created.body.byok}; want 201 and true`)
+      return
+    }
+    const sid = created.body.sessionId
+    const t1 = await post(`/api/game/${sid}/interrogate`, { input: 'Where were you?' }, KEY)
+    const t1Text = await t1.clone().text()
+    if (t1.status !== 200) {
+      failOut(`BYOK turn returned ${t1.status}: ${t1Text.slice(0, 120)}`)
+      return
+    }
+    if (!keysSeen.includes(KEY) || shared() !== 0) {
+      failOut(`BYOK turn: key reached the model=${keysSeen.includes(KEY)}, shared-model calls=${shared()}; want true and 0`)
+      return
+    }
+    if ((await dayNow()) !== 0) {
+      failOut(`BYOK turn changed the shared daily counter to ${await dayNow()}; want it untouched`)
+      return
+    }
+    if ((await counter(`spend:sess:${sid}`)) <= 0) {
+      failOut('BYOK turn left the per-session counter at 0; the per-session cap would never apply')
+      return
+    }
+
+    // ── B. The key is nowhere: responses, headers, logs, stored session, transcript ──
+    const reconnect = await fetch(`${base}/api/game/${sid}`, { headers: { 'X-Anthropic-Key': KEY } })
+    const surfaces: Array<[string, string]> = [
+      ['create response', JSON.stringify(created.body) + JSON.stringify([...created.res.headers])],
+      ['turn response', t1Text + JSON.stringify([...t1.headers])],
+      ['reconnect response', (await reconnect.clone().text()) + JSON.stringify([...reconnect.headers])],
+      ['stored session', JSON.stringify(await store.getJson(`sess:${sid}`))],
+      ['transcript', JSON.stringify(await readTranscript(store, sid))],
+    ]
+    const stored = (await store.getJson(`sess:${sid}`)) as { byok?: boolean }
+    if (stored.byok !== true) {
+      failOut('stored session does not carry the byok flag')
+      return
+    }
+
+    // ── C. BYOK keeps working when the shared daily budget is spent; a normal game does not ──
+    process.env.MAX_DAILY_SPEND_USD = '0.005'
+    const plain = await post('/api/game')
+    const byokWhenSpent = await newByok()
+    delete process.env.MAX_DAILY_SPEND_USD
+    if (plain.status !== 429 || byokWhenSpent.res.status !== 201) {
+      failOut(`shared budget spent: normal create ${plain.status} (want 429), BYOK create ${byokWhenSpent.res.status} (want 201)`)
+      return
+    }
+
+    // ── D. The per-session cap still applies to BYOK ───────────────────────
+    {
+      const cap = await newByok()
+      const csid = cap.body.sessionId
+      const full = BUDGET_CONFIG.maxSessionSpendUsd * 1_000_000
+      await store.setJson(`spend:sess:${csid}`, full - BUDGET_CONFIG.turnReserveUsd * 1_000_000 + 1, 3600)
+      const before = keysSeen.length
+      const res = await post(`/api/game/${csid}/interrogate`, { input: 'Where were you?' }, KEY)
+      const code = ((await res.json()) as { error?: { code?: string } }).error?.code
+      if (res.status !== 429 || code !== 'BUDGET_EXCEEDED' || keysSeen.length !== before) {
+        failOut(`BYOK session cap: status ${res.status} code ${code}, model calls ${keysSeen.length - before}; want 429 BUDGET_EXCEEDED and 0`)
+        return
+      }
+    }
+
+    // ── E. Missing, malformed and provider-rejected keys: friendly 401, nothing used or charged ──
+    {
+      const bad = await newByok()
+      const bsid = bad.body.sessionId
+      const sentinelText = 'x-api-key'
+      const attempts: Array<[string, Response]> = [
+        ['no key on a BYOK session', await post(`/api/game/${bsid}/interrogate`, { input: 'Hi.' })],
+        ['rejected key', await post(`/api/game/${bsid}/interrogate`, { input: 'Hi.' }, REJECTED)],
+        ['malformed key on turn', await post(`/api/game/${bsid}/interrogate`, { input: 'Hi.' }, 'not-a-key')],
+        ['malformed key on create', await post('/api/game', {}, 'Bearer sk-ant-short')],
+      ]
+      for (const [label, res] of attempts) {
+        const text = await res.text()
+        const code = (JSON.parse(text) as { error?: { code?: string } }).error?.code
+        if (res.status !== 401 || code !== 'INVALID_API_KEY') {
+          failOut(`${label}: status ${res.status} code ${code}; want 401 INVALID_API_KEY`)
+          return
+        }
+        if (text.includes(REJECTED) || text.includes('sk-ant-short') || text.includes(sentinelText)) {
+          failOut(`${label}: response echoes the key or the provider's text: ${text}`)
+          return
+        }
+      }
+      const g = (await (await fetch(`${base}/api/game/${bsid}`)).json()) as { interrogationTurn: number }
+      if (g.interrogationTurn !== 0) {
+        failOut(`a refused key used up ${g.interrogationTurn} turn(s); want 0`)
+        return
+      }
+      if ((await counter(`spend:sess:${bsid}`)) !== 0) {
+        failOut(`a refused key was charged ${await counter(`spend:sess:${bsid}`)} micro-dollars; want 0`)
+        return
+      }
+      surfaces.push(['rejected-key transcript', JSON.stringify(await readTranscript(store, bsid))])
+    }
+
+    // ── F. A key header on a NORMAL game is ignored: the shared model and budget are used ──
+    {
+      const g = (await (await post('/api/game')).json()) as { sessionId: string }
+      const before = keysSeen.length
+      const res = await post(`/api/game/${g.sessionId}/interrogate`, { input: 'Where were you?' }, KEY)
+      if (res.status !== 200 || shared() === 0 || keysSeen.length !== before) {
+        failOut(`key on a normal game: status ${res.status}, shared calls ${shared()}, key-model calls ${keysSeen.length - before}; want 200, >0, 0`)
+        return
+      }
+    }
+
+    // ── B (continued). Scan every surface and every captured log line for the keys ──
+    surfaces.push(['log output', logged.join('\n')])
+    for (const [label, text] of surfaces) {
+      for (const secret of [KEY, REJECTED]) {
+        if (text.includes(secret)) {
+          failOut(`${label} contains the API key "${secret.slice(0, 18)}..."`)
+          return
+        }
+      }
+    }
+
+    restore()
+    pass('BYOK: a player key is used for the turn and appears nowhere (responses, headers, logs, stored session, transcript); BYOK games and turns never touch the shared daily counter or shared model and still work when the shared budget is spent; the per-session cap still applies; a missing, malformed or provider-rejected key gives a friendly 401 that echoes nothing, uses no turn and charges nothing; a key header on a normal game is ignored')
+  } catch (err) {
+    failOut(`BYOK check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    restore()
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
 console.log(
   failures === 0
     ? '\n  \x1b[32mV2 green.\x1b[0m\n'

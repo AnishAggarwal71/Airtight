@@ -136,7 +136,7 @@ export async function interrogateWitness(
 
   try {
     const result = await generateObject({
-      model: getModel(),
+      model: opts.model ?? getModel(),
       schema: WitnessResponseSchema,
       system: systemPrompt,
       prompt: userMessage,

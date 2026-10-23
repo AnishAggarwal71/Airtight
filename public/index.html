@@ -40,6 +40,16 @@
         <form id="setup-form">
           <button type="submit" id="start-btn" class="btn btn-primary entry-begin">Begin</button>
         </form>
+        <details class="byok-panel" id="byok-panel">
+          <summary>Use my own Anthropic key (optional)</summary>
+          <p class="byok-copy">Play on your own Anthropic account instead of the shared daily budget. Your key is kept only in this browser tab. It passes through our server to Anthropic for each question and is not stored or logged. Use a key you can revoke, ideally with a low spend limit.</p>
+          <div class="byok-row">
+            <input type="password" id="byok-input" autocomplete="off" spellcheck="false" placeholder="sk-ant-..." aria-label="Anthropic API key">
+            <button type="button" id="byok-save-btn" class="btn btn-ghost">Save</button>
+            <button type="button" id="byok-clear-btn" class="btn btn-ghost hidden">Clear</button>
+          </div>
+          <p class="byok-status" id="byok-status" role="status"></p>
+        </details>
         <p class="entry-notice" id="transcript-notice">Playtest notice: your questions and the suspect's answers are recorded for 14 days to help improve the game. Please don't type personal information.</p>
       </div>
     </section>

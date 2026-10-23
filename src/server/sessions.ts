@@ -31,6 +31,12 @@ export type StoredSession = {
   createdAt: number
   /** Revision this copy was loaded at (0 = not yet stored). saveSession() bumps it. */
   rev: number
+  /**
+   * True when the player pays with their own Anthropic key (BYOK). Only this
+   * flag is stored, never the key: every turn must carry the key again, so a
+   * leaked session blob cannot spend anyone's money. Absent on older blobs = false.
+   */
+  byok?: boolean
 }
 
 /** Envelope version; bump if StoredSession's shape changes so old blobs read as expired. */
@@ -71,8 +77,9 @@ export async function putSession(
   store: Store,
   sessionId: string,
   session: GameSession,
+  options: { byok?: boolean } = {},
 ): Promise<void> {
-  const stored: StoredSession = { session, createdAt: Date.now(), rev: 0 }
+  const stored: StoredSession = { session, createdAt: Date.now(), rev: 0, ...(options.byok ? { byok: true } : {}) }
   await saveSession(store, sessionId, stored)
 }
 
@@ -110,5 +117,6 @@ export async function getSession(store: Store, sessionId: string): Promise<Store
     session: envelope.session,
     createdAt: envelope.createdAt ?? 0,
     rev: Number(envelope.rev ?? 0) || 0,
+    ...(envelope.byok === true ? { byok: true } : {}),
   }
 }

@@ -17,6 +17,8 @@
  * prompts or scoring.
  */
 
+import type { LanguageModel } from 'ai'
+
 /** The three limits, in milliseconds. */
 export type TurnTimeouts = {
   requestMs: number
@@ -48,6 +50,13 @@ export type TurnCallOptions = {
   abortSignal?: AbortSignal
   /** Overrides for TURN_TIMEOUTS (tests use short values). */
   timeouts?: Partial<TurnTimeouts>
+  /**
+   * Model for THIS turn only (BYOK: a provider built from the player's own key).
+   * Passed per call instead of through setModel() because setModel() is
+   * process-global and one serverless instance serves several players at once.
+   * Absent = the shared getModel().
+   */
+  model?: LanguageModel
 }
 
 /** Merges overrides over the defaults. */

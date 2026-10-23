@@ -13,6 +13,7 @@ import type { TurnTimeouts } from '../engine/timeouts'
 import { createRateLimiter, type RateLimiter } from './ratelimit'
 import { assertSeedConfig } from './seed'
 import { createStore, type Store } from './store'
+import type { ModelForKey } from './byok'
 
 const PUBLIC_DIR = path.join(import.meta.dirname, '../../public')
 
@@ -23,6 +24,8 @@ export type AppOptions = {
   rateLimiter?: RateLimiter
   /** Overrides for the model-call time limits (src/engine/timeouts.ts). Tests use short values; production uses the defaults. */
   turnTimeouts?: Partial<TurnTimeouts>
+  /** Builds a model from a player's own key (BYOK). Tests inject a fake; production uses the real Anthropic provider. */
+  modelForKey?: ModelForKey
 }
 
 export function createApp(options: AppOptions = {}): Express {
@@ -36,6 +39,7 @@ export function createApp(options: AppOptions = {}): Express {
   // Same pattern for the per-IP limiter (see rateLimit() in ratelimit.ts).
   app.locals.rateLimiter = options.rateLimiter ?? createRateLimiter()
   app.locals.turnTimeouts = options.turnTimeouts
+  app.locals.modelForKey = options.modelForKey
 
   app.use(express.json({ limit: '32kb' }))
   app.use(express.static(PUBLIC_DIR))

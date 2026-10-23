@@ -80,7 +80,8 @@ export const dayKey = (now: Date) => `spend:day:${now.toISOString().slice(0, 10)
 export type SpendReservation = {
   sessionId: string
   sessionKey: string
-  dayKey: string
+  /** null for a BYOK reservation: the player pays, so the shared daily counter is never touched. */
+  dayKey: string | null
   reservedMicros: number
 }
 
@@ -150,6 +151,28 @@ export async function reserveSpend(
 }
 
 /**
+ * BYOK variant of reserveSpend(): reserves against the per-session counter
+ * ONLY. The daily counter is the shared budget, and a player using their own
+ * key does not draw on it. The per-session cap still applies (it also bounds
+ * a runaway client). Same errors as reserveSpend().
+ */
+export async function reserveSessionSpend(store: Store, sessionId: string): Promise<SpendReservation> {
+  const reservedMicros = usdToMicros(BUDGET_CONFIG.turnReserveUsd)
+  const sKey = sessionKey(sessionId)
+  let result
+  try {
+    result = await store.reserve(
+      [{ key: sKey, cap: usdToMicros(BUDGET_CONFIG.maxSessionSpendUsd), ttlSeconds: SESSION_COUNTER_TTL_SECONDS }],
+      reservedMicros,
+    )
+  } catch (err) {
+    throw failClosed('reserve', err)
+  }
+  if (!result.ok) throw budgetExceeded(SESSION_MESSAGE)
+  return { sessionId, sessionKey: sKey, dayKey: null, reservedMicros }
+}
+
+/**
  * Reconciles a reservation to the real cost by adding (actual - reserved) to
  * both counters. Never throws: the model has already been paid for, and a
  * failed settle just leaves the (larger) reservation counted.
@@ -159,7 +182,7 @@ export async function settleSpend(store: Store, reservation: SpendReservation, a
   if (delta === 0) return
   try {
     await store.adjust(reservation.sessionKey, delta, SESSION_COUNTER_TTL_SECONDS)
-    await store.adjust(reservation.dayKey, delta, DAY_COUNTER_TTL_SECONDS)
+    if (reservation.dayKey !== null) await store.adjust(reservation.dayKey, delta, DAY_COUNTER_TTL_SECONDS)
   } catch (err) {
     logError('store_error', { op: 'settle', msg: describeError(err) })
   }

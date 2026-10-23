@@ -1,4 +1,4 @@
-# AIRTIGHT audit checklist (hardening steps 0-10)
+# AIRTIGHT audit checklist (hardening steps 0-10, plus BYOK)
 
 Hand this file to the agent on the Windows test machine. It runs the commands,
 fills in the PASS/FAIL table at the bottom, and reports back. Later steps add
@@ -19,11 +19,11 @@ git status -sb                      # expect: dev, clean (playtest-logs may show
 git log --oneline -6
 npm ci                              # clean install from the lockfile
 npm run typecheck                   # expect: NO output at all (exit 0)
-npm run verify                      # expect: 18 lines starting "ok", then "V2 green."
+npm run verify                      # expect: 19 lines starting "ok", then "V2 green."
 ```
 
 Expected `verify` lines include: determinism, leak-safety, seed never in any
-response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`, `error/log hygiene: ...`, `transcripts in the store: ...`.
+response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`, `error/log hygiene: ...`, `transcripts in the store: ...`, `BYOK: ...`.
 
 | # | Check | Pass when |
 |---|-------|-----------|
@@ -291,6 +291,49 @@ git grep -nIE 'sk-ant-[A-Za-z0-9_-]{10,}' -- . ':!node_modules'
 - `node --version` must be below 25 (package.json `engines.node` is `>=20.11 <25`); `npm ci` should print no EBADENGINE warning.
 - Pass when: first command prints nothing, six ignore lines, `.env.example` is tracked and not ignored, and the grep shows only `.env.example` (placeholder `sk-ant-paste_your_key_here`, plus possibly the planted fake key inside `src/cli/verify.ts`).
 
+### C16. Bring your own key (BYOK)
+
+Behaviour is proven offline by the `BYOK:` line in A2 (fake per-key model). Live, use a REAL Anthropic
+key you can revoke afterwards. Never paste it into the report. Set it in a variable only:
+
+```powershell
+$KEY = Read-Host -AsSecureString "Anthropic key" | ForEach-Object { [System.Net.NetworkCredential]::new('', $_).Password }
+$H = @{ 'X-Anthropic-Key' = $KEY }
+$g = Invoke-RestMethod -Method Post -Uri "$LIVE/api/game" -Headers $H -ContentType 'application/json' -Body '{}'
+$sid = $g.sessionId
+$g.byok                                           # expect: True
+($g | ConvertTo-Json -Depth 20) -match 'sk-ant'   # expect: False
+
+# A turn with the key works
+Invoke-RestMethod -Method Post -Uri "$LIVE/api/game/$sid/interrogate" -Headers $H -ContentType 'application/json' -Body '{"input":"Where were you last night?"}' | Select-Object interrogationTurn, caseStrength
+
+# The same game WITHOUT the key is refused with a friendly 401, and no turn is used
+$r = Invoke-WebRequest -SkipHttpErrorCheck -Method Post -Uri "$LIVE/api/game/$sid/interrogate" -ContentType 'application/json' -Body '{"input":"Again."}'
+$r.StatusCode                                     # expect: 401
+($r.Content | ConvertFrom-Json).error.code        # expect: INVALID_API_KEY
+
+# A well-formed but WRONG key: friendly 401, never Anthropic's own wording
+$bad = @{ 'X-Anthropic-Key' = 'sk-ant-api03-' + ('x' * 40) }
+$r = Invoke-WebRequest -SkipHttpErrorCheck -Method Post -Uri "$LIVE/api/game/$sid/interrogate" -Headers $bad -ContentType 'application/json' -Body '{"input":"Again."}'
+$r.StatusCode                                     # expect: 401
+$r.Content                                        # expect: "Anthropic rejected the API key you provided..." and no key text
+(Invoke-RestMethod -Uri "$LIVE/api/game/$sid").interrogationTurn   # expect: 1 (the refused turns used none)
+```
+
+In Upstash:
+
+```
+GET spend:day:<today UTC>     # note the value BEFORE the BYOK turns above, and AFTER: expect it unchanged by them
+GET spend:sess:<sid>          # expect a small positive number (about 5000-10000 micro-dollars per turn)
+GET sess:<sid>                # expect "byok":true and NO "sk-ant" anywhere in the value
+LRANGE tx:<sid> 0 -1          # expect NO "sk-ant" anywhere
+```
+
+- In the Vercel logs, search for the first 12 characters of your key: expect zero hits.
+- Browser check: on the start screen open "Use my own Anthropic key", paste a key, press Save (status says a key is set), open DevTools -> Application -> Session Storage and confirm the key is there and NOT in Local Storage or Cookies. Play one turn and confirm the request has an `X-Anthropic-Key` header. Close the tab, reopen the site, and confirm the key is gone.
+- A real key with no credit should show the "rejected" sentence (Anthropic answers 400 or 401 for billing problems; if you see the generic "suspect could not answer" message instead, report the exact status from the Vercel log `turn_failed` line).
+- Revoke the key in the Anthropic console when done.
+
 ## D. Things only a live Redis can prove (report any surprise)
 
 These are the pieces that tests on this machine cannot run (no Redis here):
@@ -326,6 +369,7 @@ If C3 and C4 pass, all three are working.
 | C13 friendly errors / clean logs | | |
 | C14 transcripts in Redis | | |
 | C15 repo hygiene | | |
+| C16 BYOK | | |
 
 ## Audit report — 2026-10-24 (Asia/Colombo)
 

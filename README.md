@@ -56,6 +56,8 @@ PRESENT e1,e3: Explain both of these records.
 
 Questions are capped at 300 characters. Homicide cases can optionally use a city/region and country as fictional scene context. The CLI saves a JSONL transcript per playthrough under `playtest-logs/`. The deployed web game records each game to Redis (`tx:<session id>`, redacted, deleted after 14 days) and says so on the start screen; set `TRANSCRIPTS=off` to record nothing (and delete the notice in `public/index.html`).
 
+**Bring your own key.** The deployed web game has an optional "Use my own Anthropic key" panel on the start screen. A key entered there is kept only in the browser tab (`sessionStorage`), sent to the server in the `X-Anthropic-Key` header on each request, and passed on to Anthropic for that request; the server never stores or logs it. Games played this way do not use the shared daily budget (the $0.08 per-game cap still applies). Use a revocable key with a low spend limit.
+
 Evaluation harness (also requires the API key):
 
 ```bash
@@ -75,7 +77,7 @@ Results are written to `eval-results/` as timestamped JSON.
 | Scoring | Pure TypeScript with all tuning weights in `SCORING_CONFIG`; the engine reads invigilator signals and does the arithmetic — the model never scores itself. |
 | State | A compact claim ledger (suspect `c` prefix, witness `wc` prefix), evidence presentation state, Case Strength history, ending state, and token usage. |
 | Safety boundary | `toPublicCase()` exposes the detective's evidence while withholding the truth timeline, evidence vulnerabilities, suspect persona/strategy, and the fatal fact. |
-| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (16 checks, zero model calls). |
+| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (17 checks, zero model calls). |
 | Eval harness | Layer 1: 18 hand-crafted invigilator-accuracy cases (precision 0.667, recall 0.80, 10/18 passed). Layer 2: automated full-game runner with a scripted detective (6/10 `CHARGED_STRONG`, mean Case Strength 77 over 10 games) — *Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run.* See [`docs/eval-v3-results.md`](docs/eval-v3-results.md). |
 
 ## Project map

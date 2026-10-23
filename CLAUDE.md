@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (16/16 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (17/17 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -264,6 +264,8 @@ src/cli/
 src/server/
   transcripts.ts        Web transcripts in Redis (tx:<sid>, 14d TTL, redacted, best-effort)
   log.ts                One-line JSON logging with secret scrubbing (logEvent/logError)
+  byok.ts               Bring-your-own-key: header reader/validator, per-request model, provider-401 test
+public/js/byok.js       "Use my own key" panel; key kept in sessionStorage only
 ```
 
 ---
@@ -272,7 +274,7 @@ src/server/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 16 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts/error-log hygiene/transcripts, etc.
+npm run verify                        # 17 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts/error-log hygiene/transcripts/BYOK, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -417,8 +419,18 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   but remain in git history). `package-lock.json` is also gitignored (it was
   never tracked), so Vercel installs from `package.json` alone. `engines.node`
   is `>=20.11 <25` so Vercel cannot silently move to a newer major. The
-  hardening plan is complete; remaining before going public: BYOK (planned),
-  and the user-side deploy steps (env vars, redeploy, live checklist).
+  hardening plan is complete. BYOK (after step 10): a player can send their own
+  Anthropic key in the `X-Anthropic-Key` header (`src/server/byok.ts`; the
+  browser keeps it in `sessionStorage`, `public/js/byok.js`). It is used for that
+  request only: a per-request model goes in `TurnCallOptions.model` (never the
+  global `setModel()`), the session stores only `byok: true`, and the key shape
+  (`sk-ant-...`) is already caught by the log/transcript redaction. BYOK turns
+  reserve/settle against the per-session counter only
+  (`reserveSessionSpend`), skip `assertDailyCapacity`, and keep the lock, CAS and
+  rate limits. A provider 401/403 on a BYOK turn is a friendly 401
+  `INVALID_API_KEY`; on the shared key it stays a 502. A BYOK session must resend
+  the key every request (missing = 401, no reservation). Remaining before going
+  public: the user-side deploy steps (env vars, redeploy, live checklist).
   `ANTHROPIC_API_KEY` is a server-side-only env var, never shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in `src/cli/transcript.ts`)
   — CLI-only now: where `npm run play` writes its JSONL transcript (default

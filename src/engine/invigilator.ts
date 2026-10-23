@@ -254,7 +254,7 @@ export async function evaluateSuspectTurn(
     attempts++
     try {
       const result = await generateObject({
-        model: getModel(),
+        model: opts.model ?? getModel(),
         schema: SuspectInvigilatorSchema,
         system: systemPrompt,
         prompt: userMessage,
@@ -340,7 +340,7 @@ export async function evaluateWitnessTurn(
     attempts++
     try {
       const result = await generateObject({
-        model: getModel(),
+        model: opts.model ?? getModel(),
         schema: WitnessInvigilatorSchema,
         system: systemPrompt,
         prompt: userMessage,

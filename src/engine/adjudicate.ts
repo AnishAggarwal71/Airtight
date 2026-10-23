@@ -48,6 +48,16 @@ dotenv.config()
 const anthropicProvider = createAnthropic({ baseURL: 'https://api.anthropic.com/v1' })
 export const MODEL = anthropicProvider('claude-haiku-4-5')
 
+/**
+ * Builds the model for one request from a player-supplied Anthropic key (BYOK).
+ * Same baseURL and model id as MODEL, so a player's turn behaves identically;
+ * only the credential differs. Called once per request and never cached: the
+ * key must not outlive the request that carried it.
+ */
+export function modelForApiKey(apiKey: string): LanguageModel {
+  return createAnthropic({ apiKey, baseURL: 'https://api.anthropic.com/v1' })('claude-haiku-4-5')
+}
+
 // Test seam: `npm run verify` swaps in a scripted fake model so server routes
 // can run whole turns with no API key or network. Production never calls
 // setModel(), so every call site gets MODEL exactly as before.
@@ -202,7 +212,7 @@ export async function interrogateSuspect(
 
   try {
     const result = await generateObject({
-      model: getModel(),
+      model: opts.model ?? getModel(),
       schema: SuspectResponseSchema,
       system: systemPrompt,
       prompt: userMessage,

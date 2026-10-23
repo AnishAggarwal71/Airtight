@@ -5,10 +5,11 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
-## 2026-10-24 — Planned (after hardening step 10): bring-your-own-key (BYOK)
+## 2026-10-24 — Bring-your-own-key (BYOK) — implemented
 
-**Status:** planned, not started. Do not begin until hardening steps 0-10 are
-done. A paid-credits (Razorpay) option was considered and deferred: a game
+**Status:** implemented after hardening step 10 (verify check #17). The
+design sketch below is what was built; the implementation notes at the end
+record where it differs or adds detail. A paid-credits (Razorpay) option was considered and deferred: a game
 costs ~$0.05 (~Rs 4), the likely audience is recruiters/friends who will not
 pay, and credits without accounts have no sound identity to attach to (IP
 changes, browser storage is lost). Revisit only if players actually hit the
@@ -42,6 +43,43 @@ the shared $2/day budget.
 - Verify check to add: with a sentinel key, no response, header, log line,
   stored session or transcript contains it; BYOK turns leave the daily
   counter unchanged.
+
+**Implementation notes**
+- Key handling lives in `src/server/byok.ts`: `readApiKey()` (header
+  `X-Anthropic-Key`, shape `sk-ant-` + 20-300 URL-safe chars, else 401
+  `INVALID_API_KEY`), `modelFromKey()`, `isAuthRejection()`. The engine gets an
+  optional `TurnCallOptions.model`; the four `generateObject` call sites use
+  `opts.model ?? getModel()`. `adjudicate.ts` exports `modelForApiKey(key)`
+  (same baseURL and model id as `MODEL`). No prompt, schema or scoring change.
+- Redaction: nothing new was needed. A key is only accepted if it matches
+  `sk-ant-[A-Za-z0-9_-]+`, which `redactSecrets()` (log.ts) already replaces in
+  logs, transcripts and error text. Verify mutation-tests this: removing that
+  regex makes check #17 fail on the rejected-key transcript.
+- The session envelope gets `byok?: true` (`sessions.ts`). A BYOK game must send
+  the key on EVERY request; a BYOK session with no key gets a 401 before any
+  reservation. A non-BYOK session ignores the header (the player cannot switch
+  a shared-budget game onto another key, or the reverse, mid-game).
+- Budget: `reserveSessionSpend()` reserves against `spend:sess:<sid>` only;
+  `SpendReservation.dayKey` is `null` for BYOK so `settleSpend()` never adjusts
+  the daily counter. `POST /api/game` skips `assertDailyCapacity` for BYOK, so
+  BYOK play continues after the shared budget is spent. The per-session cap
+  ($0.08), lock, CAS and per-IP rate limits all still apply.
+- 401/403 from the provider on a BYOK turn becomes 401 `INVALID_API_KEY` with a
+  fixed sentence (the provider body is not echoed; the scrubbed cause is
+  logged as `turn_failed`). The same status on the SHARED key stays a generic
+  502: a server credential problem is never blamed on the player. A refused key
+  is charged 0 (the provider ran nothing); other failed turns keep the 0.003
+  charge.
+- `createApp({ modelForKey })` is the test seam; production uses the real
+  provider. The shared `setModel()` seam is untouched and is never used for a
+  player key (it is process-global).
+- UI: `public/js/byok.js` + a collapsed `<details>` panel on the start screen.
+  The key is in `sessionStorage` only (gone when the tab closes); `api.js`
+  attaches it to every game request. The copy says it passes through our
+  server to Anthropic and is not stored.
+- Not built: a free session per IP (the open question above). Default is no.
+  A BYOK game still passes through our server, so a player who does not trust
+  the host should use a revocable, low-limit key.
 
 ## 2026-10-23 — Deploy on Vercel (supersedes Render); production-hardening plan
 
