@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (10/10 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (11/11 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -263,7 +263,7 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 10 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap, etc.
+npm run verify                        # 11 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -357,10 +357,15 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   (`MAX_DAILY_SPEND_USD`, default $2) in the `Store`, then settles to actual
   cost; over-cap turns get 429 before any model call, a store outage gives
   503 (fail closed). `adjudicate.ts` exports `getModel()`/`setModel()` so
-  verify can run turns against a fake model. **Still NOT safe to deploy until
-  steps 4-9 land:** the per-session turn lock (concurrent requests can race
-  the turn limit and lose updates), rate limits, timeouts, and (step 9) file
-  transcripts. `ANTHROPIC_API_KEY` is a server-side-only env var, never
+  verify can run turns against a fake model. Step 4 (turn race): `src/server/lock.ts`
+  `withSessionLock()` wraps each turn (`lock:<id>`, token, 70s TTL, compare-and-
+  delete release; a concurrent request gets 409 before reserving or calling the
+  model), and `saveSession()` is a revision compare-and-set (`rev` in the
+  stored envelope; stale write -> 409). Request order: validate -> lock ->
+  load + 409 checks -> reserve -> run -> settle + save -> release -> respond.
+  **Still NOT safe to deploy until steps 5-9 land:** failed-turn rollback
+  (step 5), rate limits (6), timeouts (7), error/log hygiene (8) and (step 9)
+  file transcripts. `ANTHROPIC_API_KEY` is a server-side-only env var, never
   shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.

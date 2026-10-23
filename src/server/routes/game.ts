@@ -26,6 +26,7 @@ import {
   type SpendReservation,
 } from '../budget'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
+import { withSessionLock } from '../lock'
 import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
 import type { Store } from '../store'
 import { chooseSeed } from '../seed'
@@ -229,14 +230,14 @@ gameRouter.get(
 
 // ─── POST /api/game/:id/interrogate ─────────────────────────────────────────
 
-gameRouter.post(
-  '/:id/interrogate',
-  asyncHandler(async (req, res) => {
-    const sessionId = req.params.id
+/**
+ * One suspect turn, run under the session lock (see the route below). Returns
+ * the JSON payload rather than sending it, so the lock is released before the
+ * client can see the response.
+ */
+async function runInterrogationTurn(req: Request, sessionId: string, input: string) {
     const stored = await requireSession(req, sessionId)
     const { session } = stored
-    const body = (req.body ?? {}) as Record<string, unknown>
-    const input = validateQuestionInput(body.input, 'input')
 
     if (session.ending) {
       throw conflict('This case is already resolved; no further interrogation turns are accepted.')
@@ -327,26 +328,34 @@ gameRouter.post(
       .filter((e) => result.presentedEvidenceIds.includes(e.id))
       .map((e) => e.claim)
 
-    res.json({
+    return {
       ...toPublicInterrogationResult(result, input, presentedEvidenceDescriptions),
       caseStrength: session.caseStrength,
       interrogationTurn: session.interrogationTurn,
       maxInterrogationTurns: session.maxInterrogationTurns,
       witnessAvailable: isWitnessAvailable(session),
-    })
+    }
+}
+
+// Request order: validate input -> lock -> load + phase/turn checks (409) ->
+// reserve spend -> run -> settle + save -> release lock -> respond.
+gameRouter.post(
+  '/:id/interrogate',
+  asyncHandler(async (req, res) => {
+    const sessionId = req.params.id
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const input = validateQuestionInput(body.input, 'input')
+    const payload = await withSessionLock(storeOf(req), sessionId, () => runInterrogationTurn(req, sessionId, input))
+    res.json(payload)
   }),
 )
 
 // ─── POST /api/game/:id/witness ─────────────────────────────────────────────
 
-gameRouter.post(
-  '/:id/witness',
-  asyncHandler(async (req, res) => {
-    const sessionId = req.params.id
+/** One witness turn, run under the session lock; same contract as runInterrogationTurn. */
+async function runWitnessTurn(req: Request, sessionId: string, question: string) {
     const stored = await requireSession(req, sessionId)
     const { session } = stored
-    const body = (req.body ?? {}) as Record<string, unknown>
-    const question = validateQuestionInput(body.question, 'question')
 
     if (session.ending) {
       throw conflict('This case is already resolved; no further witness turns are accepted.')
@@ -423,13 +432,23 @@ gameRouter.post(
       }
     }
 
-    res.json({
+    return {
       ...toPublicWitnessResult(result, question),
       caseStrength: session.caseStrength,
       witnessTurn: session.witnessTurn,
       maxWitnessTurns: session.maxWitnessTurns,
       witnessUsed: session.witnessUsed,
-    })
+    }
+}
+
+gameRouter.post(
+  '/:id/witness',
+  asyncHandler(async (req, res) => {
+    const sessionId = req.params.id
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const question = validateQuestionInput(body.question, 'question')
+    const payload = await withSessionLock(storeOf(req), sessionId, () => runWitnessTurn(req, sessionId, question))
+    res.json(payload)
   }),
 )
 

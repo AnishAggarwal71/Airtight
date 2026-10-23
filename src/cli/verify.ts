@@ -34,6 +34,7 @@ import { createApp } from '../server/app'
 import { assertSeedConfig, chooseSeed, deriveSeed } from '../server/seed'
 import { MemoryStore, createStore, type Store } from '../server/store'
 import { getSession, saveSession, SESSION_TTL_SECONDS } from '../server/sessions'
+import { withSessionLock, SESSION_LOCK_TTL_MS } from '../server/lock'
 import { buildBreakdown } from '../server/breakdown'
 import { BUDGET_CONFIG, dayKey, reserveSpend } from '../server/budget'
 import { setModel } from '../engine/adjudicate'
@@ -804,6 +805,64 @@ await (async () => {
   }
 })()
 
+/**
+ * Scripted fake model for the route-level checks (no API key). Installs itself
+ * via setModel(); callers MUST setModel(null) in a finally. It tells the four
+ * call types apart by the structured-output schema the SDK sends, answers each
+ * with a valid zero-signal object, and reports fixed token usage so cost is
+ * measurable. Knobs: `gate` holds every persona call until resolved, and
+ * `failKind` makes that call type throw. `calls` counts model calls by type.
+ */
+const FAKE_USAGE = {
+  inputTokens: { total: 1000, noCache: 1000, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 200, text: 200, reasoning: 0 },
+}
+/** Micro-dollars one fake call costs at Haiku 4.5 pricing ($1/M in, $5/M out). */
+const FAKE_CALL_MICROS = 1000 * 1 + 200 * 5
+function installFakeModel() {
+  const fm = {
+    calls: { suspect: 0, witness: 0, invigilator: 0 },
+    gate: Promise.resolve() as Promise<void>,
+    failKind: null as 'suspect' | 'witness' | 'invigilator' | null,
+  }
+  setModel(
+    new MockLanguageModelV4({
+      doGenerate: async (options) => {
+        const schema = JSON.stringify(options.responseFormat ?? {})
+        const kind: 'suspect' | 'witness' | 'invigilator' =
+          schema.includes('guiltyKnowledgeLeak') || schema.includes('suspectContradiction')
+            ? 'invigilator'
+            : schema.includes('cooperative')
+              ? 'witness'
+              : 'suspect'
+        fm.calls[kind]++
+        if (kind !== 'invigilator') await fm.gate
+        if (fm.failKind === kind) throw new Error('fake model outage')
+        const object =
+          kind === 'invigilator'
+            ? schema.includes('suspectContradiction')
+              ? { reasoning: 'ok', signals: { suspectContradiction: null } }
+              : {
+                  reasoning: 'ok',
+                  signals: { contradictions: [], guiltyKnowledgeLeak: null, evidenceHandling: [], demeanorShift: false },
+                }
+            : {
+                dialogue: 'I was at home.',
+                claims: [{ text: 'The speaker was at home.', checkable: true }],
+                demeanor: kind === 'witness' ? 'cooperative' : 'calm',
+              }
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(object) }],
+          finishReason: { unified: 'stop' as const, raw: undefined },
+          usage: FAKE_USAGE,
+          warnings: [],
+        }
+      },
+    }),
+  )
+  return fm
+}
+
 // 10. Spend cap is atomic and fails closed. Real route code runs whole turns
 // against a scripted fake model (no API key). Proves: N parallel turns across
 // many sessions admit exactly as many as the daily cap has room for (the rest
@@ -830,42 +889,12 @@ await (async () => {
     }
     console.error = () => {}
 
-    // ── Scripted fake model ────────────────────────────────────────────
-    // Which call is it? Tell by the structured-output schema the SDK sends.
-    const USAGE = {
-      inputTokens: { total: 1000, noCache: 1000, cacheRead: 0, cacheWrite: 0 },
-      outputTokens: { total: 200, text: 200, reasoning: 0 },
-    }
-    const PER_CALL_MICROS = 1000 * 1 + 200 * 5 // $1/M in, $5/M out => 2000 micro-dollars
-    const calls = { suspect: 0, invigilator: 0 }
-    let gate: Promise<void> = Promise.resolve()
-    let failKind: 'suspect' | 'invigilator' | null = null
-    setModel(
-      new MockLanguageModelV4({
-        doGenerate: async (options) => {
-          const schema = JSON.stringify(options.responseFormat ?? {})
-          const isInvigilator = schema.includes('guiltyKnowledgeLeak')
-          if (isInvigilator) calls.invigilator++
-          else calls.suspect++
-          if (!isInvigilator) await gate
-          if (failKind === (isInvigilator ? 'invigilator' : 'suspect')) throw new Error('fake model outage')
-          const object = isInvigilator
-            ? {
-                reasoning: 'ok',
-                signals: { contradictions: [], guiltyKnowledgeLeak: null, evidenceHandling: [], demeanorShift: false },
-              }
-            : { dialogue: 'I was at home.', claims: [{ text: 'The suspect was at home.', checkable: true }], demeanor: 'calm' }
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(object) }],
-            finishReason: { unified: 'stop' as const, raw: undefined },
-            usage: USAGE,
-            warnings: [],
-          }
-        },
-      }),
-    )
+    const fm = installFakeModel()
+    const PER_CALL_MICROS = FAKE_CALL_MICROS
+    const calls = fm.calls
     const resetCalls = () => {
       calls.suspect = 0
+      calls.witness = 0
       calls.invigilator = 0
     }
 
@@ -895,7 +924,7 @@ await (async () => {
       // Hold every admitted turn inside the model until all refusals have
       // returned, so no early settle can free budget mid-test.
       let release!: () => void
-      gate = new Promise<void>((r) => (release = r))
+      fm.gate = new Promise<void>((r) => (release = r))
       resetCalls()
       let refused = 0
       const results = ids.map((id) =>
@@ -908,7 +937,7 @@ await (async () => {
       while (refused < 7 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5))
       release()
       const statuses = (await Promise.all(results)).map((r) => r.status).sort()
-      gate = Promise.resolve()
+      fm.gate = Promise.resolve()
       const okCount = statuses.filter((s) => s === 200).length
       const tooMany = statuses.filter((s) => s === 429).length
       if (okCount !== 3 || tooMany !== 7) {
@@ -1016,9 +1045,9 @@ await (async () => {
       const store = new MemoryStore()
       const base = serve(store)
       const sid = await newGame(base)
-      failKind = 'suspect'
+      fm.failKind = 'suspect'
       const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
-      failKind = null
+      fm.failKind = null
       const charged = await counter(store, dayKey(new Date()))
       const want = BUDGET_CONFIG.failedTurnChargeUsd * 1_000_000
       if (res.status !== 502 || charged !== want) {
@@ -1032,9 +1061,9 @@ await (async () => {
       const store = new MemoryStore()
       const base = serve(store)
       const sid = await newGame(base)
-      failKind = 'invigilator'
+      fm.failKind = 'invigilator'
       const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
-      failKind = null
+      fm.failKind = null
       const charged = await counter(store, dayKey(new Date()))
       if (res.status !== 200 || charged !== TURN) {
         fail(`invigilator-failure turn: status ${res.status}, charged ${charged}; want 200 and ${TURN}`)
@@ -1045,6 +1074,288 @@ await (async () => {
     pass('spend cap: parallel turns admit exactly the budget (rest 429, no model call, no turn used); per-session cap, daily-cap game block, fail-closed 503, and failed-turn charges hold')
   } catch (err) {
     fail(`spend cap check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.log = origLog
+    console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
+// 11. Turn-limit race. Parallel requests at ONE session must not exceed the
+// turn limits or lose updates. Proves: a per-session lock admits one request
+// at a time (the rest get 409 before any reservation or model call); hammering
+// one session with parallel suspect+witness requests accepts exactly 6 suspect
+// and 2 witness turns; the lock is released after success AND failure (the
+// next request is never a spurious 409); a stale write is refused by the
+// revision compare-and-set (the backstop if a lock expires mid-request); an
+// expired holder cannot release a newer holder's lock; and a lock-store outage
+// fails closed (503, no model call). MemoryStore again: this proves the
+// protocol; Lua/NX atomicity on Redis is Redis's guarantee.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    console.log = (...a: unknown[]) => {
+      if (!String(a[0]).startsWith('{"evt"')) origLog(...a)
+    }
+    console.error = () => {}
+    const fm = installFakeModel()
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    const post = (base: string, route: string, body: unknown = {}) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const serve = (store: Store) => {
+      const srv = createApp({ store }).listen(0)
+      servers.push(srv)
+      return `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    }
+    const newGame = async (base: string) => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
+    const turnOf = async (store: Store, sid: string) => {
+      const st = await getSession(store, sid)
+      return { suspect: st?.session.interrogationTurn ?? -1, witness: st?.session.witnessTurn ?? -1 }
+    }
+    const Q = { input: 'Where were you?' }
+    const W = { question: 'What did you see?' }
+
+    // ── A. Held lock: concurrent requests on one session, one admitted ──
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      const sid = await newGame(base)
+      let release!: () => void
+      fm.gate = new Promise<void>((r) => (release = r))
+      const results = Array.from({ length: 8 }, () => post(base, `/api/game/${sid}/interrogate`, Q))
+      const deadline = Date.now() + 5000
+      while (fm.calls.suspect < 1 && Date.now() < deadline) await sleep(5)
+      await sleep(50) // let the losers reach the lock and get refused
+      release()
+      const statuses = (await Promise.all(results)).map((r) => r.status).sort()
+      fm.gate = Promise.resolve()
+      const ok = statuses.filter((x) => x === 200).length
+      const conflicts = statuses.filter((x) => x === 409).length
+      if (ok !== 1 || conflicts !== 7) {
+        fail(`8 parallel turns on one session: got ${ok}x200 and ${conflicts}x409 (${statuses.join(',')}); want 1 and 7`)
+        return
+      }
+      if (fm.calls.suspect !== 1) {
+        fail(`${fm.calls.suspect} persona calls for 8 parallel requests on one session, want 1 (losers must not spend)`)
+        return
+      }
+      const t = await turnOf(store, sid)
+      if (t.suspect !== 1) {
+        fail(`session advanced ${t.suspect} turns, want 1`)
+        return
+      }
+    }
+
+    // ── B. Hammer one session: exactly 6 suspect + 2 witness turns ──────
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      const sid = await newGame(base)
+      // Unlock the witness (needs Case Strength above the threshold) by editing the stored copy.
+      const st = await getSession(store, sid)
+      if (!st) {
+        fail('could not load the session to unlock the witness')
+        return
+      }
+      st.session.caseStrength = 60
+      await saveSession(store, sid, st)
+      for (const k of Object.keys(fm.calls) as (keyof typeof fm.calls)[]) fm.calls[k] = 0
+
+      let suspectOk = 0
+      let witnessOk = 0
+      const run = async (route: 'interrogate' | 'witness') => {
+        const r = await post(base, `/api/game/${sid}/${route}`, route === 'interrogate' ? Q : W)
+        if (r.status === 200) route === 'interrogate' ? suspectOk++ : witnessOk++
+        else if (r.status !== 409) throw new Error(`${route} returned ${r.status}, want 200 or 409`)
+      }
+      // Wave 1 is witness-only so the witness is opened before the suspect turns run out
+      // (a finished suspect phase with the witness unopened ends the game).
+      await Promise.all(Array.from({ length: 6 }, () => run('witness')))
+      for (let wave = 0; wave < 60; wave++) {
+        const g = (await (await fetch(`${base}/api/game/${sid}`)).json()) as { ending: string | null }
+        if (g.ending) break
+        await Promise.all([
+          ...Array.from({ length: 6 }, () => run('interrogate')),
+          ...Array.from({ length: 6 }, () => run('witness')),
+        ])
+      }
+      if (suspectOk !== 6 || witnessOk !== 2) {
+        fail(`hammering one session accepted ${suspectOk} suspect and ${witnessOk} witness turns, want exactly 6 and 2`)
+        return
+      }
+      const seen = { ...fm.calls } // a copy: the earlier `calls.suspect !== 1` guard narrows the live property's type
+      if (seen.suspect !== 6 || seen.witness !== 2) {
+        fail(`model saw ${seen.suspect} suspect and ${seen.witness} witness persona calls, want 6 and 2`)
+        return
+      }
+      const t = await turnOf(store, sid)
+      if (t.suspect !== 6 || t.witness !== 2) {
+        fail(`stored session has ${t.suspect}/${t.witness} turns, want 6/2`)
+        return
+      }
+    }
+
+    // ── C. Lock released after success AND after a failed turn ──────────
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      const sid = await newGame(base)
+      for (let i = 0; i < 2; i++) {
+        const r = await post(base, `/api/game/${sid}/interrogate`, Q)
+        if (r.status !== 200) {
+          fail(`sequential turn ${i + 1} returned ${r.status}, want 200 (lock must be released before the response)`)
+          return
+        }
+      }
+      fm.failKind = 'suspect'
+      const failed = await post(base, `/api/game/${sid}/interrogate`, Q)
+      fm.failKind = null
+      const after = await post(base, `/api/game/${sid}/interrogate`, Q)
+      if (failed.status !== 502 || after.status !== 200) {
+        fail(`after a failed turn: failed=${failed.status} (want 502), next=${after.status} (want 200, not a stuck-lock 409)`)
+        return
+      }
+    }
+
+    // ── D. Stale write refused (lock expired mid-request backstop) ──────
+    {
+      // End to end: request 1 is in flight, its lock vanishes (as if the TTL ran out),
+      // request 2 gets in. Both finish; only the first save may win.
+      const store = new MemoryStore()
+      const base = serve(store)
+      const sid = await newGame(base)
+      for (const k of Object.keys(fm.calls) as (keyof typeof fm.calls)[]) fm.calls[k] = 0
+      let release!: () => void
+      fm.gate = new Promise<void>((r) => (release = r))
+      const first = post(base, `/api/game/${sid}/interrogate`, Q)
+      let deadline = Date.now() + 5000
+      while (fm.calls.suspect < 1 && Date.now() < deadline) await sleep(5)
+      await store.del(`lock:${sid}`)
+      const second = post(base, `/api/game/${sid}/interrogate`, Q)
+      deadline = Date.now() + 5000
+      while (fm.calls.suspect < 2 && Date.now() < deadline) await sleep(5)
+      release()
+      const statuses = [(await first).status, (await second).status].sort()
+      fm.gate = Promise.resolve()
+      const t = await turnOf(store, sid)
+      if (statuses.join(',') !== '200,409' || t.suspect !== 1) {
+        fail(`stale-write race: statuses ${statuses.join(',')}, stored turns ${t.suspect}; want 200,409 and 1 turn`)
+        return
+      }
+      // Unit level: two copies loaded at the same revision; the second save must be refused untouched.
+      const a = await getSession(store, sid)
+      const b = await getSession(store, sid)
+      if (!a || !b) {
+        fail('could not reload the session')
+        return
+      }
+      a.session.caseStrength = 41
+      await saveSession(store, sid, a)
+      b.session.caseStrength = 99
+      let code = 0
+      try {
+        await saveSession(store, sid, b)
+      } catch (e) {
+        code = (e as { status?: number }).status ?? 0
+      }
+      const final = await getSession(store, sid)
+      if (code !== 409 || final?.session.caseStrength !== 41) {
+        fail(`stale save: status ${code}, stored caseStrength ${final?.session.caseStrength}; want 409 and 41 (first writer wins)`)
+        return
+      }
+    }
+
+    // ── E. An expired holder cannot release a newer holder's lock ───────
+    {
+      let clock = 1_000_000
+      const store = new MemoryStore(() => clock)
+      const key = 'lock:test'
+      if (!(await store.acquireLock(key, 'holder-1', SESSION_LOCK_TTL_MS))) {
+        fail('first acquire of a free lock failed')
+        return
+      }
+      if (await store.acquireLock(key, 'holder-2', SESSION_LOCK_TTL_MS)) {
+        fail('a held lock was acquired a second time')
+        return
+      }
+      clock += SESSION_LOCK_TTL_MS + 1
+      if (!(await store.acquireLock(key, 'holder-2', SESSION_LOCK_TTL_MS))) {
+        fail('an expired lock could not be re-acquired')
+        return
+      }
+      await store.releaseLock(key, 'holder-1') // late release from the dead holder
+      if (await store.acquireLock(key, 'holder-3', SESSION_LOCK_TTL_MS)) {
+        fail('a stale holder released a lock now owned by someone else')
+        return
+      }
+      if (SESSION_LOCK_TTL_MS <= 60_000) {
+        fail('lock TTL must exceed the 60s function limit (vercel.json maxDuration)')
+        return
+      }
+    }
+
+    // ── F. Lock store down: fail closed (503), no model call, no id-to-key injection ──
+    {
+      const inner = new MemoryStore()
+      let lockDown = false
+      let locksTouched = 0
+      const flaky: Store = {
+        getJson: (k) => inner.getJson(k),
+        setJson: (k, v, t) => inner.setJson(k, v, t),
+        del: (k) => inner.del(k),
+        reserve: (l, a) => inner.reserve(l, a),
+        adjust: (k, d, t) => inner.adjust(k, d, t),
+        acquireLock: (k, tok, ms) => {
+          locksTouched++
+          return lockDown ? Promise.reject(new Error('SECRET-LOCK-DOWN')) : inner.acquireLock(k, tok, ms)
+        },
+        releaseLock: (k, tok) => inner.releaseLock(k, tok),
+        setJsonIfRev: (k, r, v, t) => inner.setJsonIfRev(k, r, v, t),
+      }
+      const base = serve(flaky)
+      const sid = await newGame(base)
+      lockDown = true
+      for (const k of Object.keys(fm.calls) as (keyof typeof fm.calls)[]) fm.calls[k] = 0
+      const res = await post(base, `/api/game/${sid}/interrogate`, Q)
+      const text = await res.text()
+      if (res.status !== 503 || text.includes('SECRET-LOCK-DOWN')) {
+        fail(`turn with the lock store down returned ${res.status} (leak: ${text.includes('SECRET-LOCK-DOWN')}), want a clean 503`)
+        return
+      }
+      if (fm.calls.suspect + fm.calls.invigilator !== 0) {
+        fail('a paid model call was made without holding the session lock')
+        return
+      }
+      locksTouched = 0
+      let code = 0
+      try {
+        await withSessionLock(flaky, '../../etc/passwd', async () => 'ran')
+      } catch (e) {
+        code = (e as { status?: number }).status ?? 0
+      }
+      if (code !== 404 || locksTouched !== 0) {
+        fail(`malformed session id under lock: status ${code}, store touched ${locksTouched}x; want 404 and 0`)
+        return
+      }
+    }
+
+    pass('turn race: one request per session at a time (rest 409, no spend); parallel hammering accepts exactly 6 suspect + 2 witness turns; lock freed after success/failure; stale writes refused; fail-closed 503')
+  } catch (err) {
+    fail(`turn race check threw: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     console.log = origLog
     console.error = origErr

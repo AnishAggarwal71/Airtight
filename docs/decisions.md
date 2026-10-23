@@ -134,6 +134,28 @@ scripted fake model with no API key. The test uses `MemoryStore`, so it
 proves the reserve/settle protocol; the Lua script's atomicity is
 Redis's guarantee and is unexecuted locally.
 
+**Step 4 notes (turn-limit race):** the turn handlers were load -> check ->
+paid calls -> save, so parallel requests on one session all passed the
+"turns remaining" check on the same stale copy and the last write won. Fix is
+two layers. (1) `src/server/lock.ts` `withSessionLock()`: `SET lock:<id> token
+NX PX 70000`, released by compare-and-delete in a `finally`, so a crashed
+instance wedges a session for at most ~70s (above `maxDuration` 60) and an
+expired holder can never delete a newer holder's lock. A second concurrent
+request gets 409 before it reserves spend or calls the model. The lock wraps
+the whole turn and is released BEFORE the response is sent (handlers return a
+payload; the route sends it afterwards), otherwise a client's next click could
+race the release and see a spurious 409. Lock-store outage -> 503 (fail
+closed). Malformed ids are rejected before becoming lock keys. (2) Versioned
+save: the session envelope carries `rev`; `saveSession()` is a compare-and-set
+(`Store.setJsonIfRev`, Lua on Upstash) and a stale write is a 409 with nothing
+overwritten. This is the backstop for a lock that expires mid-request. Order:
+rate limit (step 6) -> validate -> lock -> load -> phase/turn checks (409) ->
+reserve -> run -> settle + save -> release. Lock/CAS Lua scripts use raw
+string tokens (not the client's JSON encoding) so compare-and-delete matches.
+Known limit: the CAS treats a missing/undecodable `rev` as 0; sessions
+written before this step (rev absent) therefore still save once, then carry a
+rev.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from
