@@ -44,6 +44,12 @@ instead — check there before relitigating something that was already tried.
   once incorporated. Don't edit `CLAUDE.md`/`decisions.md` from the testing
   side directly — write here instead, to avoid both machines colliding on
   the same file across a `git pull`.
+- [`docs/hardening-explained.md`](docs/hardening-explained.md) — plain-language
+  what/why/how for each production-hardening step. **Add a section here in the
+  same commit as every hardening step.**
+- [`.claude/audit-checklist.md`](.claude/audit-checklist.md) — PowerShell
+  checklist for the Windows test machine (offline checks, local smoke test,
+  live-Vercel checks). **Extend it with a section per hardening step.**
 - [`docs/eval-v3-results.md`](docs/eval-v3-results.md) — V3 invigilator
   tuning results: Layer 1 precision/recall and Layer 2 gameplay balance,
   before/after comparison, per-game breakdown.
