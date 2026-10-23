@@ -42,6 +42,8 @@ npm run play -- test-seed-1 homicide
 
 Add `ANTHROPIC_API_KEY` to `.env.local`. The game uses Claude Haiku 4.5 (`claude-haiku-4-5`) for both the persona and invigilator agents. Keys are local only and must never be committed.
 
+Server spend cap (web deployment): each turn reserves its worst-case model cost against a per-session limit ($0.50) and a server-wide daily limit. The daily limit defaults to $5 and is set with the optional `MAX_DAILY_SPEND_USD` env var; when it is used up, new games are refused until the next UTC day.
+
 During play:
 
 ```text
@@ -73,7 +75,7 @@ Results are written to `eval-results/` as timestamped JSON.
 | Scoring | Pure TypeScript with all tuning weights in `SCORING_CONFIG`; the engine reads invigilator signals and does the arithmetic — the model never scores itself. |
 | State | A compact claim ledger (suspect `c` prefix, witness `wc` prefix), evidence presentation state, Case Strength history, ending state, and token usage. |
 | Safety boundary | `toPublicCase()` exposes the detective's evidence while withholding the truth timeline, evidence vulnerabilities, suspect persona/strategy, and the fatal fact. |
-| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (9 checks, zero model calls). |
+| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (10 checks, zero model calls). |
 | Eval harness | Layer 1: 18 hand-crafted invigilator-accuracy cases (precision 0.667, recall 0.80, 10/18 passed). Layer 2: automated full-game runner with a scripted detective (6/10 `CHARGED_STRONG`, mean Case Strength 77 over 10 games) — *Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run.* See [`docs/eval-v3-results.md`](docs/eval-v3-results.md). |
 
 ## Project map

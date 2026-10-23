@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (9/9 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (10/10 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -263,7 +263,7 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 9 checks: determinism, leak-safety, integrity, coverage, variance, etc.
+npm run verify                        # 10 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -352,9 +352,16 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   `Store`, `src/server/store.ts`: Upstash Redis when `UPSTASH_REDIS_REST_URL`
   + `_TOKEN` — or the Marketplace names `KV_REST_API_URL` + `_TOKEN` — are
   set, `MemoryStore` locally, boot error on Vercel with no credentials).
-  **Still in-memory and NOT safe to deploy until steps 3-4 land:** the spend
-  counters in `budget.ts` and (step 9) file transcripts. `ANTHROPIC_API_KEY`
-  is a server-side-only env var, never shipped to the client.
+  Step 3 (spend cap): `budget.ts` reserves each turn's worst case ($0.04)
+  atomically against a per-session ($0.50) and a per-UTC-day counter
+  (`MAX_DAILY_SPEND_USD`, default $5) in the `Store`, then settles to actual
+  cost; over-cap turns get 429 before any model call, a store outage gives
+  503 (fail closed). `adjudicate.ts` exports `getModel()`/`setModel()` so
+  verify can run turns against a fake model. **Still NOT safe to deploy until
+  steps 4-9 land:** the per-session turn lock (concurrent requests can race
+  the turn limit and lose updates), rate limits, timeouts, and (step 9) file
+  transcripts. `ANTHROPIC_API_KEY` is a server-side-only env var, never
+  shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.
   `/var/data/playtest-logs`) in production. Every persistent-disk host

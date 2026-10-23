@@ -16,7 +16,15 @@ import {
 import type { PlayInterrogationResult, PlayWitnessResult } from '../../engine/session'
 import type { GameSession, TokenUsage } from '../../engine/types'
 import { buildBreakdown, buildTranscript } from '../breakdown'
-import { checkBudget, estimateCostUsd, recordSpend } from '../budget'
+import {
+  assertDailyCapacity,
+  BUDGET_CONFIG,
+  chargeForCompletedTurn,
+  estimateCostUsd,
+  reserveSpend,
+  settleSpend,
+  type SpendReservation,
+} from '../budget'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
 import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
 import type { Store } from '../store'
@@ -79,6 +87,15 @@ function incrementalCostUsd(before: TokenUsage, after: TokenUsage): number {
     cacheCreationTokens: after.cacheCreationTokens - before.cacheCreationTokens,
     cacheReadTokens: after.cacheReadTokens - before.cacheReadTokens,
   })
+}
+
+/**
+ * Settles the reservation of a turn whose persona call threw. The provider
+ * may still have billed the request (e.g. a timeout after it was accepted),
+ * so a small fixed charge is kept rather than refunding in full.
+ */
+async function settleFailedTurn(store: Store, reservation: SpendReservation): Promise<void> {
+  await settleSpend(store, reservation, BUDGET_CONFIG.failedTurnChargeUsd)
 }
 
 export const gameRouter = Router()
@@ -144,6 +161,10 @@ gameRouter.post(
     if (body.crime !== undefined && body.crime !== 'homicide') {
       throw badRequest('Only homicide is available in this version.')
     }
+
+    // Once today's budget is spent, new games get a friendly "resting" 429
+    // instead of a session whose first question would be refused anyway.
+    await assertDailyCapacity(storeOf(req))
 
     // Seed policy lives in seed.ts: the server picks the seed, and client
     // seed/templateId are ignored unless ALLOW_CLIENT_SEED=1 (never in prod).
@@ -223,7 +244,9 @@ gameRouter.post(
     if (session.interrogationTurn >= session.maxInterrogationTurns) {
       throw conflict('No interrogation turns remaining.')
     }
-    checkBudget(session)
+    // Reserve this turn's worst-case cost atomically BEFORE any paid call;
+    // a 429 here means no turn counter moved and nothing was spent.
+    const reservation = await reserveSpend(storeOf(req), sessionId)
 
     const transcriptPath = stored.transcriptPath || undefined
     const turn = session.interrogationTurn + 1
@@ -250,6 +273,7 @@ gameRouter.post(
     try {
       result = await playInterrogationTurnSafely(session, input)
     } catch (err) {
+      await settleFailedTurn(storeOf(req), reservation)
       if (transcriptPath) {
         const error = err instanceof Error ? err : new Error(String(err))
         await appendTranscriptTurnFailed(
@@ -266,7 +290,11 @@ gameRouter.post(
       }
       throw err
     }
-    recordSpend(incrementalCostUsd(usageBefore, session.usage))
+    await settleSpend(
+      storeOf(req),
+      reservation,
+      chargeForCompletedTurn(incrementalCostUsd(usageBefore, session.usage), result.invigilatorFailed),
+    )
     // Persist only after the turn succeeded: a thrown persona call skips this,
     // so the stored session keeps the pre-turn counters and evidence flags.
     await saveSession(storeOf(req), sessionId, stored)
@@ -330,7 +358,7 @@ gameRouter.post(
           : 'The witness is not available yet — Case Strength has not cleared the unlock threshold.',
       )
     }
-    checkBudget(session)
+    const reservation = await reserveSpend(storeOf(req), sessionId)
 
     const transcriptPath = stored.transcriptPath || undefined
     const turn = session.witnessTurn + 1
@@ -350,6 +378,7 @@ gameRouter.post(
     try {
       result = await playWitnessTurnSafely(session, question)
     } catch (err) {
+      await settleFailedTurn(storeOf(req), reservation)
       if (transcriptPath) {
         const error = err instanceof Error ? err : new Error(String(err))
         await appendTranscriptTurnFailed(
@@ -366,7 +395,11 @@ gameRouter.post(
       }
       throw err
     }
-    recordSpend(incrementalCostUsd(usageBefore, session.usage))
+    await settleSpend(
+      storeOf(req),
+      reservation,
+      chargeForCompletedTurn(incrementalCostUsd(usageBefore, session.usage), result.invigilatorFailed),
+    )
     await saveSession(storeOf(req), sessionId, stored)
 
     if (transcriptPath) {

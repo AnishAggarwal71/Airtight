@@ -7,12 +7,12 @@
  * the main interrogation phase.
  *
  * Same Vercel AI SDK + Zod structured output pattern as adjudicate.ts.
- * Imports MODEL from adjudicate.ts so the provider is swapped in one place.
+ * Imports getModel() from adjudicate.ts so the provider is swapped in one place.
  */
 
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { MODEL } from './adjudicate'
+import { getModel } from './adjudicate'
 import type {
   CaseFile,
   Claim,
@@ -133,7 +133,7 @@ export async function interrogateWitness(
 
   try {
     const result = await generateObject({
-      model: MODEL,
+      model: getModel(),
       schema: WitnessResponseSchema,
       system: systemPrompt,
       prompt: userMessage,

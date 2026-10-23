@@ -14,7 +14,7 @@
  * a one-line change (swap MODEL). — CLAUDE.md
  */
 
-import { generateObject } from 'ai'
+import { generateObject, type LanguageModel } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
 import type {
@@ -46,6 +46,21 @@ dotenv.config()
 // and fails with an opaque 500.
 const anthropicProvider = createAnthropic({ baseURL: 'https://api.anthropic.com/v1' })
 export const MODEL = anthropicProvider('claude-haiku-4-5')
+
+// Test seam: `npm run verify` swaps in a scripted fake model so server routes
+// can run whole turns with no API key or network. Production never calls
+// setModel(), so every call site gets MODEL exactly as before.
+let activeModel: LanguageModel = MODEL
+
+/** The model every persona/invigilator call should use. */
+export function getModel(): LanguageModel {
+  return activeModel
+}
+
+/** Overrides the model for tests; pass null to restore the real MODEL. */
+export function setModel(model: LanguageModel | null): void {
+  activeModel = model ?? MODEL
+}
 
 // ─── Structured output schema ─────────────────────────────────────────────────
 
@@ -180,7 +195,7 @@ export async function interrogateSuspect(
 
   try {
     const result = await generateObject({
-      model: MODEL,
+      model: getModel(),
       schema: SuspectResponseSchema,
       system: systemPrompt,
       prompt: userMessage,

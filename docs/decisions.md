@@ -70,6 +70,31 @@ route does load, then run, then save, so concurrent requests on one session
 can lose an update; step 4 adds the lock and versioned save. `@upstash/redis`
 added to `package.json` only; the lockfile was not touched.
 
+**Step 3 notes (atomic spend cap):** `budget.ts` rewritten; the module-level
+counters are gone. Each turn first *reserves* its worst-case cost
+(`turnReserveUsd` $0.04: persona at its 2048-token cap plus the invigilator on
+all 3 attempts) against two Redis counters in one atomic call — per session
+(`spend:sess:<id>`, cap $0.50, TTL 2h) and per UTC day (`spend:day:<date>`,
+cap `MAX_DAILY_SPEND_USD`, default $5, TTL 48h) — and a turn that does not fit
+gets 429 before any paid call. After the turn the reservation is *settled*
+by adding (actual - reserved). Counters are integer micro-dollars (INCRBY is
+integer-only). `Store` gained `reserve(limits, amount)` (all-or-nothing, a Lua
+script on Upstash, a synchronous check-then-write in `MemoryStore`) and
+`adjust(key, delta, ttl)`. Fail-closed: if the store is down the turn is
+refused with a 503, because paid calls we cannot count are the failure mode
+this step exists to prevent; only the post-turn settle swallows errors (the
+model is already paid for; the leftover reservation over-counts). Charges: a
+persona failure costs `failedTurnChargeUsd` ($0.003, the call may have been
+billed); an invigilator failure costs the full reservation, because its
+failed attempts are billed but never reach `session.usage`. Creating a game
+is refused with a friendly "resting for today" 429 when the day's remaining
+budget cannot cover one turn (a plain read; the atomic guard is the
+reservation). Engine seam: `adjudicate.ts` exports `getModel()`/`setModel()`
+(default unchanged: `MODEL`) so verify check #10 can run real turns against a
+scripted fake model with no API key. The test uses `MemoryStore`, so it
+proves the reserve/settle protocol; the Lua script's atomicity is
+Redis's guarantee and is unexecuted locally.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

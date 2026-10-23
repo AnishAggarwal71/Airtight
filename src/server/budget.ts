@@ -1,15 +1,28 @@
 /**
- * Spend cap — bounds model cost per session and across the whole server
- * per day, so the game can be shared without an unbounded cost tail.
+ * Spend cap — bounds model cost per session and across the whole server per
+ * UTC day, so the game can be shared without an unbounded cost tail.
  *
- * In-memory only, same "no database" pattern as src/server/sessions.ts:
- * the daily total resets on server restart, not just on the UTC day
- * boundary. Acceptable for a portfolio deployment; flagged here rather
- * than hidden.
+ * Why reserve-then-settle: with many serverless instances, "check the total,
+ * run the model, add the cost" lets N parallel requests all pass the same
+ * check and all spend. Instead each turn first RESERVES its worst-case cost
+ * against both counters in one atomic store operation (Lua on Redis); a turn
+ * that doesn't fit is refused before any paid call. After the turn the
+ * reservation is SETTLED down to the real cost by adding (actual - reserved).
+ *
+ * Counters are integer micro-dollars (Redis INCRBY is integer-only; floats
+ * would drift):
+ *   spend:sess:<sessionId>   this game's spend, TTL 2h
+ *   spend:day:<YYYY-MM-DD>   server-wide spend for that UTC day, TTL 48h
+ *
+ * Fail-closed: if the store is unreachable the turn is refused with a 503.
+ * Never run paid calls we cannot count. The one exception is settle(): by then
+ * the model has already been paid for, so a settle failure is logged and
+ * swallowed — the unreduced reservation over-counts, which errs on the safe side.
  */
 
-import type { GameSession, TokenUsage } from '../engine/types'
-import { budgetExceeded } from './errors'
+import type { TokenUsage } from '../engine/types'
+import { budgetExceeded, storeUnavailable } from './errors'
+import type { Store } from './store'
 
 // Anthropic Haiku 4.5 pricing per CLAUDE.md: $1.00/1M input tokens,
 // $5.00/1M output tokens. Cache writes are billed at the input rate (cache
@@ -19,60 +32,143 @@ const INPUT_USD_PER_TOKEN = 1.0 / 1_000_000
 const OUTPUT_USD_PER_TOKEN = 5.0 / 1_000_000
 
 /**
- * Current ceilings — change these two numbers to retune the cap.
- * maxSessionSpendUsd: a full game is 16 model calls; this leaves generous
- * headroom over typical per-game cost while still catching a runaway session.
- * maxDailySpendUsd: global ceiling across all sessions combined.
+ * Current ceilings — change these numbers to retune the cap.
+ * maxSessionSpendUsd: a full game is 16 model calls (~$0.05); this leaves
+ *   generous headroom while still catching a runaway session.
+ * defaultDailySpendUsd: global ceiling across all sessions, used unless the
+ *   MAX_DAILY_SPEND_USD env var overrides it (see dailyCapMicros).
+ * turnReserveUsd: worst-case cost of ONE turn, reserved up front. Worst case =
+ *   persona call at its 2048-token output cap (~$0.012 incl. ~2k input) plus
+ *   the invigilator on all 3 attempts (~$0.0076 each at ~2.5k input and its
+ *   1024-token output cap) ≈ $0.035, rounded up to $0.04.
+ * failedTurnChargeUsd: what a turn whose persona call threw is charged — about
+ *   one persona-sized input (~2.5k tokens). The call may have been billed
+ *   even though it errored (e.g. a timeout).
  */
 export const BUDGET_CONFIG = {
   maxSessionSpendUsd: 0.5,
-  maxDailySpendUsd: 25.0,
+  defaultDailySpendUsd: 5.0,
+  turnReserveUsd: 0.04,
+  failedTurnChargeUsd: 0.003,
 }
+
+const SESSION_COUNTER_TTL_SECONDS = 2 * 60 * 60
+const DAY_COUNTER_TTL_SECONDS = 48 * 60 * 60
+
+const usdToMicros = (usd: number) => Math.round(usd * 1_000_000)
 
 export function estimateCostUsd(usage: TokenUsage): number {
   const inputTokens = usage.inputTokens + usage.cacheCreationTokens + usage.cacheReadTokens
   return inputTokens * INPUT_USD_PER_TOKEN + usage.outputTokens * OUTPUT_USD_PER_TOKEN
 }
 
-let dailySpendUsd = 0
-let dailySpendResetAt = startOfNextUtcDay()
-
-function startOfNextUtcDay(): number {
-  const now = new Date()
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+/** Daily ceiling in micro-dollars: MAX_DAILY_SPEND_USD if it is a positive number, else the default. */
+export function dailyCapMicros(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number(env.MAX_DAILY_SPEND_USD)
+  const usd = Number.isFinite(raw) && raw > 0 ? raw : BUDGET_CONFIG.defaultDailySpendUsd
+  return usdToMicros(usd)
 }
 
-function rolloverIfNewDay(): void {
-  if (Date.now() >= dailySpendResetAt) {
-    dailySpendUsd = 0
-    dailySpendResetAt = startOfNextUtcDay()
+const sessionKey = (sessionId: string) => `spend:sess:${sessionId}`
+/** One counter per UTC calendar day, so the daily total rolls over by key rather than by a reset job. */
+export const dayKey = (now: Date) => `spend:day:${now.toISOString().slice(0, 10)}`
+
+/** Handle returned by reserveSpend() and consumed by settleSpend(). */
+export type SpendReservation = {
+  sessionId: string
+  sessionKey: string
+  dayKey: string
+  reservedMicros: number
+}
+
+/** Logs a store failure server-side (it may contain URLs/tokens) and returns the generic 503 to throw. */
+function failClosed(op: string, err: unknown) {
+  console.error(JSON.stringify({ evt: 'store_error', op, msg: err instanceof Error ? err.message : String(err) }))
+  return storeUnavailable()
+}
+
+const DAILY_MESSAGE =
+  'The detective bureau is resting for today — the daily budget for this game has been used up. Please come back tomorrow.'
+const SESSION_MESSAGE =
+  'This case has hit its model-spend limit for a single session. Start a new case to continue playing.'
+
+/**
+ * Gate for creating a new game: refuses with a friendly 429 when today's
+ * budget cannot cover even one more turn. A plain read is fine here (no
+ * money is spent by creating a session); the atomic guard is reserveSpend().
+ */
+export async function assertDailyCapacity(
+  store: Store,
+  now: Date = new Date(),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  let spent: unknown
+  try {
+    spent = await store.getJson(dayKey(now))
+  } catch (err) {
+    throw failClosed('daily_capacity', err)
   }
-}
-
-/** Adds the incremental cost of a model call to today's running total. */
-export function recordSpend(usd: number): void {
-  rolloverIfNewDay()
-  dailySpendUsd += usd
+  if (Number(spent ?? 0) + usdToMicros(BUDGET_CONFIG.turnReserveUsd) > dailyCapMicros(env)) {
+    throw budgetExceeded(DAILY_MESSAGE)
+  }
 }
 
 /**
- * Throws a 429 ApiError if either this session or the server-wide daily
- * total has already exceeded its ceiling. Callers must check this BEFORE
- * invoking the model so a refused turn never consumes a turn counter or
- * makes a paid call.
+ * Atomically reserves one turn's worst-case cost against the session and
+ * daily counters. Throws a 429 if either would go over its cap (nothing is
+ * reserved in that case) and a 503 if the store is down. Callers MUST call
+ * this before any paid model call, and settleSpend() afterwards.
  */
-export function checkBudget(session: GameSession): void {
-  rolloverIfNewDay()
+export async function reserveSpend(
+  store: Store,
+  sessionId: string,
+  now: Date = new Date(),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<SpendReservation> {
+  const reservedMicros = usdToMicros(BUDGET_CONFIG.turnReserveUsd)
+  const sKey = sessionKey(sessionId)
+  const dKey = dayKey(now)
+  let result
+  try {
+    result = await store.reserve(
+      [
+        { key: sKey, cap: usdToMicros(BUDGET_CONFIG.maxSessionSpendUsd), ttlSeconds: SESSION_COUNTER_TTL_SECONDS },
+        { key: dKey, cap: dailyCapMicros(env), ttlSeconds: DAY_COUNTER_TTL_SECONDS },
+      ],
+      reservedMicros,
+    )
+  } catch (err) {
+    throw failClosed('reserve', err)
+  }
+  if (!result.ok) {
+    throw budgetExceeded(result.blockedKey === dKey ? DAILY_MESSAGE : SESSION_MESSAGE)
+  }
+  return { sessionId, sessionKey: sKey, dayKey: dKey, reservedMicros }
+}
 
-  const sessionSpend = estimateCostUsd(session.usage)
-  if (sessionSpend >= BUDGET_CONFIG.maxSessionSpendUsd) {
-    throw budgetExceeded(
-      'This case has hit its model-spend limit for a single session. Start a new case to continue playing.',
+/**
+ * Reconciles a reservation to the real cost by adding (actual - reserved) to
+ * both counters. Never throws: the model has already been paid for, and a
+ * failed settle just leaves the (larger) reservation counted.
+ */
+export async function settleSpend(store: Store, reservation: SpendReservation, actualUsd: number): Promise<void> {
+  const delta = usdToMicros(actualUsd) - reservation.reservedMicros
+  if (delta === 0) return
+  try {
+    await store.adjust(reservation.sessionKey, delta, SESSION_COUNTER_TTL_SECONDS)
+    await store.adjust(reservation.dayKey, delta, DAY_COUNTER_TTL_SECONDS)
+  } catch (err) {
+    console.error(
+      JSON.stringify({ evt: 'store_error', op: 'settle', msg: err instanceof Error ? err.message : String(err) }),
     )
   }
-  if (dailySpendUsd >= BUDGET_CONFIG.maxDailySpendUsd) {
-    throw budgetExceeded(
-      'The server has hit its daily model-spend limit. Please try again tomorrow.',
-    )
-  }
+}
+
+/**
+ * What a completed turn is charged. If the invigilator failed, its failed
+ * attempts were probably billed but never reached session.usage, so charge
+ * the full reservation instead of trusting the (undercounted) token usage.
+ */
+export function chargeForCompletedTurn(measuredUsd: number, invigilatorFailed: boolean): number {
+  return invigilatorFailed ? Math.max(measuredUsd, BUDGET_CONFIG.turnReserveUsd) : measuredUsd
 }

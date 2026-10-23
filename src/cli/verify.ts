@@ -35,6 +35,9 @@ import { assertSeedConfig, chooseSeed, deriveSeed } from '../server/seed'
 import { MemoryStore, createStore, type Store } from '../server/store'
 import { getSession, saveSession, SESSION_TTL_SECONDS } from '../server/sessions'
 import { buildBreakdown } from '../server/breakdown'
+import { BUDGET_CONFIG, dayKey, reserveSpend } from '../server/budget'
+import { setModel } from '../engine/adjudicate'
+import { MockLanguageModelV4 } from 'ai/test'
 import { mkdtemp } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -697,6 +700,8 @@ await (async () => {
       },
       setJson: async () => {},
       del: async () => {},
+      reserve: async () => ({ ok: true }),
+      adjust: async () => {},
     }
     if ((await getSession(spy, '../../etc/passwd')) !== undefined || storeTouched) {
       fail('a malformed session id reached the store (must be rejected by the id pattern first)')
@@ -726,6 +731,12 @@ await (async () => {
         throw new Error(MARKER)
       },
       del: async () => {},
+      reserve: async () => {
+        throw new Error(MARKER)
+      },
+      adjust: async () => {
+        throw new Error(MARKER)
+      },
     }
     console.error = (...args: unknown[]) => {
       errLines.push(args.map(String).join(' '))
@@ -778,6 +789,254 @@ await (async () => {
     for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
     Object.assign(process.env, savedEnv)
     for (const s of servers) s.close()
+  }
+})()
+
+// 10. Spend cap is atomic and fails closed. Real route code runs whole turns
+// against a scripted fake model (no API key). Proves: N parallel turns across
+// many sessions admit exactly as many as the daily cap has room for (the rest
+// get 429 BEFORE any model call and consume no turn); the per-session cap
+// holds and a refused reservation changes no counter; a daily-cap hit blocks
+// new games with a friendly message; a store outage refuses the turn (503)
+// without calling the model; a failed persona call is charged only the small
+// fixed amount; an invigilator failure is charged the full reservation.
+// Uses MemoryStore, so this proves the reserve/settle protocol, not Redis
+// atomicity (that is the Lua script's job).
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    // Session-creation log lines are noise here; keep every other line.
+    console.log = (...a: unknown[]) => {
+      if (!String(a[0]).startsWith('{"evt"')) origLog(...a)
+    }
+    console.error = () => {}
+
+    // ── Scripted fake model ────────────────────────────────────────────
+    // Which call is it? Tell by the structured-output schema the SDK sends.
+    const USAGE = {
+      inputTokens: { total: 1000, noCache: 1000, cacheRead: 0, cacheWrite: 0 },
+      outputTokens: { total: 200, text: 200, reasoning: 0 },
+    }
+    const PER_CALL_MICROS = 1000 * 1 + 200 * 5 // $1/M in, $5/M out => 2000 micro-dollars
+    const calls = { suspect: 0, invigilator: 0 }
+    let gate: Promise<void> = Promise.resolve()
+    let failKind: 'suspect' | 'invigilator' | null = null
+    setModel(
+      new MockLanguageModelV4({
+        doGenerate: async (options) => {
+          const schema = JSON.stringify(options.responseFormat ?? {})
+          const isInvigilator = schema.includes('guiltyKnowledgeLeak')
+          if (isInvigilator) calls.invigilator++
+          else calls.suspect++
+          if (!isInvigilator) await gate
+          if (failKind === (isInvigilator ? 'invigilator' : 'suspect')) throw new Error('fake model outage')
+          const object = isInvigilator
+            ? {
+                reasoning: 'ok',
+                signals: { contradictions: [], guiltyKnowledgeLeak: null, evidenceHandling: [], demeanorShift: false },
+              }
+            : { dialogue: 'I was at home.', claims: [{ text: 'The suspect was at home.', checkable: true }], demeanor: 'calm' }
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(object) }],
+            finishReason: { unified: 'stop' as const, raw: undefined },
+            usage: USAGE,
+            warnings: [],
+          }
+        },
+      }),
+    )
+    const resetCalls = () => {
+      calls.suspect = 0
+      calls.invigilator = 0
+    }
+
+    const post = (base: string, route: string, body: unknown = {}) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const newGame = async (base: string) => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
+    const counter = async (store: Store, key: string) => Number((await store.getJson(key)) ?? 0)
+    const serve = (store: Store) => {
+      const srv = createApp({ store }).listen(0)
+      servers.push(srv)
+      return `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    }
+    const TURN = BUDGET_CONFIG.turnReserveUsd * 1_000_000 // 40000
+
+    // ── A. Parallel turns across 10 sessions, daily cap = exactly 3 reservations ──
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      process.env.MAX_DAILY_SPEND_USD = String((TURN * 3) / 1_000_000)
+      const ids: string[] = []
+      for (let i = 0; i < 10; i++) ids.push(await newGame(base))
+
+      // Hold every admitted turn inside the model until all refusals have
+      // returned, so no early settle can free budget mid-test.
+      let release!: () => void
+      gate = new Promise<void>((r) => (release = r))
+      resetCalls()
+      let refused = 0
+      const results = ids.map((id) =>
+        post(base, `/api/game/${id}/interrogate`, { input: 'Where were you?' }).then((r) => {
+          if (r.status === 429) refused++
+          return r
+        }),
+      )
+      const deadline = Date.now() + 5000
+      while (refused < 7 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5))
+      release()
+      const statuses = (await Promise.all(results)).map((r) => r.status).sort()
+      gate = Promise.resolve()
+      const okCount = statuses.filter((s) => s === 200).length
+      const tooMany = statuses.filter((s) => s === 429).length
+      if (okCount !== 3 || tooMany !== 7) {
+        fail(`10 parallel turns with room for 3: got ${okCount}x200 and ${tooMany}x429 (${statuses.join(',')}); want exactly 3 and 7`)
+        return
+      }
+      if (calls.suspect !== 3) {
+        fail(`refused turns still reached the model: ${calls.suspect} persona calls, want 3`)
+        return
+      }
+      // Admitted turns settle from the 40000 reservation down to their real cost.
+      const spent = await counter(store, dayKey(new Date()))
+      if (spent !== 3 * 2 * PER_CALL_MICROS) {
+        fail(`daily counter after settle is ${spent}, want ${3 * 2 * PER_CALL_MICROS} (3 turns x 2 calls)`)
+        return
+      }
+      // A refused turn must not have moved the session's turn counter.
+      let advanced = 0
+      for (const id of ids) {
+        const g = (await (await fetch(`${base}/api/game/${id}`)).json()) as { interrogationTurn: number }
+        advanced += g.interrogationTurn
+      }
+      if (advanced !== 3) {
+        fail(`${advanced} sessions advanced a turn, want 3 (refused turns must not consume turns)`)
+        return
+      }
+      delete process.env.MAX_DAILY_SPEND_USD
+    }
+
+    // ── B. Per-session cap, all-or-nothing ──────────────────────────────
+    {
+      const store = new MemoryStore()
+      const sid = '11111111-1111-4111-8111-111111111111'
+      const maxTurns = Math.floor((BUDGET_CONFIG.maxSessionSpendUsd * 1_000_000) / TURN) // 12
+      for (let i = 0; i < maxTurns; i++) await reserveSpend(store, sid)
+      const dayBefore = await counter(store, dayKey(new Date()))
+      let code = ''
+      try {
+        await reserveSpend(store, sid)
+      } catch (e) {
+        code = (e as { code?: string }).code ?? ''
+      }
+      if (code !== 'BUDGET_EXCEEDED') {
+        fail(`reservation ${maxTurns + 1} on one session was not refused (code "${code}")`)
+        return
+      }
+      if ((await counter(store, dayKey(new Date()))) !== dayBefore) {
+        fail('a refused reservation still incremented the daily counter (must be all-or-nothing)')
+        return
+      }
+    }
+
+    // ── C. Daily cap exhausted: new games get the friendly message ───────
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      process.env.MAX_DAILY_SPEND_USD = '1'
+      await store.setJson(dayKey(new Date()), 1_000_000 - TURN + 1, 3600)
+      const res = await post(base, '/api/game')
+      const body = (await res.json()) as { error?: { code?: string; message?: string } }
+      if (res.status !== 429 || body.error?.code !== 'BUDGET_EXCEEDED' || !/resting/i.test(body.error?.message ?? '')) {
+        fail(`new game with the daily budget spent returned ${res.status} ${JSON.stringify(body)}, want 429 "resting for today"`)
+        return
+      }
+      await store.setJson(dayKey(new Date()), 1_000_000 - TURN, 3600)
+      if ((await post(base, '/api/game')).status !== 201) {
+        fail('new game was refused although exactly one turn of budget remains')
+        return
+      }
+      delete process.env.MAX_DAILY_SPEND_USD
+    }
+
+    // ── D. Store outage fails closed: 503 and the model is never called ──
+    {
+      const inner = new MemoryStore()
+      let reserveDown = false
+      const flaky: Store = {
+        getJson: (k) => inner.getJson(k),
+        setJson: (k, v, t) => inner.setJson(k, v, t),
+        del: (k) => inner.del(k),
+        reserve: (l, a) => (reserveDown ? Promise.reject(new Error('SECRET-REDIS-DOWN')) : inner.reserve(l, a)),
+        adjust: (k, d, t) => inner.adjust(k, d, t),
+      }
+      const base = serve(flaky)
+      const sid = await newGame(base)
+      reserveDown = true
+      resetCalls()
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      const text = await res.text()
+      if (res.status !== 503 || text.includes('SECRET-REDIS-DOWN')) {
+        fail(`turn with the spend store down returned ${res.status} (leak: ${text.includes('SECRET-REDIS-DOWN')}), want a clean 503`)
+        return
+      }
+      if (calls.suspect + calls.invigilator !== 0) {
+        fail('a paid model call was made although the spend could not be reserved')
+        return
+      }
+    }
+
+    // ── E. Failed persona call: charged only the small fixed amount ──────
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      const sid = await newGame(base)
+      failKind = 'suspect'
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      failKind = null
+      const charged = await counter(store, dayKey(new Date()))
+      const want = BUDGET_CONFIG.failedTurnChargeUsd * 1_000_000
+      if (res.status !== 502 || charged !== want) {
+        fail(`failed persona turn: status ${res.status}, charged ${charged}; want 502 and ${want}`)
+        return
+      }
+    }
+
+    // ── F. Invigilator failure: charged the full reservation ─────────────
+    {
+      const store = new MemoryStore()
+      const base = serve(store)
+      const sid = await newGame(base)
+      failKind = 'invigilator'
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      failKind = null
+      const charged = await counter(store, dayKey(new Date()))
+      if (res.status !== 200 || charged !== TURN) {
+        fail(`invigilator-failure turn: status ${res.status}, charged ${charged}; want 200 and ${TURN}`)
+        return
+      }
+    }
+
+    pass('spend cap: parallel turns admit exactly the budget (rest 429, no model call, no turn used); per-session cap, daily-cap game block, fail-closed 503, and failed-turn charges hold')
+  } catch (err) {
+    fail(`spend cap check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.log = origLog
+    console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
   }
 })()
 

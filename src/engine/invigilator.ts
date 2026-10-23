@@ -10,7 +10,7 @@
 
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { MODEL } from './adjudicate'
+import { getModel } from './adjudicate'
 import { serializeLedger } from './ledger'
 import type {
   CaseFile,
@@ -232,7 +232,7 @@ export async function evaluateSuspectTurn(
   for (let attempt = 0; attempt <= MAX_INVIGILATOR_RETRIES; attempt++) {
     try {
       const result = await generateObject({
-        model: MODEL,
+        model: getModel(),
         schema: SuspectInvigilatorSchema,
         system: systemPrompt,
         prompt: userMessage,
@@ -313,7 +313,7 @@ export async function evaluateWitnessTurn(
   for (let attempt = 0; attempt <= MAX_INVIGILATOR_RETRIES; attempt++) {
     try {
       const result = await generateObject({
-        model: MODEL,
+        model: getModel(),
         schema: WitnessInvigilatorSchema,
         system: systemPrompt,
         prompt: userMessage,

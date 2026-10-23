@@ -15,6 +15,12 @@
  *          sessions and defeat every cap that depends on shared state).
  */
 
+/** One counter a reservation must fit under: `cap` is the maximum allowed total after the increment. */
+export type CounterLimit = { key: string; cap: number; ttlSeconds: number }
+
+/** Outcome of Store.reserve(): ok, or the key of the first limit that would have been exceeded. */
+export type ReserveResult = { ok: true } | { ok: false; blockedKey: string }
+
 /** Minimal async KV interface. Values are JSON-serialisable and round-trip as copies. */
 export interface Store {
   /** Returns the stored value, or null if absent/expired. */
@@ -22,6 +28,18 @@ export interface Store {
   /** Stores a JSON value that expires `ttlSeconds` after this write. */
   setJson(key: string, value: unknown, ttlSeconds: number): Promise<void>
   del(key: string): Promise<void>
+  /**
+   * Atomically adds `amount` (a non-negative integer) to EVERY counter in
+   * `limits`, but only if all of them would stay at or under their cap.
+   * All-or-nothing: if any limit would be exceeded, no counter changes and
+   * the first offending key is returned. Each counter's TTL is refreshed on
+   * success. Atomicity is the point — a read-then-write check from separate
+   * serverless instances would let parallel requests all pass the same check.
+   * Counter values read back through getJson() as numbers.
+   */
+  reserve(limits: CounterLimit[], amount: number): Promise<ReserveResult>
+  /** Atomically adds `delta` (may be negative) to one counter and refreshes its TTL. */
+  adjust(key: string, delta: number, ttlSeconds: number): Promise<void>
 }
 
 /**
@@ -30,6 +48,11 @@ export interface Store {
  * shared object reference would let tests pass on mutations that Redis would
  * never persist. Expiry is checked lazily on read; the clock is injectable
  * so tests can advance time without sleeping.
+ *
+ * reserve()/adjust() are atomic here only because JS is single-threaded and
+ * they contain no await between their read and write; the Upstash
+ * implementation gets the same guarantee from a Lua script. Tests against
+ * this class therefore prove the protocol, not Redis itself.
  */
 export class MemoryStore implements Store {
   private entries = new Map<string, { json: string; expiresAt: number }>()
@@ -52,6 +75,29 @@ export class MemoryStore implements Store {
 
   async del(key: string): Promise<void> {
     this.entries.delete(key)
+  }
+
+  /** Current value of a counter key (0 when absent or expired). Synchronous so reserve() stays atomic. */
+  private counter(key: string): number {
+    const entry = this.entries.get(key)
+    if (!entry || this.now() >= entry.expiresAt) return 0
+    return Number(JSON.parse(entry.json))
+  }
+
+  private writeCounter(key: string, value: number, ttlSeconds: number): void {
+    this.entries.set(key, { json: JSON.stringify(value), expiresAt: this.now() + ttlSeconds * 1000 })
+  }
+
+  async reserve(limits: CounterLimit[], amount: number): Promise<ReserveResult> {
+    for (const l of limits) {
+      if (this.counter(l.key) + amount > l.cap) return { ok: false, blockedKey: l.key }
+    }
+    for (const l of limits) this.writeCounter(l.key, this.counter(l.key) + amount, l.ttlSeconds)
+    return { ok: true }
+  }
+
+  async adjust(key: string, delta: number, ttlSeconds: number): Promise<void> {
+    this.writeCounter(key, this.counter(key) + delta, ttlSeconds)
   }
 }
 
@@ -81,6 +127,12 @@ class LazyUpstashStore implements Store {
   }
   async del(key: string): Promise<void> {
     return (await this.load()).del(key)
+  }
+  async reserve(limits: CounterLimit[], amount: number): Promise<ReserveResult> {
+    return (await this.load()).reserve(limits, amount)
+  }
+  async adjust(key: string, delta: number, ttlSeconds: number): Promise<void> {
+    return (await this.load()).adjust(key, delta, ttlSeconds)
   }
 }
 
