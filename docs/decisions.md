@@ -225,6 +225,25 @@ errors used to fall through to the generic 500; they are now 400/413. Deferred
 to Step 9: the transcript `turn_failed` entry still stores `error.message`
 (redacted by the existing key filter only).
 
+**Step 9 notes (transcripts to Redis):** Vercel has no persistent disk, so the
+web server's file transcripts are replaced by `src/server/transcripts.ts`. One
+Redis list per game, `tx:<sessionId>`, one JSON entry per event, same shapes the
+CLI logs (`airtight-transcript-v3`). `Store` gained `appendList` (Lua: RPUSH,
+EXPIRE refresh, LTRIM to the newest 200) and `getList`. 14-day TTL counted from
+the last write (approved). Redaction runs on every string value at any depth
+(`redactDeep` over `redactSecrets`, the uncapped half of Step 8's `scrub`), so a
+key typed by the player or thrown by the provider never lands in the list; the
+`turn_failed` entry stores the provider cause (via `ApiError.cause`), redacted
+and capped. Writes are best-effort: errors are logged as `transcript_error` and
+swallowed, since a research log must not fail a paid turn. A crash between
+`turn_started` and `exchange` can leave a `turn_started` with no `exchange`;
+that is accurate (the turn started and did not finish). `transcriptPath` was
+removed from the session envelope (old blobs just carry an ignored field).
+`TRANSCRIPTS=off` is the kill switch; the start-screen notice is static HTML and
+must be removed by hand if recording is disabled. The CLI is unchanged. Raw
+player text is stored, which is why the notice asks players not to type
+personal information.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

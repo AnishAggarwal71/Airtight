@@ -47,7 +47,8 @@ import {
 } from '../server/ratelimit'
 import { MockLanguageModelV4 } from 'ai/test'
 import { describeError, scrub } from '../server/log'
-import { mkdtemp } from 'node:fs/promises'
+import { MAX_TRANSCRIPT_ENTRIES, TRANSCRIPT_TTL_SECONDS, readTranscript, recordTranscript } from '../server/transcripts'
+import { mkdtemp, readdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -714,6 +715,8 @@ await (async () => {
       acquireLock: async () => true,
       releaseLock: async () => {},
       setJsonIfRev: async () => true,
+      appendList: async () => {},
+      getList: async () => [],
     }
     if ((await getSession(spy, '../../etc/passwd')) !== undefined || storeTouched) {
       fail('a malformed session id reached the store (must be rejected by the id pattern first)')
@@ -756,6 +759,12 @@ await (async () => {
         throw new Error(MARKER)
       },
       setJsonIfRev: async () => {
+        throw new Error(MARKER)
+      },
+      appendList: async () => {
+        throw new Error(MARKER)
+      },
+      getList: async () => {
         throw new Error(MARKER)
       },
     }
@@ -1044,6 +1053,8 @@ await (async () => {
         acquireLock: (k, token, ttl) => inner.acquireLock(k, token, ttl),
         releaseLock: (k, token) => inner.releaseLock(k, token),
         setJsonIfRev: (k, rev, v, ttl) => inner.setJsonIfRev(k, rev, v, ttl),
+        appendList: (k, v, t, m) => inner.appendList(k, v, t, m),
+        getList: (k) => inner.getList(k),
       }
       const base = serve(flaky)
       const sid = await newGame(base)
@@ -1346,6 +1357,8 @@ await (async () => {
         },
         releaseLock: (k, tok) => inner.releaseLock(k, tok),
         setJsonIfRev: (k, r, v, t) => inner.setJsonIfRev(k, r, v, t),
+        appendList: (k, v, t, m) => inner.appendList(k, v, t, m),
+        getList: (k) => inner.getList(k),
       }
       const base = serve(flaky)
       const sid = await newGame(base)
@@ -1989,6 +2002,172 @@ await (async () => {
   } finally {
     console.log = origLog
     console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
+// 16. Transcripts live in the store, not on disk. Proves: a played game leaves
+// session -> turn_started -> exchange entries in order under tx:<sid>; a failed
+// turn adds a turn_failed entry whose text is redacted; secrets typed by the
+// player or thrown by the provider never reach the stored entries; the list
+// expires 14 days after the last write; the list is capped; TRANSCRIPTS=off
+// stores nothing and the game still works; a transcript write failure never
+// fails the turn; and no file is written to disk.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  const restore = () => {
+    console.log = origLog
+    console.error = origErr
+  }
+  const failOut = (msg: string) => {
+    restore()
+    fail(msg)
+  }
+  try {
+    const logsDir = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    process.env.PLAYTEST_LOGS_DIR = logsDir
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.TRANSCRIPTS
+    const KEY = 'sk-ant-api03-TRANSCRIPTSECRET9876'
+    process.env.ANTHROPIC_API_KEY = KEY
+    process.env.SESSION_SECRET = 'verify-session-secret-0123456789abcdef'
+    console.log = () => {}
+    console.error = () => {}
+
+    const fm = installFakeModel()
+    let clock = 1_000_000
+    const inner = new MemoryStore(() => clock)
+    let appendDown = false
+    const store: Store = {
+      getJson: (k) => inner.getJson(k),
+      setJson: (k, v, t) => inner.setJson(k, v, t),
+      del: (k) => inner.del(k),
+      reserve: (l, a) => inner.reserve(l, a),
+      adjust: (k, d, t) => inner.adjust(k, d, t),
+      acquireLock: (k, tok, ms) => inner.acquireLock(k, tok, ms),
+      releaseLock: (k, tok) => inner.releaseLock(k, tok),
+      setJsonIfRev: (k, r, v, t) => inner.setJsonIfRev(k, r, v, t),
+      appendList: (k, v, t, m) => (appendDown ? Promise.reject(new Error('SECRET-APPEND-DOWN')) : inner.appendList(k, v, t, m)),
+      getList: (k) => inner.getList(k),
+    }
+    const srv = createApp({ store, rateLimiter: unlimitedRateLimiter }).listen(0)
+    servers.push(srv)
+    const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    const post = (route: string, body: unknown = {}) =>
+      fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const newGame = async () => ((await (await post('/api/game')).json()) as { sessionId: string }).sessionId
+    const types = async (sid: string) => ((await readTranscript(store, sid)) as Array<{ type: string }>).map((e) => e.type)
+
+    // ── A. A normal game leaves an ordered transcript ──────────────────────
+    const sid = await newGame()
+    const r1 = await post(`/api/game/${sid}/interrogate`, { input: `Where were you? my key is ${KEY}` })
+    const r2 = await post(`/api/game/${sid}/interrogate`, { input: 'Tell me again.' })
+    if (r1.status !== 200 || r2.status !== 200) {
+      failOut(`setup turns failed: ${r1.status}, ${r2.status}`)
+      return
+    }
+    const got = await types(sid)
+    const want = ['session', 'turn_started', 'exchange', 'turn_started', 'exchange']
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      failOut(`transcript order: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`)
+      return
+    }
+
+    // ── B. A failed turn is recorded, with redacted error text ─────────────
+    fm.failKind = 'suspect'
+    fm.failMessage = `provider said no ${KEY} https://u:pw99xyz@host.example/x`
+    const rf = await post(`/api/game/${sid}/interrogate`, { input: 'One more.' })
+    fm.failKind = null
+    if (rf.status !== 502) {
+      failOut(`failed turn status ${rf.status}, want 502`)
+      return
+    }
+    const entries = (await readTranscript(store, sid)) as Array<Record<string, unknown>>
+    const failed = entries.find((e) => e.type === 'turn_failed') as { error?: { message?: string } } | undefined
+    if (!failed || !failed.error?.message?.includes('[redacted]')) {
+      failOut(`turn_failed entry missing or not redacted: ${JSON.stringify(failed)}`)
+      return
+    }
+
+    // ── C. No secret anywhere in the stored transcript ─────────────────────
+    const blob = JSON.stringify(entries)
+    for (const bad of [KEY, 'pw99xyz', process.env.SESSION_SECRET as string]) {
+      if (blob.includes(bad)) {
+        failOut(`stored transcript contains a secret: "${bad.slice(0, 12)}..."`)
+        return
+      }
+    }
+
+    // ── D. 14-day expiry, measured from the last write ─────────────────────
+    if (TRANSCRIPT_TTL_SECONDS !== 14 * 24 * 3600) {
+      failOut(`TRANSCRIPT_TTL_SECONDS is ${TRANSCRIPT_TTL_SECONDS}, want 14 days`)
+      return
+    }
+    clock += (14 * 24 * 3600 - 60) * 1000
+    const before = (await readTranscript(store, sid)).length
+    clock += 120 * 1000
+    const after = (await readTranscript(store, sid)).length
+    if (before === 0 || after !== 0) {
+      failOut(`transcript expiry: ${before} entries at day 14 minus 1 min, ${after} at day 14 plus 1 min; want >0 then 0`)
+      return
+    }
+
+    // ── E. The list is capped ──────────────────────────────────────────────
+    {
+      const capSid = '11111111-1111-4111-8111-111111111111'
+      for (let i = 0; i < MAX_TRANSCRIPT_ENTRIES + 25; i++) await recordTranscript(store, capSid, { type: 'exchange', i })
+      const list = (await readTranscript(store, capSid)) as Array<{ i: number }>
+      if (list.length !== MAX_TRANSCRIPT_ENTRIES || list[list.length - 1].i !== MAX_TRANSCRIPT_ENTRIES + 24) {
+        failOut(`cap: kept ${list.length} entries (last i=${list[list.length - 1]?.i}); want ${MAX_TRANSCRIPT_ENTRIES} newest`)
+        return
+      }
+    }
+
+    // ── F. A transcript write failure never fails the turn ─────────────────
+    {
+      const sid2 = await newGame()
+      appendDown = true
+      const res = await post(`/api/game/${sid2}/interrogate`, { input: 'Where were you?' })
+      appendDown = false
+      if (res.status !== 200) {
+        failOut(`turn with a broken transcript write returned ${res.status}, want 200`)
+        return
+      }
+    }
+
+    // ── G. TRANSCRIPTS=off records nothing; the game still works ───────────
+    {
+      process.env.TRANSCRIPTS = 'off'
+      const sid3 = await newGame()
+      const res = await post(`/api/game/${sid3}/interrogate`, { input: 'Where were you?' })
+      const len = (await readTranscript(store, sid3)).length
+      delete process.env.TRANSCRIPTS
+      if (res.status !== 200 || len !== 0) {
+        failOut(`TRANSCRIPTS=off: status ${res.status}, ${len} entries stored; want 200 and 0`)
+        return
+      }
+    }
+
+    // ── H. Nothing was written to disk ─────────────────────────────────────
+    const files = await readdir(logsDir)
+    if (files.length > 0) {
+      failOut(`server wrote ${files.length} file(s) to the logs dir: ${files[0]}`)
+      return
+    }
+
+    restore()
+    pass('transcripts in the store: ordered session/turn_started/exchange entries under tx:<sid>; failed turns recorded with redacted text; no secret (typed by the player or thrown by the provider) is stored; 14-day expiry; capped length; a broken write never fails a turn; TRANSCRIPTS=off stores nothing; no file written to disk')
+  } catch (err) {
+    failOut(`transcript check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    restore()
     setModel(null)
     for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
     Object.assign(process.env, savedEnv)

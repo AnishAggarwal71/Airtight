@@ -33,13 +33,7 @@ import { withSessionLock } from '../lock'
 import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
 import type { Store } from '../store'
 import { chooseSeed } from '../seed'
-import {
-  appendTranscriptExchange,
-  appendTranscriptSessionEnd,
-  appendTranscriptTurnFailed,
-  appendTranscriptTurnStarted,
-  createTranscriptLog,
-} from '../../cli/transcript'
+import { recordTranscript, transcriptError } from '../transcripts'
 import { validateQuestionInput } from '../validation'
 import {
   deriveSuspectVerdictType,
@@ -206,8 +200,14 @@ gameRouter.post(
     }
 
     const sessionId = createSessionId()
-    const transcriptPath = await createTranscriptLog(seed, 'homicide', sessionId)
-    await putSession(storeOf(req), sessionId, session, transcriptPath)
+    await putSession(storeOf(req), sessionId, session)
+    await recordTranscript(storeOf(req), sessionId, {
+      type: 'session',
+      createdAt: new Date().toISOString(),
+      seed,
+      crime: 'homicide',
+      format: 'airtight-transcript-v3',
+    })
 
     // Server-side only: the one place the derived seed is recorded, so a
     // case can be replayed with `npm run case <seed> homicide`. It must never
@@ -271,25 +271,22 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
     // a 429 here means no turn counter moved and nothing was spent.
     const reservation = await reserveSpend(storeOf(req), sessionId)
 
-    const transcriptPath = stored.transcriptPath || undefined
     const turn = session.interrogationTurn + 1
     const parsedInput = parsePlayerInput(input, session.caseFile.evidence)
-    if (transcriptPath) {
-      await appendTranscriptTurnStarted(transcriptPath, {
-        type: 'turn_started',
-        phase: 'interrogation',
-        turn,
-        detectiveInput: input,
-        detectiveMessage: parsedInput.question,
-        aiRole: 'suspect',
-        ...(parsedInput.presentedEvidenceIds.length > 0
-          ? { presentedEvidenceIds: parsedInput.presentedEvidenceIds }
-          : {}),
-        ...(parsedInput.rejectedEvidenceIds.length > 0
-          ? { rejectedEvidenceIds: parsedInput.rejectedEvidenceIds }
-          : {}),
-      })
-    }
+    await recordTranscript(storeOf(req), sessionId, {
+      type: 'turn_started',
+      phase: 'interrogation',
+      turn,
+      detectiveInput: input,
+      detectiveMessage: parsedInput.question,
+      aiRole: 'suspect',
+      ...(parsedInput.presentedEvidenceIds.length > 0
+        ? { presentedEvidenceIds: parsedInput.presentedEvidenceIds }
+        : {}),
+      ...(parsedInput.rejectedEvidenceIds.length > 0
+        ? { rejectedEvidenceIds: parsedInput.rejectedEvidenceIds }
+        : {}),
+    })
 
     const usageBefore = snapshotUsage(session.usage)
     let result: PlayInterrogationResult
@@ -298,20 +295,13 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
     } catch (err) {
       await settleFailedTurn(storeOf(req), reservation)
       logTurnFailed(sessionId, 'interrogation', turn, err)
-      if (transcriptPath) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        await appendTranscriptTurnFailed(
-          transcriptPath,
-          {
-            type: 'turn_failed',
-            phase: 'interrogation',
-            turn,
-            aiRole: 'suspect',
-            error: { name: error.name, message: error.message },
-          },
-          [process.env.ANTHROPIC_API_KEY ?? ''],
-        )
-      }
+      await recordTranscript(storeOf(req), sessionId, {
+        type: 'turn_failed',
+        phase: 'interrogation',
+        turn,
+        aiRole: 'suspect',
+        error: transcriptError(err),
+      })
       throw err
     }
     await settleSpend(
@@ -323,28 +313,26 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
     // so the stored session keeps the pre-turn counters and evidence flags.
     await saveSession(storeOf(req), sessionId, stored)
 
-    if (transcriptPath) {
-      await appendTranscriptExchange(transcriptPath, {
-        type: 'exchange',
-        phase: 'interrogation',
-        turn: session.interrogationTurn,
-        detectiveMessage: input,
-        aiRole: 'suspect',
-        aiMessage: result.suspectDialogue,
-        ...(result.presentedEvidenceIds.length > 0
-          ? { presentedEvidenceIds: result.presentedEvidenceIds }
-          : {}),
-        invigilatorSignals: result.invigilatorSignals,
-        caseStrengthDelta: result.caseStrengthDelta,
-        caseStrengthAfter: session.caseStrength,
+    await recordTranscript(storeOf(req), sessionId, {
+      type: 'exchange',
+      phase: 'interrogation',
+      turn: session.interrogationTurn,
+      detectiveMessage: input,
+      aiRole: 'suspect',
+      aiMessage: result.suspectDialogue,
+      ...(result.presentedEvidenceIds.length > 0
+        ? { presentedEvidenceIds: result.presentedEvidenceIds }
+        : {}),
+      invigilatorSignals: result.invigilatorSignals,
+      caseStrengthDelta: result.caseStrengthDelta,
+      caseStrengthAfter: session.caseStrength,
+    })
+    if (result.ending) {
+      await recordTranscript(storeOf(req), sessionId, {
+        type: 'session_end',
+        finalCaseStrength: session.caseStrength,
+        ending: result.ending,
       })
-      if (result.ending) {
-        await appendTranscriptSessionEnd(transcriptPath, {
-          type: 'session_end',
-          finalCaseStrength: session.caseStrength,
-          ending: result.ending,
-        })
-      }
     }
 
     const presentedEvidenceDescriptions = session.caseFile.evidence
@@ -394,18 +382,15 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
     }
     const reservation = await reserveSpend(storeOf(req), sessionId)
 
-    const transcriptPath = stored.transcriptPath || undefined
     const turn = session.witnessTurn + 1
-    if (transcriptPath) {
-      await appendTranscriptTurnStarted(transcriptPath, {
-        type: 'turn_started',
-        phase: 'witness',
-        turn,
-        detectiveInput: question,
-        detectiveMessage: question,
-        aiRole: 'witness',
-      })
-    }
+    await recordTranscript(storeOf(req), sessionId, {
+      type: 'turn_started',
+      phase: 'witness',
+      turn,
+      detectiveInput: question,
+      detectiveMessage: question,
+      aiRole: 'witness',
+    })
 
     const usageBefore = snapshotUsage(session.usage)
     let result: PlayWitnessResult
@@ -414,20 +399,13 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
     } catch (err) {
       await settleFailedTurn(storeOf(req), reservation)
       logTurnFailed(sessionId, 'witness', turn, err)
-      if (transcriptPath) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        await appendTranscriptTurnFailed(
-          transcriptPath,
-          {
-            type: 'turn_failed',
-            phase: 'witness',
-            turn,
-            aiRole: 'witness',
-            error: { name: error.name, message: error.message },
-          },
-          [process.env.ANTHROPIC_API_KEY ?? ''],
-        )
-      }
+      await recordTranscript(storeOf(req), sessionId, {
+        type: 'turn_failed',
+        phase: 'witness',
+        turn,
+        aiRole: 'witness',
+        error: transcriptError(err),
+      })
       throw err
     }
     await settleSpend(
@@ -437,25 +415,23 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
     )
     await saveSession(storeOf(req), sessionId, stored)
 
-    if (transcriptPath) {
-      await appendTranscriptExchange(transcriptPath, {
-        type: 'exchange',
-        phase: 'witness',
-        turn: session.witnessTurn,
-        detectiveMessage: question,
-        aiRole: 'witness',
-        aiMessage: result.witnessDialogue,
-        invigilatorSignals: result.invigilatorSignals,
-        caseStrengthDelta: result.caseStrengthDelta,
-        caseStrengthAfter: session.caseStrength,
+    await recordTranscript(storeOf(req), sessionId, {
+      type: 'exchange',
+      phase: 'witness',
+      turn: session.witnessTurn,
+      detectiveMessage: question,
+      aiRole: 'witness',
+      aiMessage: result.witnessDialogue,
+      invigilatorSignals: result.invigilatorSignals,
+      caseStrengthDelta: result.caseStrengthDelta,
+      caseStrengthAfter: session.caseStrength,
+    })
+    if (result.ending) {
+      await recordTranscript(storeOf(req), sessionId, {
+        type: 'session_end',
+        finalCaseStrength: session.caseStrength,
+        ending: result.ending,
       })
-      if (result.ending) {
-        await appendTranscriptSessionEnd(transcriptPath, {
-          type: 'session_end',
-          finalCaseStrength: session.caseStrength,
-          ending: result.ending,
-        })
-      }
     }
 
     return {

@@ -5,7 +5,7 @@
  * share nothing, so every request loads the session, mutates its own copy,
  * and writes it back on success. Redis EX handles expiry (no sweeper).
  *
- * Stored value is an envelope { v, session, transcriptPath, createdAt }. The
+ * Stored value is an envelope { v, session, createdAt, rev }. The
  * whole GameSession is stored, including the CaseFile snapshot — not just
  * the seed — so a deploy that changes template code mid-game cannot change
  * the case a player is already in.
@@ -15,8 +15,9 @@
  * silently overwriting a newer turn. The per-session lock (lock.ts) normally
  * prevents the conflict; this is the backstop if a lock expires mid-request.
  *
- * transcriptPath is a local-filesystem path used only by the CLI-style file
- * transcripts; it is replaced when transcripts move to Redis (step 9).
+ * Transcripts are NOT part of this envelope: they live in their own Redis list
+ * (`tx:<sessionId>`, see transcripts.ts) with a 14-day TTL, far longer than the
+ * session's 1 hour.
  */
 
 import crypto from 'node:crypto'
@@ -27,7 +28,6 @@ import type { Store } from './store'
 
 export type StoredSession = {
   session: GameSession
-  transcriptPath: string
   createdAt: number
   /** Revision this copy was loaded at (0 = not yet stored). saveSession() bumps it. */
   rev: number
@@ -71,9 +71,8 @@ export async function putSession(
   store: Store,
   sessionId: string,
   session: GameSession,
-  transcriptPath: string,
 ): Promise<void> {
-  const stored: StoredSession = { session, transcriptPath, createdAt: Date.now(), rev: 0 }
+  const stored: StoredSession = { session, createdAt: Date.now(), rev: 0 }
   await saveSession(store, sessionId, stored)
 }
 
@@ -109,7 +108,6 @@ export async function getSession(store: Store, sessionId: string): Promise<Store
   if (envelope.v !== ENVELOPE_VERSION || !envelope.session) return undefined
   return {
     session: envelope.session,
-    transcriptPath: envelope.transcriptPath ?? '',
     createdAt: envelope.createdAt ?? 0,
     rev: Number(envelope.rev ?? 0) || 0,
   }

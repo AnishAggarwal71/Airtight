@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (15/15 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (16/16 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -260,7 +260,10 @@ src/cli/
                           (homicide only)
   eval.ts               Eval harness CLI: Layer 1 (invigilator accuracy, 18 cases) and
                           Layer 2 (automated gameplay, --games N). Results to eval-results/.
-  transcript.ts         JSONL transcript logger (format 'airtight-transcript-v3')
+  transcript.ts         JSONL transcript logger (format 'airtight-transcript-v3'), CLI only
+src/server/
+  transcripts.ts        Web transcripts in Redis (tx:<sid>, 14d TTL, redacted, best-effort)
+  log.ts                One-line JSON logging with secret scrubbing (logEvent/logError)
 ```
 
 ---
@@ -269,7 +272,7 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 15 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts/error-log hygiene, etc.
+npm run verify                        # 16 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts/error-log hygiene/transcripts, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -397,17 +400,24 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   `onInvigilatorFailure` in `TurnCallOptions` (engine throws `InvigilatorError`
   carrying `attempts`). Body-parser errors are 400 `BAD_REQUEST` / 413
   `PAYLOAD_TOO_LARGE` (JSON body limit 32kb). Never `console.*` raw strings in
-  server code; use `logEvent`/`logError`. **Still NOT safe to deploy until step 9
-  lands:** file transcripts.
+  server code; use `logEvent`/`logError`. Step 9 (transcripts): the web server
+  no longer writes files. `src/server/transcripts.ts` `recordTranscript()`
+  appends redacted entries (same shapes as the CLI: session / turn_started /
+  exchange / turn_failed / session_end) to the Redis list `tx:<sessionId>` via
+  `Store.appendList`/`getList` (Lua RPUSH + EXPIRE + LTRIM), 14-day TTL
+  refreshed on each write, max 200 entries. Best-effort: a write failure is
+  logged (`transcript_error`) and never fails a turn. `TRANSCRIPTS=off|0|false`
+  records nothing. The session envelope no longer has `transcriptPath`. The CLI
+  (`src/cli/transcript.ts`, `playtest-logs/`) is unchanged. The start screen
+  shows a recording notice (`#transcript-notice` in `public/index.html`); remove
+  it if you turn transcripts off. Read one with `LRANGE tx:<sid> 0 -1` in the
+  Upstash console. **Still NOT safe to deploy until step 10 lands:** repo
+  hygiene (`.gitignore`, tracked `playtest-logs/`).
   `ANTHROPIC_API_KEY` is a server-side-only env var, never shipped to the client.
-- **`PLAYTEST_LOGS_DIR`** (optional env var, read in
-  `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.
-  `/var/data/playtest-logs`) in production. Every persistent-disk host
-  mounts its volume at a fixed path that is *not* the app's working
-  directory, and `createTranscriptLog()` otherwise resolves its log folder
-  relative to `process.cwd()` — unset, logs would be written outside the
-  mounted disk and lost on redeploy. Unset in local/CLI dev, it falls back
-  to the previous cwd-relative `playtest-logs/` behavior unchanged.
+- **`PLAYTEST_LOGS_DIR`** (optional env var, read in `src/cli/transcript.ts`)
+  — CLI-only now: where `npm run play` writes its JSONL transcript (default
+  cwd-relative `playtest-logs/`). The web server does not use it (step 9).
+  **`TRANSCRIPTS=off`** (server) disables the Redis transcripts.
 
 ---
 
@@ -522,10 +532,9 @@ This project demonstrates:
   machine is separate hardware, and this machine needs real transcripts/eval
   reports on hand to validate tuning changes. Plan: keep accumulating through
   the Layer 2 re-run (next open item below) and once the deployed game has
-  produced its own logs (mechanism already exists — the web server's
-  `src/server/routes/game.ts` uses the same `transcript.ts` as the CLI, and
-  respects `PLAYTEST_LOGS_DIR`; capturing deployed logs is a deploy-config
-  step, not new code), do one pass: fold anything still worth knowing into
+  produced its own logs (mechanism already exists — the web server
+  records to Redis, `tx:<sid>`, for 14 days since step 9; deployed logs must be
+  exported from Upstash before they expire), do one pass: fold anything still worth knowing into
   `docs/decisions.md`/`docs/eval-v3-results.md` as a dated summary (with one
   or two representative example files kept, not the full accumulated set),
   then delete the rest. Don't delete early — there's nothing to summarize

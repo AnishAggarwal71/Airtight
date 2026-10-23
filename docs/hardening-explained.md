@@ -75,8 +75,12 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **Why:** Provider error messages can contain request details, account information or even pieces of the API key. Anything shown to a player is public, and server logs are readable by more people than the secrets are. We also could not see when the judge was quietly failing and giving zero points.
 - **How:** A new `log.ts` writes every log as one line of JSON (easy to search) and first wipes out anything that looks like a secret: the actual values of our secret settings, `sk-ant-` keys, "Bearer" tokens and passwords inside URLs. The route attaches the original error to the friendly one privately, so the log gets the real cause with the game id and turn number, while the player gets only the sentence. No prompts or scoring changed.
 
-## Steps 9-10 (planned)
+## Step 9: Transcripts in Redis
 
-- **9 Transcripts to Redis:** playtest logs saved safely (14 days), with a notice in the UI.
+- **What:** Every web game's conversation is now recorded in Redis for 14 days instead of written to a file. The start screen tells players: "your questions and the suspect's answers are recorded for 14 days". Setting `TRANSCRIPTS=off` turns recording off.
+- **Why:** Vercel has no disk that survives, so file logs would vanish. We still want playtest conversations to learn from. Recording what strangers type needs honesty (the notice) and care (no secrets stored, automatic deletion).
+- **How:** Each game gets one Redis list called `tx:<game id>`. Every event (game started, question asked, answer and score, failed turn, ending) is added to the end as one line of JSON. Before saving, every piece of text is scrubbed of anything that looks like a key or password. The list is capped at 200 entries and Redis deletes it 14 days after the last entry. If saving a transcript fails, the player's turn still works; we just log that the write failed. To read one, open the Upstash console and run `LRANGE tx:<game id> 0 -1`. The command-line game still writes its own files as before.
+
+## Step 10 (planned)
 - **10 Repo hygiene:** keep secrets and logs out of git.
 - **After 10, BYOK:** players can use their own Anthropic key.

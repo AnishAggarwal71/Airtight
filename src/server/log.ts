@@ -34,6 +34,16 @@ const MAX_FIELD_CHARS = 500
  * Also caps length so a huge provider payload cannot flood the log.
  */
 export function scrub(text: string, env: NodeJS.ProcessEnv = process.env): string {
+  const out = redactSecrets(text, env)
+  return out.length > MAX_FIELD_CHARS ? `${out.slice(0, MAX_FIELD_CHARS)}...` : out
+}
+
+/**
+ * The redaction half of scrub() with no length cap, for payloads that must be
+ * kept whole (transcript entries). Run it on individual string values, not on
+ * serialised JSON: the URL-credential pattern can match across quote marks.
+ */
+export function redactSecrets(text: string, env: NodeJS.ProcessEnv = process.env): string {
   let out = text
   for (const name of SECRET_ENV_NAMES) {
     const v = env[name]
@@ -43,7 +53,7 @@ export function scrub(text: string, env: NodeJS.ProcessEnv = process.env): strin
     .replace(/sk-ant-[A-Za-z0-9_-]+/g, '[redacted]')
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
     .replace(/(https?:\/\/)[^\s/@:]+:[^\s/@]+@/g, '$1[redacted]@')
-  return out.length > MAX_FIELD_CHARS ? `${out.slice(0, MAX_FIELD_CHARS)}...` : out
+  return out
 }
 
 /** A short, scrubbed description of any thrown value (message only, never a stack). */

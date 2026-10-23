@@ -55,6 +55,14 @@ export interface Store {
    * caller puts the new revision inside `value`. Atomic, like reserve().
    */
   setJsonIfRev(key: string, expectedRev: number, value: unknown, ttlSeconds: number): Promise<boolean>
+  /**
+   * Appends one JSON value to the list at `key` (Redis RPUSH), refreshes the
+   * list's TTL to `ttlSeconds`, and keeps only the newest `maxLen` entries so
+   * a runaway writer cannot grow one key without bound. Used for transcripts.
+   */
+  appendList(key: string, value: unknown, ttlSeconds: number, maxLen: number): Promise<void>
+  /** Returns the whole list at `key` oldest-first ([] if absent/expired). */
+  getList(key: string): Promise<unknown[]>
 }
 
 /**
@@ -140,6 +148,18 @@ export class MemoryStore implements Store {
     this.entries.set(key, { json: JSON.stringify(value), expiresAt: this.now() + ttlSeconds * 1000 })
     return true
   }
+
+  async appendList(key: string, value: unknown, ttlSeconds: number, maxLen: number): Promise<void> {
+    const list = await this.getList(key)
+    list.push(value)
+    const kept = list.length > maxLen ? list.slice(list.length - maxLen) : list
+    this.entries.set(key, { json: JSON.stringify(kept), expiresAt: this.now() + ttlSeconds * 1000 })
+  }
+
+  async getList(key: string): Promise<unknown[]> {
+    const value = await this.getJson(key)
+    return Array.isArray(value) ? value : []
+  }
 }
 
 /**
@@ -183,6 +203,12 @@ class LazyUpstashStore implements Store {
   }
   async setJsonIfRev(key: string, expectedRev: number, value: unknown, ttlSeconds: number): Promise<boolean> {
     return (await this.load()).setJsonIfRev(key, expectedRev, value, ttlSeconds)
+  }
+  async appendList(key: string, value: unknown, ttlSeconds: number, maxLen: number): Promise<void> {
+    return (await this.load()).appendList(key, value, ttlSeconds, maxLen)
+  }
+  async getList(key: string): Promise<unknown[]> {
+    return (await this.load()).getList(key)
   }
 }
 

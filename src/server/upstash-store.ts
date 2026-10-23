@@ -81,6 +81,22 @@ redis.call('SET', KEYS[1], ARGV[2], 'EX', tonumber(ARGV[3]))
 return 1
 `
 
+/**
+ * RPUSH + refresh TTL + cap the length, as one step.
+ * KEYS[1] = list, ARGV[1] = JSON text of one entry, ARGV[2] = ttl seconds, ARGV[3] = max entries.
+ * LTRIM with a start of n - max keeps the newest `max` entries.
+ */
+const APPEND_LIST_LUA = `
+redis.call('RPUSH', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+local n = redis.call('LLEN', KEYS[1])
+local max = tonumber(ARGV[3])
+if n > max then
+  redis.call('LTRIM', KEYS[1], n - max, -1)
+end
+return n
+`
+
 /** Builds a Store over the Upstash REST client for the given database. */
 export function createUpstashStore(url: string, token: string): Store {
   const redis = new Redis({ url, token })
@@ -122,6 +138,21 @@ export function createUpstashStore(url: string, token: string): Store {
         [String(expectedRev), JSON.stringify(value), String(ttlSeconds)],
       )
       return Number(written) === 1
+    },
+    async appendList(key, value, ttlSeconds, maxLen) {
+      await redis.eval(APPEND_LIST_LUA, [key], [JSON.stringify(value), String(ttlSeconds), String(maxLen)])
+    },
+    async getList(key) {
+      // The client JSON-decodes each element it can; a non-JSON element stays a string.
+      const items = (await redis.lrange(key, 0, -1)) as unknown[]
+      return items.map((item) => {
+        if (typeof item !== 'string') return item
+        try {
+          return JSON.parse(item) as unknown
+        } catch {
+          return item
+        }
+      })
     },
   }
 }

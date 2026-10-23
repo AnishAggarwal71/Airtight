@@ -267,6 +267,15 @@ input[type="text"]:focus { border-color: var(--cyan); }
 
 .entry-begin { width: 100%; min-height: 48px; font-size: 16px; }
 
+/* Playtest recording notice under the Begin button (see docs/hardening-explained.md, Step 9). */
+.entry-notice {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: var(--sp-4) 0 0;
+  text-align: center;
+}
+
 /* ─── HUD strip (briefing + interrogation) ───────────────────────────── */
 
 .hud {

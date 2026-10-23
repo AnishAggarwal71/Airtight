@@ -1,7 +1,7 @@
-# AIRTIGHT audit checklist (hardening steps 0-8)
+# AIRTIGHT audit checklist (hardening steps 0-9)
 
 Hand this file to the agent on the Windows test machine. It runs the commands,
-fills in the PASS/FAIL table at the bottom, and reports back. Steps 9-10 add
+fills in the PASS/FAIL table at the bottom, and reports back. Step 10 adds
 their own sections to this file as they land.
 
 ## Rules for the agent running this
@@ -19,11 +19,11 @@ git status -sb                      # expect: dev, clean (playtest-logs may show
 git log --oneline -6
 npm ci                              # clean install from the lockfile
 npm run typecheck                   # expect: NO output at all (exit 0)
-npm run verify                      # expect: 17 lines starting "ok", then "V2 green."
+npm run verify                      # expect: 18 lines starting "ok", then "V2 green."
 ```
 
 Expected `verify` lines include: determinism, leak-safety, seed never in any
-response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`, `error/log hygiene: ...`.
+response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`, `error/log hygiene: ...`, `transcripts in the store: ...`.
 
 | # | Check | Pass when |
 |---|-------|-----------|
@@ -245,6 +245,31 @@ $big | curl.exe -s -o NUL -w "%{http_code}`n" -X POST "$LIVE/api/game" -H "Conte
 - In the Vercel logs (dashboard -> Logs, or `vercel logs <deployment>`), confirm every app line is one JSON object starting `{"evt":`. Search the logs for `sk-ant`, `Bearer ` and `@upstash`: expect zero hits.
 - Only the `session_created` line may contain a seed.
 
+### C14. Transcripts in Redis (Step 9)
+
+Needs the Upstash console. Behaviour is proven offline by the `transcripts` line in A2; live, this checks the real list commands.
+
+```powershell
+$g = Invoke-RestMethod -Method Post -Uri "$LIVE/api/game" -ContentType 'application/json' -Body '{}'
+$sid = $g.sessionId
+Invoke-RestMethod -Method Post -Uri "$LIVE/api/game/$sid/interrogate" -ContentType 'application/json' -Body '{"input":"Where were you last night?"}' | Out-Null
+$sid
+```
+
+In Upstash run:
+
+```
+LRANGE tx:<sid> 0 -1        # expect 3 JSON lines in order: session, turn_started, exchange
+TTL tx:<sid>                # expect just under 1209600 (14 days)
+LLEN tx:<sid>               # 3 after one turn; grows by 2 per turn
+```
+
+- The `session` line contains the `seed` (Redis only; confirm the seed is still absent from every HTTP response, see C6).
+- No line may contain `sk-ant`, `Bearer ` or your `SESSION_SECRET`.
+- In a browser, confirm the start screen shows the "Playtest notice" sentence under the form.
+- If `LRANGE` is empty or errors mentioning a script, report the exact message (the append Lua script or list read failed on real Redis). The turn must still have succeeded; look for `transcript_error` in the Vercel logs.
+- No `EROFS`/`ENOENT` file-write errors should appear in the Vercel logs.
+
 ## D. Things only a live Redis can prove (report any surprise)
 
 These are the pieces that tests on this machine cannot run (no Redis here):
@@ -253,6 +278,7 @@ These are the pieces that tests on this machine cannot run (no Redis here):
 2. Lock acquire / release scripts (C4: one 200, rest 409; and the next turn works, not a stuck lock).
 3. Revision compare-and-set script (C3: second turn succeeds, no 409).
 4. The `@upstash/ratelimit` sliding window (C11: ten allowed, then 429 with Retry-After).
+5. The transcript append script and list read (C14: three entries, 14-day TTL).
 
 If C3 and C4 pass, all three are working.
 
@@ -277,6 +303,7 @@ If C3 and C4 pass, all three are working.
 | C11 rate limits | | |
 | C12 timeouts / function limit | | |
 | C13 friendly errors / clean logs | | |
+| C14 transcripts in Redis | | |
 
 ## Audit report — 2026-10-24 (Asia/Colombo)
 
