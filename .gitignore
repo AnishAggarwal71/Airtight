@@ -12,3 +12,4 @@ dist/
 .certs/
 package-lock.json
 .claude/settings.local.json
+.vercel
