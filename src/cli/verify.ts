@@ -702,6 +702,9 @@ await (async () => {
       del: async () => {},
       reserve: async () => ({ ok: true }),
       adjust: async () => {},
+      acquireLock: async () => true,
+      releaseLock: async () => {},
+      setJsonIfRev: async () => true,
     }
     if ((await getSession(spy, '../../etc/passwd')) !== undefined || storeTouched) {
       fail('a malformed session id reached the store (must be rejected by the id pattern first)')
@@ -735,6 +738,15 @@ await (async () => {
         throw new Error(MARKER)
       },
       adjust: async () => {
+        throw new Error(MARKER)
+      },
+      acquireLock: async () => {
+        throw new Error(MARKER)
+      },
+      releaseLock: async () => {
+        throw new Error(MARKER)
+      },
+      setJsonIfRev: async () => {
         throw new Error(MARKER)
       },
     }
@@ -979,6 +991,9 @@ await (async () => {
         del: (k) => inner.del(k),
         reserve: (l, a) => (reserveDown ? Promise.reject(new Error('SECRET-REDIS-DOWN')) : inner.reserve(l, a)),
         adjust: (k, d, t) => inner.adjust(k, d, t),
+        acquireLock: (k, token, ttl) => inner.acquireLock(k, token, ttl),
+        releaseLock: (k, token) => inner.releaseLock(k, token),
+        setJsonIfRev: (k, rev, v, ttl) => inner.setJsonIfRev(k, rev, v, ttl),
       }
       const base = serve(flaky)
       const sid = await newGame(base)
