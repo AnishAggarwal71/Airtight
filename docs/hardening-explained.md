@@ -69,9 +69,14 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **Why:** Without a clock, one stuck call would hold your game's lock and a server slot until the platform killed the function (60 seconds), and you would just see a spinner. Now it ends quickly, cleanly, and costs you nothing.
 - **How:** The server starts one 50-second stopwatch when a turn begins and hands it to every model call; each call also gets its own shorter stopwatch. The first to ring cancels the call. A suspect timeout counts as a failed turn (same as Step 5: nothing is saved, no turn or evidence is lost). A judge timeout falls back to the existing "turn counts, no score change" behaviour, and once the 50 seconds are up the judge is not retried. The 50 seconds is deliberately below the 60-second function limit and the 70-second lock, so a lock can never run out while a turn is still going. No prompts or scoring changed.
 
-## Steps 8-10 (planned)
+## Step 8: Friendly errors, private logs
 
-- **8 Error handling and logging:** players see friendly messages, we log details privately.
+- **What:** When the AI service fails, the player now sees one fixed, polite sentence ("The suspect could not answer right now... please try again"), never the provider's own error text. The real reason goes to the server log. Broken or oversized requests get a clear 400 or 413 instead of a vague 500. Judge (invigilator) failures, which used to pass silently, are now logged too.
+- **Why:** Provider error messages can contain request details, account information or even pieces of the API key. Anything shown to a player is public, and server logs are readable by more people than the secrets are. We also could not see when the judge was quietly failing and giving zero points.
+- **How:** A new `log.ts` writes every log as one line of JSON (easy to search) and first wipes out anything that looks like a secret: the actual values of our secret settings, `sk-ant-` keys, "Bearer" tokens and passwords inside URLs. The route attaches the original error to the friendly one privately, so the log gets the real cause with the game id and turn number, while the player gets only the sentence. No prompts or scoring changed.
+
+## Steps 9-10 (planned)
+
 - **9 Transcripts to Redis:** playtest logs saved safely (14 days), with a notice in the UI.
 - **10 Repo hygiene:** keep secrets and logs out of git.
 - **After 10, BYOK:** players can use their own Anthropic key.

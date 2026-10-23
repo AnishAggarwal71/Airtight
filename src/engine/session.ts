@@ -27,6 +27,7 @@ import {
 import {
   evaluateSuspectTurn,
   evaluateWitnessTurn,
+  InvigilatorError,
   type EvaluateSuspectInput,
   type EvaluateWitnessInput,
 } from './invigilator'
@@ -203,8 +204,14 @@ export async function playInterrogationTurn(
     const { response: evalResponse, usage: evalUsage } = await evaluateSuspectTurn(evalInput, callOpts)
     accumulateUsage(session.usage, evalUsage)
     invigilatorResponse = evalResponse
-  } catch {
+  } catch (err) {
     invigilatorFailed = true
+    callOpts.onInvigilatorFailure?.({
+      kind: 'suspect',
+      turn: session.interrogationTurn,
+      attempts: err instanceof InvigilatorError ? err.attempts : 0,
+      err,
+    })
   }
 
   // ── Scoring ─────────────────────────────────────────────────────────────
@@ -354,8 +361,14 @@ export async function playWitnessTurn(
     const { response: evalResponse, usage: evalUsage } = await evaluateWitnessTurn(evalInput, callOpts)
     accumulateUsage(session.usage, evalUsage)
     invigilatorResponse = evalResponse
-  } catch {
+  } catch (err) {
     invigilatorFailed = true
+    callOpts.onInvigilatorFailure?.({
+      kind: 'witness',
+      turn: session.witnessTurn,
+      attempts: err instanceof InvigilatorError ? err.attempts : 0,
+      err,
+    })
   }
 
   // ── Scoring ─────────────────────────────────────────────────────────────

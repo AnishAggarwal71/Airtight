@@ -46,6 +46,7 @@ import {
   type RateLimiter,
 } from '../server/ratelimit'
 import { MockLanguageModelV4 } from 'ai/test'
+import { describeError, scrub } from '../server/log'
 import { mkdtemp } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -833,6 +834,8 @@ function installFakeModel() {
     failKind: null as 'suspect' | 'witness' | 'invigilator' | null,
     // Calls of this kind never answer; they end only when the SDK aborts them (timeout / deadline).
     hangKind: null as 'suspect' | 'witness' | 'invigilator' | null,
+    // Text of the error thrown when failKind matches (lets a check plant secrets in it).
+    failMessage: 'fake model outage',
   }
   setModel(
     new MockLanguageModelV4({
@@ -855,7 +858,7 @@ function installFakeModel() {
             sig.addEventListener('abort', () => reject(sig.reason), { once: true })
           })
         }
-        if (fm.failKind === kind) throw new Error('fake model outage')
+        if (fm.failKind === kind) throw new Error(fm.failMessage)
         const object =
           kind === 'invigilator'
             ? schema.includes('suspectContradiction')
@@ -1811,6 +1814,178 @@ await (async () => {
     pass('timeouts: a hung persona call ends at its cap as 504 MODEL_TIMEOUT with the session byte-identical, the lock released and only the small failed-turn charge; the request deadline overrides a longer cap; a hung invigilator is cut per attempt and commits a zero-delta turn; the deadline stops further invigilator retries')
   } catch (err) {
     fail(`timeout check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.log = origLog
+    console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
+// 15. Error and log hygiene. Proves: a failed model call never echoes provider
+// text to the player (fixed friendly sentence, 502); the real cause IS logged
+// server-side as one JSON line with sid/phase/turn; secrets planted in the
+// error (API key, Bearer token, URL credentials) are redacted from every log
+// line; an invigilator fallback is logged with kind/turn/attempts; malformed
+// JSON is a 400 and an oversized body a 413 (never a 500, no stack or file
+// paths in the body); scrub() handles env values, key shapes and short values.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  const lines: string[] = []
+  // fail()/pass() print with console.log, which this check captures; restore it first.
+  const restore = () => {
+    console.log = origLog
+    console.error = origErr
+  }
+  const failOut = (msg: string) => {
+    restore()
+    fail(msg)
+  }
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    const KEY = 'sk-ant-api03-SECRETSECRETSECRET1234'
+    process.env.ANTHROPIC_API_KEY = KEY
+    process.env.SESSION_SECRET = 'verify-session-secret-0123456789abcdef'
+    // Capture every server log line instead of printing it.
+    console.log = (...a: unknown[]) => void lines.push(a.map(String).join(' '))
+    console.error = (...a: unknown[]) => void lines.push(a.map(String).join(' '))
+
+    // ── scrub(): the pure part ───────────────────────────────────────────
+    {
+      const env = { ANTHROPIC_API_KEY: 'envkey-VALUE-12345', SESSION_SECRET: 'short' } as NodeJS.ProcessEnv
+      const cases: Array<[string, string, (out: string) => boolean]> = [
+        ['env value', 'bad key envkey-VALUE-12345 here', (o) => !o.includes('envkey-VALUE-12345') && o.includes('[redacted]')],
+        ['sk-ant shape', 'x sk-ant-api03-abcDEF_123-xyz y', (o) => !o.includes('abcDEF')],
+        ['bearer', 'Authorization: Bearer abc.def-123', (o) => !o.includes('abc.def-123')],
+        ['url credentials', 'GET https://user:pass123@host.example/x', (o) => !o.includes('pass123') && o.includes('host.example')],
+        ['short secret value is not used to blank text', 'the word short stays', (o) => o === 'the word short stays'],
+        ['length cap', 'a'.repeat(5000), (o) => o.length < 600],
+      ]
+      for (const [name, input, ok] of cases) {
+        const out = scrub(input, env)
+        if (!ok(out)) {
+          origErr(`scrub case "${name}" failed: ${out.slice(0, 120)}`)
+          failOut(`scrub(): ${name}`)
+          return
+        }
+      }
+    }
+
+    const fm = installFakeModel()
+    const post = (base: string, route: string, body: unknown = {}) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const store = new MemoryStore()
+    const srv = createApp({ store, rateLimiter: unlimitedRateLimiter }).listen(0)
+    servers.push(srv)
+    const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    const newGame = async () => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
+    const parsed = () => lines.filter((l) => l.startsWith('{')).map((l) => JSON.parse(l) as Record<string, unknown>)
+
+    // ── A. Persona failure: nothing from the provider reaches the player ──
+    {
+      const sid = await newGame()
+      lines.length = 0
+      fm.failKind = 'suspect'
+      fm.failMessage = `401 invalid x-api-key ${KEY} at https://bob:hunter2pw@api.anthropic.com/v1 Authorization: Bearer tok_abc123XYZ`
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      fm.failKind = null
+      const text = await res.text()
+      const body = JSON.parse(text) as { error?: { code?: string; message?: string } }
+      if (res.status !== 502 || body.error?.code !== 'MODEL_REQUEST_FAILED') {
+        failOut(`failed persona call: status ${res.status}, code ${body.error?.code}; want 502 MODEL_REQUEST_FAILED`)
+        return
+      }
+      for (const bad of [KEY, 'hunter2pw', 'tok_abc123XYZ', 'x-api-key', 'anthropic', 'Suspect model request failed']) {
+        if (text.includes(bad)) {
+          failOut(`502 body leaked provider text: "${bad}"`)
+          return
+        }
+      }
+      const all = lines.join('\n')
+      for (const bad of [KEY, 'hunter2pw', 'tok_abc123XYZ']) {
+        if (all.includes(bad)) {
+          failOut(`a log line contains a secret: "${bad}"`)
+          return
+        }
+      }
+      const tf = parsed().find((l) => l.evt === 'turn_failed')
+      if (!tf || tf.sid !== sid || tf.phase !== 'interrogation' || tf.turn !== 1 || !String(tf.err).includes('[redacted]')) {
+        failOut(`turn_failed log line missing or wrong: ${JSON.stringify(tf)}`)
+        return
+      }
+    }
+
+    // ── B. Invigilator fallback is logged ─────────────────────────────────
+    {
+      const sid = await newGame()
+      lines.length = 0
+      fm.failKind = 'invigilator'
+      fm.failMessage = `judge down ${KEY}`
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+      fm.failKind = null
+      const fb = parsed().find((l) => l.evt === 'invigilator_fallback')
+      if (
+        res.status !== 200 ||
+        !fb ||
+        fb.sid !== sid ||
+        fb.kind !== 'suspect' ||
+        fb.turn !== 1 ||
+        fb.attempts !== 3 ||
+        lines.join('\n').includes(KEY)
+      ) {
+        failOut(`invigilator fallback: status ${res.status}, log ${JSON.stringify(fb)}; want sid/kind=suspect/turn=1/attempts=3 and no key`)
+        return
+      }
+    }
+
+    // ── C. Body-parser errors are 400 / 413, not 500, and leak nothing ────
+    {
+      lines.length = 0
+      const bad = await fetch(`${base}/api/game`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"input": ' })
+      const badText = await bad.text()
+      const big = await fetch(`${base}/api/game`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x: 'a'.repeat(40_000) }) })
+      const bigText = await big.text()
+      if (bad.status !== 400 || big.status !== 413) {
+        failOut(`malformed JSON gave ${bad.status}, oversized body gave ${big.status}; want 400 and 413`)
+        return
+      }
+      for (const t of [badText, bigText]) {
+        if (/SyntaxError|node_modules|\bat\s|\.ts:|\.js:|Unexpected/.test(t) || JSON.parse(t).error?.code === undefined) {
+          failOut(`body-parser error body leaks internals or is not {error:{code}}: ${t.slice(0, 120)}`)
+          return
+        }
+      }
+      if (parsed().some((l) => l.evt === 'unhandled_error')) {
+        failOut('a client body error was logged as an unhandled server error')
+        return
+      }
+    }
+
+    // ── D. Every server log line is single-line JSON ──────────────────────
+    if (lines.some((l) => !l.startsWith('{') || l.includes('\n'))) {
+      failOut(`a server log line is not one JSON object: ${lines.find((l) => !l.startsWith('{'))?.slice(0, 120)}`)
+      return
+    }
+    void describeError
+
+    restore()
+    pass('error/log hygiene: a failed model call returns one fixed friendly 502 with no provider text; the real cause is logged as one JSON line with sid/phase/turn; planted secrets (API key, Bearer, URL credentials) are redacted from every log; invigilator fallbacks are logged (kind/turn/attempts); malformed JSON is 400 and oversized 413 with no internals')
+  } catch (err) {
+    console.log = origLog
+    console.error = origErr
+    failOut(`error/log hygiene check threw: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     console.log = origLog
     console.error = origErr

@@ -22,6 +22,7 @@
 
 import type { TokenUsage } from '../engine/types'
 import { budgetExceeded, storeUnavailable } from './errors'
+import { describeError, logError } from './log'
 import type { Store } from './store'
 
 // Anthropic Haiku 4.5 pricing per CLAUDE.md: $1.00/1M input tokens,
@@ -85,7 +86,7 @@ export type SpendReservation = {
 
 /** Logs a store failure server-side (it may contain URLs/tokens) and returns the generic 503 to throw. */
 function failClosed(op: string, err: unknown) {
-  console.error(JSON.stringify({ evt: 'store_error', op, msg: err instanceof Error ? err.message : String(err) }))
+  logError('store_error', { op, msg: describeError(err) })
   return storeUnavailable()
 }
 
@@ -160,9 +161,7 @@ export async function settleSpend(store: Store, reservation: SpendReservation, a
     await store.adjust(reservation.sessionKey, delta, SESSION_COUNTER_TTL_SECONDS)
     await store.adjust(reservation.dayKey, delta, DAY_COUNTER_TTL_SECONDS)
   } catch (err) {
-    console.error(
-      JSON.stringify({ evt: 'store_error', op: 'settle', msg: err instanceof Error ? err.message : String(err) }),
-    )
+    logError('store_error', { op: 'settle', msg: describeError(err) })
   }
 }
 

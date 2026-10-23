@@ -220,6 +220,20 @@ export type EvaluateSuspectResult = {
 const MAX_INVIGILATOR_RETRIES = 2
 
 /**
+ * Thrown when every invigilator attempt failed. Carries how many attempts were
+ * made (the request deadline can cut the retries short) so the caller can log
+ * it; the original error is kept as `cause`.
+ */
+export class InvigilatorError extends Error {
+  attempts: number
+  constructor(kind: 'suspect' | 'witness', attempts: number, cause: Error | null) {
+    super(`Invigilator (${kind}) failed after ${attempts} attempt${attempts === 1 ? '' : 's'}: ${cause?.message}`, { cause })
+    this.name = 'InvigilatorError'
+    this.attempts = attempts
+  }
+}
+
+/**
  * Evaluate one suspect interrogation turn. The invigilator sees the full
  * context and returns structured signals for the scoring engine.
  *
@@ -235,7 +249,9 @@ export async function evaluateSuspectTurn(
   const userMessage = buildSuspectEvalMessage(input)
 
   let lastError: Error | null = null
+  let attempts = 0
   for (let attempt = 0; attempt <= MAX_INVIGILATOR_RETRIES; attempt++) {
+    attempts++
     try {
       const result = await generateObject({
         model: getModel(),
@@ -261,7 +277,7 @@ export async function evaluateSuspectTurn(
     }
   }
 
-  throw new Error(`Invigilator (suspect) failed after ${MAX_INVIGILATOR_RETRIES + 1} attempts: ${lastError?.message}`)
+  throw new InvigilatorError('suspect', attempts, lastError)
 }
 
 // ─── Witness evaluation ─────────────────────────────────────────────────────
@@ -319,7 +335,9 @@ export async function evaluateWitnessTurn(
   const userMessage = buildWitnessEvalMessage(input)
 
   let lastError: Error | null = null
+  let attempts = 0
   for (let attempt = 0; attempt <= MAX_INVIGILATOR_RETRIES; attempt++) {
+    attempts++
     try {
       const result = await generateObject({
         model: getModel(),
@@ -345,5 +363,5 @@ export async function evaluateWitnessTurn(
     }
   }
 
-  throw new Error(`Invigilator (witness) failed after ${MAX_INVIGILATOR_RETRIES + 1} attempts: ${lastError?.message}`)
+  throw new InvigilatorError('witness', attempts, lastError)
 }

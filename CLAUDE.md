@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (14/14 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (15/15 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -269,7 +269,7 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 14 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts, etc.
+npm run verify                        # 15 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race/timeouts/error-log hygiene, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -386,8 +386,19 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   the existing zero-delta fallback, and an expired deadline stops its retries.
   The 50s deadline and the 70s lock TTL assume the function is cut off at 60s:
   keep `maxDuration` at 60 in `vercel.json` (currently absent, so the platform
-  default applies — check it). **Still NOT safe to deploy until steps 8-9 land:**
-  error/log hygiene (8) and (step 9) file transcripts.
+  default applies — check it). Step 8 (errors and logs): `src/server/log.ts`
+  `logEvent`/`logError` emit one JSON line per event (`evt` first) and run every
+  string field through `scrub()` (secret env values, `sk-ant-` keys, Bearer
+  tokens, URL credentials; 500-char cap). `upstreamModelError` sends the player
+  a fixed sentence (502 `MODEL_REQUEST_FAILED` / 504 `MODEL_TIMEOUT`); the
+  provider text rides along as `ApiError.cause` and is logged as `turn_failed`
+  `{sid, phase, turn, err}`. An invigilator fallback logs
+  `invigilator_fallback {sid, turn, kind, attempts, err}` via the optional
+  `onInvigilatorFailure` in `TurnCallOptions` (engine throws `InvigilatorError`
+  carrying `attempts`). Body-parser errors are 400 `BAD_REQUEST` / 413
+  `PAYLOAD_TOO_LARGE` (JSON body limit 32kb). Never `console.*` raw strings in
+  server code; use `logEvent`/`logError`. **Still NOT safe to deploy until step 9
+  lands:** file transcripts.
   `ANTHROPIC_API_KEY` is a server-side-only env var, never shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.

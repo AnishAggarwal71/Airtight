@@ -31,8 +31,19 @@ export const TURN_TIMEOUTS: TurnTimeouts = {
   invigilatorAttemptMs: 15_000,
 }
 
+/** What the engine reports when the invigilator fails and the turn falls back to zero-delta. */
+export type InvigilatorFailureInfo = {
+  kind: 'suspect' | 'witness'
+  turn: number
+  /** Attempts actually made (fewer than the maximum if the request deadline cut the retries short). */
+  attempts: number
+  err: unknown
+}
+
 /** Optional per-turn call options threaded from the HTTP layer into the engine. */
 export type TurnCallOptions = {
+  /** Called once when the invigilator fails and the turn is committed with no score change. Must not throw. */
+  onInvigilatorFailure?: (info: InvigilatorFailureInfo) => void
   /** Request-wide deadline signal; aborting it cancels whatever model call is in flight. */
   abortSignal?: AbortSignal
   /** Overrides for TURN_TIMEOUTS (tests use short values). */

@@ -28,6 +28,7 @@ import {
 import { rateLimit } from '../ratelimit'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
 import { resolveTimeouts, type TurnCallOptions, type TurnTimeouts } from '../../engine/timeouts'
+import { describeError, logError, logEvent } from '../log'
 import { withSessionLock } from '../lock'
 import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
 import type { Store } from '../store'
@@ -113,9 +114,23 @@ function storeOf(req: Request): Store {
  * (possibly test-overridden) per-call caps. Created at the start of the turn
  * so the deadline covers the persona call AND the invigilator together.
  */
-function turnCallOptions(req: Request): TurnCallOptions {
+function turnCallOptions(req: Request, sessionId: string): TurnCallOptions {
   const timeouts = req.app.locals.turnTimeouts as Partial<TurnTimeouts> | undefined
-  return { abortSignal: AbortSignal.timeout(resolveTimeouts(timeouts).requestMs), timeouts }
+  return {
+    abortSignal: AbortSignal.timeout(resolveTimeouts(timeouts).requestMs),
+    timeouts,
+    // The judge failing is invisible to the player (the turn just scores 0), so
+    // this log line is the only way to notice a judge that is failing often.
+    onInvigilatorFailure: ({ kind, turn, attempts, err }) =>
+      logError('invigilator_fallback', { sid: sessionId, turn, kind, attempts, err: describeError(err) }),
+  }
+}
+
+/** Logs a failed persona call (the real cause, which the player never sees) and returns nothing. */
+function logTurnFailed(sessionId: string, phase: 'interrogation' | 'witness', turn: number, err: unknown): void {
+  // upstreamModelError wraps the original; the engine's own wrapper keeps it as `cause`.
+  const cause = err instanceof Error && err.cause !== undefined ? err.cause : err
+  logError('turn_failed', { sid: sessionId, phase, turn, err: describeError(cause) })
 }
 
 /** Loads a session record from the store or throws a 404. The returned object is a private copy. */
@@ -197,14 +212,7 @@ gameRouter.post(
     // Server-side only: the one place the derived seed is recorded, so a
     // case can be replayed with `npm run case <seed> homicide`. It must never
     // be added to the response below.
-    console.log(
-      JSON.stringify({
-        evt: 'session_created',
-        sid: sessionId,
-        seed,
-        templateId: session.caseFile.templateId,
-      }),
-    )
+    logEvent('session_created', { sid: sessionId, seed, templateId: session.caseFile.templateId })
 
     res.status(201).json({
       sessionId,
@@ -249,7 +257,7 @@ gameRouter.get(
  * client can see the response.
  */
 async function runInterrogationTurn(req: Request, sessionId: string, input: string) {
-    const callOpts = turnCallOptions(req)
+    const callOpts = turnCallOptions(req, sessionId)
     const stored = await requireSession(req, sessionId)
     const { session } = stored
 
@@ -289,6 +297,7 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
       result = await playInterrogationTurnSafely(session, input, callOpts)
     } catch (err) {
       await settleFailedTurn(storeOf(req), reservation)
+      logTurnFailed(sessionId, 'interrogation', turn, err)
       if (transcriptPath) {
         const error = err instanceof Error ? err : new Error(String(err))
         await appendTranscriptTurnFailed(
@@ -369,7 +378,7 @@ gameRouter.post(
 
 /** One witness turn, run under the session lock; same contract as runInterrogationTurn. */
 async function runWitnessTurn(req: Request, sessionId: string, question: string) {
-    const callOpts = turnCallOptions(req)
+    const callOpts = turnCallOptions(req, sessionId)
     const stored = await requireSession(req, sessionId)
     const { session } = stored
 
@@ -404,6 +413,7 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
       result = await playWitnessTurnSafely(session, question, callOpts)
     } catch (err) {
       await settleFailedTurn(storeOf(req), reservation)
+      logTurnFailed(sessionId, 'witness', turn, err)
       if (transcriptPath) {
         const error = err instanceof Error ? err : new Error(String(err))
         await appendTranscriptTurnFailed(

@@ -11,8 +11,8 @@ export class ApiError extends Error {
   status: number
   code: string
 
-  constructor(status: number, code: string, message: string) {
-    super(message)
+  constructor(status: number, code: string, message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause })
     this.status = status
     this.code = code
   }
@@ -44,11 +44,12 @@ export function budgetExceeded(message: string): ApiError {
 }
 
 /**
- * Wraps a persona-agent model failure (interrogateSuspect/interrogateWitness —
- * these throw on failure with no retry, unlike the invigilator) as a clean
- * upstream error. adjudicate.ts/witness.ts already prefix their errors with
- * "Suspect/Witness model request failed: ..." so the message is already
- * safe to show the player as-is.
+ * Wraps a persona-agent model failure (interrogateSuspect/interrogateWitness)
+ * as a clean upstream error. The provider's message is NEVER sent to the
+ * player: it can carry request details, account/billing info or key fragments.
+ * The route logs the real cause server-side (see `turn_failed` in
+ * routes/game.ts); the player gets one fixed friendly sentence. The original
+ * error rides along as `cause` (never serialised) so the route can log it.
  */
 export function upstreamModelError(err: unknown): ApiError {
   // A call we gave up on (timeout / request deadline) is not a provider fault:
@@ -58,10 +59,15 @@ export function upstreamModelError(err: unknown): ApiError {
       504,
       'MODEL_TIMEOUT',
       'The suspect took too long to answer. Your turn was not used, so please try again.',
+      err,
     )
   }
-  const message = err instanceof Error ? err.message : String(err)
-  return new ApiError(502, 'MODEL_REQUEST_FAILED', message)
+  return new ApiError(
+    502,
+    'MODEL_REQUEST_FAILED',
+    'The suspect could not answer right now. Your turn was not used, so please try again in a moment.',
+    err,
+  )
 }
 
 /** Wraps an async route handler so a rejected promise reaches the error middleware instead of hanging the request. */

@@ -26,6 +26,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import net from 'node:net'
 import { ApiError } from './errors'
+import { describeError, logError } from './log'
 
 export type Bucket = 'create' | 'turn' | 'read'
 
@@ -200,9 +201,7 @@ export function rateLimit(bucket: Bucket) {
     try {
       result = await limiter.check(bucket, clientIp(req))
     } catch (err) {
-      console.error(
-        JSON.stringify({ evt: 'ratelimit_error', bucket, msg: err instanceof Error ? err.message : String(err) }),
-      )
+      logError('ratelimit_error', { bucket, msg: describeError(err) })
       next() // fail open — see the file header
       return
     }

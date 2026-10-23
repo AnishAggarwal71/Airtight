@@ -22,6 +22,7 @@
 import crypto from 'node:crypto'
 import type { GameSession } from '../engine/types'
 import { conflict, storeUnavailable } from './errors'
+import { describeError, logError } from './log'
 import type { Store } from './store'
 
 export type StoredSession = {
@@ -60,7 +61,7 @@ async function guarded<T>(op: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (err) {
-    console.error(JSON.stringify({ evt: 'store_error', op, msg: err instanceof Error ? err.message : String(err) }))
+    logError('store_error', { op, msg: describeError(err) })
     throw storeUnavailable()
   }
 }

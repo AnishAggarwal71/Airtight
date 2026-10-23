@@ -209,6 +209,22 @@ INSIDE the persona cap, so retries cannot extend it. Open assumption:
 default below 50s the platform would kill the function first. Restore
 `"functions": {"src/index.ts": {"maxDuration": 60}}` or confirm the plan default.
 
+**Step 8 notes (errors and logs):** `src/server/log.ts`. All server logging is
+one JSON object per line (`logEvent` stdout, `logError` stderr), `evt` first,
+every string field scrubbed (values of ANTHROPIC_API_KEY, SESSION_SECRET and the
+Redis tokens when 8+ chars; `sk-ant-...`; `Bearer ...`; `https://user:pw@`) and
+capped at 500 chars. The earlier Step 7 text echoed the provider's message to the
+player (`Suspect model request failed: ...`); that is gone. The player gets a
+fixed sentence, and the original error is attached to the `ApiError` as `cause`
+so the route's `turn_failed` line can log it (found by verify check #15: without
+`cause` the log only held the friendly sentence). Invigilator failures were
+silent zero-delta turns; they are now logged via an optional
+`onInvigilatorFailure` callback in `TurnCallOptions` (no behaviour change when
+omitted), with `attempts` carried by a new `InvigilatorError`. Express body-parser
+errors used to fall through to the generic 500; they are now 400/413. Deferred
+to Step 9: the transcript `turn_failed` entry still stores `error.message`
+(redacted by the existing key filter only).
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

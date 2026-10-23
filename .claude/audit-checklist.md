@@ -1,7 +1,7 @@
-# AIRTIGHT audit checklist (hardening steps 0-7)
+# AIRTIGHT audit checklist (hardening steps 0-8)
 
 Hand this file to the agent on the Windows test machine. It runs the commands,
-fills in the PASS/FAIL table at the bottom, and reports back. Steps 8-10 add
+fills in the PASS/FAIL table at the bottom, and reports back. Steps 9-10 add
 their own sections to this file as they land.
 
 ## Rules for the agent running this
@@ -19,11 +19,11 @@ git status -sb                      # expect: dev, clean (playtest-logs may show
 git log --oneline -6
 npm ci                              # clean install from the lockfile
 npm run typecheck                   # expect: NO output at all (exit 0)
-npm run verify                      # expect: 16 lines starting "ok", then "V2 green."
+npm run verify                      # expect: 17 lines starting "ok", then "V2 green."
 ```
 
 Expected `verify` lines include: determinism, leak-safety, seed never in any
-response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`.
+response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`, `timeouts: ...`, `error/log hygiene: ...`.
 
 | # | Check | Pass when |
 |---|-------|-----------|
@@ -230,6 +230,21 @@ Live, you can only confirm the limit and the normal path:
 - If you ever see HTTP 504 with code `MODEL_TIMEOUT`, report it and confirm the next identical request works and the turn counter did not move.
 - Re-check C8: the deployed function limit must be at least 60 seconds. If it is lower (for example 10 or 15 seconds on a Hobby default), report it as a BLOCKER.
 
+### C13. Friendly errors and clean logs (Step 8)
+
+The failure paths are proven offline by the `error/log hygiene:` line in A2 (fake model throwing text with a planted key). Live:
+
+```powershell
+# Malformed JSON and an oversized body must be 400 and 413 with a JSON error, never 500 or an HTML/stack page
+curl.exe -s -w "`n%{http_code}`n" -X POST "$LIVE/api/game" -H "Content-Type: application/json" -d '{"x": '
+$big = '{"x":"' + ('a' * 40000) + '"}'
+$big | curl.exe -s -o NUL -w "%{http_code}`n" -X POST "$LIVE/api/game" -H "Content-Type: application/json" --data-binary '@-'
+```
+
+- Expect `400` with `{"error":{"code":"BAD_REQUEST",...}}`, then `413`. Neither body may mention `SyntaxError`, `node_modules` or a file path.
+- In the Vercel logs (dashboard -> Logs, or `vercel logs <deployment>`), confirm every app line is one JSON object starting `{"evt":`. Search the logs for `sk-ant`, `Bearer ` and `@upstash`: expect zero hits.
+- Only the `session_created` line may contain a seed.
+
 ## D. Things only a live Redis can prove (report any surprise)
 
 These are the pieces that tests on this machine cannot run (no Redis here):
@@ -261,6 +276,7 @@ If C3 and C4 pass, all three are working.
 | C10 evidence after success | | |
 | C11 rate limits | | |
 | C12 timeouts / function limit | | |
+| C13 friendly errors / clean logs | | |
 
 ## Audit report — 2026-10-24 (Asia/Colombo)
 

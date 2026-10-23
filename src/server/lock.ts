@@ -15,6 +15,7 @@
 
 import crypto from 'node:crypto'
 import { conflict, notFoundSession, storeUnavailable } from './errors'
+import { describeError, logError } from './log'
 import { isValidSessionId } from './sessions'
 import type { Store } from './store'
 
@@ -24,7 +25,7 @@ export const SESSION_LOCK_TTL_MS = 70_000
 const lockKey = (sessionId: string) => `lock:${sessionId}`
 
 function logStoreError(op: string, err: unknown): void {
-  console.error(JSON.stringify({ evt: 'store_error', op, msg: err instanceof Error ? err.message : String(err) }))
+  logError('store_error', { op, msg: describeError(err) })
 }
 
 /**
