@@ -156,6 +156,19 @@ Known limit: the CAS treats a missing/undecodable `rev` as 0; sessions
 written before this step (rev absent) therefore still save once, then carry a
 rev.
 
+**Step 5 notes (failed-turn rollback):** the engine mutates the session
+before its persona call (`interrogationTurn`/`witnessTurn`, `phase`,
+`witnessUsed`, `evidence.presented`), and the old route code undid only turn
+and phase by hand, so a failed `PRESENT e1:` left e1 marked presented and the
+player lost the item for free. The route already works on a private copy loaded
+for this request and saves only after success, so the fix is to DELETE the
+manual rollback: a thrown persona call discards every mutation at once and
+nothing needs restoring. A failed invigilator call is unchanged (session.ts
+catches it and commits a zero-delta turn). No game behaviour changed. Verify
+check #12 compares the raw stored session before/after a failed persona call
+(suspect and witness) and confirms a retry succeeds with the item still
+unspent.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

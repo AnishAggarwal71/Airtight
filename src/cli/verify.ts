@@ -1366,6 +1366,129 @@ await (async () => {
   }
 })()
 
+// 12. Failed-turn rollback. A turn whose PERSONA call fails must leave the
+// stored session byte-identical: the engine mutates the session before that
+// call (turn counter, phase, evidence.presented, witnessUsed), so anything that
+// persisted those mutations would burn a turn or an evidence item for free. A
+// failed INVIGILATOR call is different: it commits a zero-delta turn. The route
+// has no manual rollback; it works because the loaded session is a private copy
+// that is saved only after success. MemoryStore, fake model, no API key.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    console.log = (...a: unknown[]) => {
+      if (!String(a[0]).startsWith('{"evt"')) origLog(...a)
+    }
+    console.error = () => {}
+    const fm = installFakeModel()
+    const post = (base: string, route: string, body: unknown = {}) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const store = new MemoryStore()
+    const srv = createApp({ store }).listen(0)
+    servers.push(srv)
+    const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    const newGame = async () => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
+    // Raw stored text: comparing it proves "byte-identical", including rev and every nested field.
+    const rawOf = async (sid: string) => JSON.stringify(await store.getJson(`sess:${sid}`))
+
+    // ── A. Suspect persona failure on PRESENT e1: nothing persists ──────
+    {
+      const sid = await newGame()
+      const before = await rawOf(sid)
+      fm.failKind = 'suspect'
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'PRESENT e1: Explain this.' })
+      fm.failKind = null
+      const after = await rawOf(sid)
+      const st = await getSession(store, sid)
+      if (res.status !== 502) {
+        fail(`failed persona call returned ${res.status}, want 502`)
+        return
+      }
+      if (after !== before) {
+        fail('a failed persona call changed the stored session (must be byte-identical)')
+        return
+      }
+      if (st?.session.caseFile.evidence.find((e) => e.id === 'e1')?.presented !== false || st.session.interrogationTurn !== 0) {
+        fail('failed PRESENT e1 left e1 presented or advanced the turn counter')
+        return
+      }
+      const retry = await post(base, `/api/game/${sid}/interrogate`, { input: 'PRESENT e1: Explain this.' })
+      const st2 = await getSession(store, sid)
+      if (retry.status !== 200 || st2?.session.caseFile.evidence.find((e) => e.id === 'e1')?.presented !== true) {
+        fail(`retry after a failed PRESENT: status ${retry.status}, e1 presented ${st2?.session.caseFile.evidence.find((e) => e.id === 'e1')?.presented}; want 200 and true (item not burned)`)
+        return
+      }
+    }
+
+    // ── B. Witness persona failure: nothing persists (witnessUsed, phase, turn) ──
+    {
+      const sid = await newGame()
+      const st = await getSession(store, sid)
+      if (!st) {
+        fail('could not load the session to unlock the witness')
+        return
+      }
+      st.session.caseStrength = 60
+      await saveSession(store, sid, st)
+      const before = await rawOf(sid)
+      fm.failKind = 'witness'
+      const res = await post(base, `/api/game/${sid}/witness`, { question: 'What did you see?' })
+      fm.failKind = null
+      const after = await rawOf(sid)
+      if (res.status !== 502 || after !== before) {
+        fail(`failed witness call: status ${res.status}, stored session changed ${after !== before}; want 502 and unchanged`)
+        return
+      }
+      const retry = await post(base, `/api/game/${sid}/witness`, { question: 'What did you see?' })
+      if (retry.status !== 200) {
+        fail(`witness retry after a failure returned ${retry.status}, want 200`)
+        return
+      }
+    }
+
+    // ── C. Invigilator failure still commits a zero-delta turn ──────────
+    {
+      const sid = await newGame()
+      fm.failKind = 'invigilator'
+      const res = await post(base, `/api/game/${sid}/interrogate`, { input: 'PRESENT e2: Explain this.' })
+      fm.failKind = null
+      const body = (await res.json()) as { caseStrengthDelta?: number }
+      const st = await getSession(store, sid)
+      if (
+        res.status !== 200 ||
+        body.caseStrengthDelta !== 0 ||
+        st?.session.interrogationTurn !== 1 ||
+        st.session.caseFile.evidence.find((e) => e.id === 'e2')?.presented !== true
+      ) {
+        fail(`invigilator failure: status ${res.status}, delta ${body.caseStrengthDelta}, turn ${st?.session.interrogationTurn}; want 200, 0 and 1 with e2 presented`)
+        return
+      }
+    }
+
+    pass('failed-turn rollback: a failed persona call (suspect or witness) leaves the stored session byte-identical and the evidence item unspent; an invigilator failure commits a zero-delta turn')
+  } catch (err) {
+    fail(`failed-turn rollback check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.log = origLog
+    console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
 console.log(
   failures === 0
     ? '\n  \x1b[32mV2 green.\x1b[0m\n'

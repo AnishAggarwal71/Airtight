@@ -114,40 +114,37 @@ async function requireSession(req: Request, sessionId: string): Promise<StoredSe
 }
 
 /**
- * Runs playInterrogationTurn with a rollback guard: session.ts increments
- * interrogationTurn and sets phase BEFORE awaiting the (non-retrying)
- * persona call, so a thrown error would otherwise leave the turn counter
- * one ahead of interrogationDetails.length. Nothing else mutates before
- * that call resolves, so restoring these two fields is sufficient to let
- * the player retry the exact same turn without losing it.
+ * Runs playInterrogationTurn and converts any failure into a clean 502.
+ *
+ * No manual rollback is needed (or wanted): the engine mutates the session
+ * BEFORE its persona call (turn counter, phase, evidence.presented), but the
+ * session here is a private copy loaded from the store for this request, and
+ * the route saves it only after the turn succeeds. A thrown error therefore
+ * discards every one of those mutations at once. The old field-by-field
+ * restore covered only turn and phase and would have missed evidence.presented
+ * and witnessUsed, which a player could use to burn evidence items for free.
+ * A failed INVIGILATOR call does not throw: session.ts catches it and commits
+ * a zero-delta turn.
  */
 async function playInterrogationTurnSafely(
   session: GameSession,
   input: string,
 ): Promise<PlayInterrogationResult> {
-  const turnBefore = session.interrogationTurn
-  const phaseBefore = session.phase
   try {
     return await playInterrogationTurn(session, input)
   } catch (err) {
-    session.interrogationTurn = turnBefore
-    session.phase = phaseBefore
     throw upstreamModelError(err)
   }
 }
 
-/** Same rollback guard as playInterrogationTurnSafely, scoped to the witness turn counter. */
+/** Same contract as playInterrogationTurnSafely (covers witnessTurn, witnessUsed and phase). */
 async function playWitnessTurnSafely(
   session: GameSession,
   question: string,
 ): Promise<PlayWitnessResult> {
-  const turnBefore = session.witnessTurn
-  const phaseBefore = session.phase
   try {
     return await playWitnessTurn(session, question)
   } catch (err) {
-    session.witnessTurn = turnBefore
-    session.phase = phaseBefore
     throw upstreamModelError(err)
   }
 }

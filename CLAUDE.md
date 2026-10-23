@@ -22,7 +22,7 @@ V3 state. Treat this file as the current-state source of truth for anything
 **Status: V3 two-agent architecture implemented, tuned, and verified.** 10
 homicide templates, invigilator prompt tuning landed and measured (precision
 0.667, recall 0.80; 60% CHARGED_STRONG, mean CS 77 — all targets hit; see
-`docs/eval-v3-results.md`). `npm run verify` green (11/11 checks). What hasn't
+`docs/eval-v3-results.md`). `npm run verify` green (12/12 checks). What hasn't
 happened yet: deployment (see Open items).
 
 ---
@@ -269,7 +269,7 @@ src/cli/
 
 No model call needed (free, instant — run after any engine change):
 ```bash
-npm run verify                        # 11 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race, etc.
+npm run verify                        # 12 checks: determinism, leak-safety, integrity, coverage, variance, seed/session/spend-cap/turn-race, etc.
 npm run case homicide                 # full case file, server-side (truth, vulnerabilities, persona — all visible)
 npm run case:public homicide          # exactly what the player-detective sees
 npm run case test-seed-1 homicide     # pin a seed to inspect the same case repeatedly
@@ -369,9 +369,11 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   model), and `saveSession()` is a revision compare-and-set (`rev` in the
   stored envelope; stale write -> 409). Request order: validate -> lock ->
   load + 409 checks -> reserve -> run -> settle + save -> release -> respond.
-  **Still NOT safe to deploy until steps 5-9 land:** failed-turn rollback
-  (step 5), rate limits (6), timeouts (7), error/log hygiene (8) and (step 9)
-  file transcripts. `ANTHROPIC_API_KEY` is a server-side-only env var, never
+  Step 5 (failed-turn rollback): the routes have NO manual rollback; the
+  session is a private per-request copy saved only after the persona call
+  succeeds, so a failed turn (including `evidence.presented`) leaves the stored
+  session untouched. **Still NOT safe to deploy until steps 6-9 land:** rate
+  limits (6), timeouts (7), error/log hygiene (8) and (step 9) file transcripts. `ANTHROPIC_API_KEY` is a server-side-only env var, never
   shipped to the client.
 - **`PLAYTEST_LOGS_DIR`** (optional env var, read in
   `src/cli/transcript.ts`) — set this to the Render disk's mount path (e.g.

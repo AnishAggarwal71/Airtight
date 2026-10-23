@@ -51,7 +51,11 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
   1. A lock in Redis (`lock:<game id>`). A second request while one is running gets 409 immediately, before spending anything. The lock is released before the answer is sent back, so your next click never collides.
   2. A version number on the saved game. If an old copy tries to save over a newer one, it is rejected. This is the backup if a lock ever times out.
 
-## Step 5: Failed-turn rollback (next)
+## Step 5: Failed-turn rollback
+
+- **What:** If the model call fails, the game is exactly as it was before you pressed send. You keep the turn and you keep any evidence item you tried to present.
+- **Why:** The game marks evidence as "used" and counts the turn *before* it asks the model. The old code only undid the turn count by hand. If the model errored on `PRESENT e1:`, evidence e1 stayed marked as used, so a flaky API quietly cost the player their evidence.
+- **How:** We deleted the hand-written undo. Each request works on its own private copy of the game and saves it only after the suspect's reply succeeds. A failed request simply never saves, so everything is discarded in one go. If only the judge (invigilator) fails, the turn still counts with no score change, same as before.
 
 ## Steps 6-10 (planned)
 
