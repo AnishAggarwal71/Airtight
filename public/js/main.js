@@ -24,14 +24,13 @@ function clearError() {
 
 document.getElementById('setup-form').addEventListener('submit', async (e) => {
   e.preventDefault()
-  const seed = document.getElementById('seed-input').value.trim()
-  await createSession(seed)
+  await createSession()
 })
 
-async function createSession(seed) {
+async function createSession() {
   clearError()
   try {
-    const result = await api.createGame(seed || undefined)
+    const result = await api.createGame()
     resetForNewCase()
     state.sessionId = result.sessionId
     state.publicCase = result.publicCase
@@ -45,7 +44,7 @@ async function createSession(seed) {
     sessionStorage.setItem(SESSION_STORAGE_KEY, state.sessionId)
     paint()
   } catch (err) {
-    setError(err.message, () => createSession(seed))
+    setError(err.message, () => createSession())
   }
 }
 

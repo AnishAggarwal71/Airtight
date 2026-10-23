@@ -101,7 +101,15 @@ Break any of these and the game stops working. `src/cli/verify.ts` enforces
    the witness's `personality`/`knowledgeBoundary`/`suspectContradictions`,
    the truth timeline, the `fatalFact`, and `crimeSummary` (stripped via
    `PublicBriefing` type — M14). If any of that reaches the player, the game
-   is solved by reading the inspect output.
+   is solved by reading the inspect output. **The seed is hidden too** (2026-10-23):
+   it regenerates the entire hidden case, so it is absent from `PublicCase`
+   and `BreakdownResponse` and from every HTTP response/header.
+   `src/server/seed.ts` owns seed choice: the server picks it (crypto random,
+   HMAC'd with `SESSION_SECRET` when set — derivation lives outside the pure
+   `generate()`), client `seed`/`templateId` are honoured only with
+   `ALLOW_CLIENT_SEED=1` and never on `VERCEL_ENV=production`, and the derived
+   seed is logged server-side only (`session_created` line) for replay via
+   `npm run case <seed> homicide`. `verify.ts` check #8 enforces all of this.
 
 3. **The suspect acts; the invigilator judges; the engine scores.** All Case
    Strength arithmetic lives in `SCORING_CONFIG` (`src/engine/score.ts`),
@@ -266,6 +274,12 @@ the documented default):
 npm run play                           # random seed, always homicide
 npm run play -- test-seed-1 homicide   # pin seed, replay the same case while tuning
 ```
+
+Web server seed pinning: the web UI has no seed input. To pin a case locally,
+set `ALLOW_CLIENT_SEED=1` in `.env.local` and POST `{"seed":"..."}` (and
+optionally `"templateId"`) to `/api/game`. `SESSION_SECRET` is optional
+locally; if set, the stored seed is the HMAC of the one you send, so replay
+the logged `session_created` seed with `npm run case` instead.
 
 In-game commands during `npm run play`: `PRESENT e3: your question` to
 formally present an evidence item (otherwise it's just a plain question with

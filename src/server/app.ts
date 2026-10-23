@@ -8,10 +8,13 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import path from 'node:path'
 import { gameRouter } from './routes/game'
 import { ApiError } from './errors'
+import { assertSeedConfig } from './seed'
 
 const PUBLIC_DIR = path.join(import.meta.dirname, '../../public')
 
 export function createApp(): Express {
+  // Fail fast on a misconfigured Vercel deploy (missing SESSION_SECRET).
+  assertSeedConfig()
   const app = express()
 
   app.use(express.json({ limit: '32kb' }))

@@ -26,11 +26,16 @@
  */
 
 import { generate, toPublicCase } from '../engine/generate'
-import { parsePlayerInput } from '../engine/session'
+import { parsePlayerInput, createSession } from '../engine/session'
 import { ALL_TEMPLATES } from '../engine/templates'
 import type { CrimeType, InvigilatorSuspectResponse, InvigilatorWitnessResponse } from '../engine/types'
 import { deriveSuspectVerdictType, deriveWitnessVerdictType, deriveVerdictReason } from '../server/verdict'
 import { createApp } from '../server/app'
+import { assertSeedConfig, chooseSeed, deriveSeed } from '../server/seed'
+import { buildBreakdown } from '../server/breakdown'
+import { mkdtemp } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 const CRIMES: CrimeType[] = ['homicide']
 const ALL_CRIMES: CrimeType[] = ['homicide', 'embezzlement']
@@ -416,6 +421,178 @@ await (async () => {
     fail(`breakdown-lock check threw: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     server.close()
+  }
+})()
+
+// 8. Seed never leaves the server. The seed regenerates the whole hidden case,
+// so no HTTP response body or header may contain it (raw or derived), and a
+// client-supplied seed/templateId must be ignored unless ALLOW_CLIENT_SEED=1
+// on a non-production deploy. No API key or model call: only session
+// creation, reads, and error paths are exercised; the breakdown DTO is built
+// directly from a resolved session since a real ending needs model calls.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const savedLog = console.log
+  const logLines: string[] = []
+
+  // Pass-through hook: structured server log lines ({"evt":...}) are recorded
+  // for the seed lookup; everything else (including this script's own
+  // pass/fail output) still prints.
+  console.log = (...args: unknown[]) => {
+    const first = typeof args[0] === 'string' ? args[0] : ''
+    if (args.length === 1 && first.startsWith('{"evt"')) logLines.push(first)
+    else savedLog(...args)
+  }
+  const restore = () => {
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    console.log = savedLog
+  }
+  const loggedSeed = (sid: string): string | undefined => {
+    for (const line of logLines) {
+      try {
+        const rec = JSON.parse(line) as { evt?: string; sid?: string; seed?: string }
+        if (rec.evt === 'session_created' && rec.sid === sid) return rec.seed
+      } catch {
+        /* not a JSON log line */
+      }
+    }
+    return undefined
+  }
+
+  let server: ReturnType<ReturnType<typeof createApp>['listen']> | undefined
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.VERCEL
+    delete process.env.VERCEL_ENV
+    process.env.SESSION_SECRET = 'verify-secret-verify-secret-verify-secret'
+
+    // Pure-function policy checks.
+    const d1 = deriveSeed('k'.repeat(40), 'raw-seed')
+    if (d1 === 'raw-seed' || d1 !== deriveSeed('k'.repeat(40), 'raw-seed') || d1 === deriveSeed('j'.repeat(40), 'raw-seed')) {
+      fail('deriveSeed() must be a deterministic keyed hash (differs from raw and across secrets)')
+      return
+    }
+    if (deriveSeed(undefined, 'raw-seed') !== 'raw-seed') {
+      fail('deriveSeed() without a secret must be the identity so the CLI stays reproducible')
+      return
+    }
+    let threw = false
+    try {
+      assertSeedConfig({ VERCEL: '1', SESSION_SECRET: 'short' } as NodeJS.ProcessEnv)
+    } catch {
+      threw = true
+    }
+    if (!threw) {
+      fail('assertSeedConfig() must reject a missing/short SESSION_SECRET on Vercel')
+      return
+    }
+    assertSeedConfig({ VERCEL: '1', SESSION_SECRET: 'x'.repeat(32) } as NodeJS.ProcessEnv)
+    assertSeedConfig({} as NodeJS.ProcessEnv)
+
+    const pinBody = { seed: 'client-pinned-seed', templateId: 'no-such-template' }
+    const ignored = chooseSeed(pinBody, { SESSION_SECRET: undefined } as NodeJS.ProcessEnv)
+    if (ignored.seed === 'client-pinned-seed' || ignored.templateId !== undefined) {
+      fail('chooseSeed() honoured a client seed/templateId without ALLOW_CLIENT_SEED=1')
+      return
+    }
+    const prodFlag = chooseSeed(pinBody, { ALLOW_CLIENT_SEED: '1', VERCEL_ENV: 'production' } as NodeJS.ProcessEnv)
+    if (prodFlag.seed === 'client-pinned-seed') {
+      fail('chooseSeed() honoured a client seed on VERCEL_ENV=production even with the dev flag')
+      return
+    }
+    const pinned = chooseSeed({ seed: 'client-pinned-seed' }, { ALLOW_CLIENT_SEED: '1' } as NodeJS.ProcessEnv)
+    if (pinned.seed !== 'client-pinned-seed') {
+      fail('chooseSeed() ignored a client seed with ALLOW_CLIENT_SEED=1 (dev replay broken)')
+      return
+    }
+
+    // HTTP-level leak scan.
+    const app = createApp()
+    server = app.listen(0)
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+
+    /** Fetches and returns status plus the full wire text (headers + body) for seed scanning. */
+    const wire = async (url: string, init?: RequestInit) => {
+      const res = await fetch(url, init)
+      const bodyText = await res.text()
+      const headerText = [...res.headers.entries()].map(([k, v]) => `${k}: ${v}`).join('\n')
+      return { status: res.status, text: `${headerText}\n${bodyText}`, body: bodyText }
+    }
+    const post = (url: string, payload: unknown) =>
+      wire(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+
+    const leaks: string[] = []
+    const scan = (label: string, text: string, seeds: string[]) => {
+      if (/"seed"\s*:/.test(text)) leaks.push(`${label}: response has a "seed" key`)
+      for (const s of seeds) if (s && text.includes(s)) leaks.push(`${label}: response contains the seed value`)
+    }
+
+    // Sessions created with client seed fields present but the flag OFF.
+    for (let i = 0; i < 3; i++) {
+      const created = await post(`${base}/api/game`, pinBody)
+      if (created.status !== 201) {
+        fail(`seed-leak check: create returned ${created.status} (client seed fields must be ignored, not rejected)`)
+        return
+      }
+      const sid = (JSON.parse(created.body) as { sessionId: string }).sessionId
+      const seed = loggedSeed(sid)
+      if (!seed) {
+        fail('seed-leak check: server did not log the derived seed (session_created) for replay')
+        return
+      }
+      if (seed === 'client-pinned-seed') {
+        fail('client-supplied seed was used with ALLOW_CLIENT_SEED unset')
+        return
+      }
+      const seeds = [seed, 'client-pinned-seed']
+      scan('POST /api/game', created.text, seeds)
+      scan('GET /:id', (await wire(`${base}/api/game/${sid}`)).text, seeds)
+      scan('GET /:id/breakdown (mid-game 409)', (await wire(`${base}/api/game/${sid}/breakdown`)).text, seeds)
+      scan('POST /:id/interrogate (bad input 400)', (await post(`${base}/api/game/${sid}/interrogate`, {})).text, seeds)
+      scan('GET unknown id (404)', (await wire(`${base}/api/game/not-a-session`)).text, seeds)
+    }
+
+    // Breakdown DTO, built from a resolved session (the endpoint needs model calls to reach one).
+    for (const seed of ['verify-bd-1', 'verify-bd-2']) {
+      const s = createSession(seed, 'homicide')
+      s.ending = 'CHARGED_WEAK'
+      scan('breakdown DTO', JSON.stringify(buildBreakdown(s)), [seed])
+    }
+
+    // Public case: same check straight from toPublicCase().
+    for (const seed of SEEDS.slice(0, 20)) {
+      scan('toPublicCase()', JSON.stringify(toPublicCase(generate({ seed, crime: 'homicide' }))), [seed])
+    }
+
+    // Dev flag ON: the pinned seed is honoured and reproduces the same case.
+    process.env.ALLOW_CLIENT_SEED = '1'
+    const pinnedRes = await post(`${base}/api/game`, { seed: 'dev-pin-1' })
+    const pinnedSid = (JSON.parse(pinnedRes.body) as { sessionId: string }).sessionId
+    const pinnedLogged = loggedSeed(pinnedSid)
+    delete process.env.ALLOW_CLIENT_SEED
+    if (pinnedLogged === undefined) {
+      fail('seed-leak check: no session_created log with ALLOW_CLIENT_SEED=1')
+      return
+    }
+    // SESSION_SECRET is set here, so the stored seed is the keyed hash of the pinned seed.
+    if (pinnedLogged !== deriveSeed('verify-secret-verify-secret-verify-secret', 'dev-pin-1')) {
+      fail('ALLOW_CLIENT_SEED=1 did not honour the pinned seed')
+      return
+    }
+    scan('POST /api/game (flag on)', pinnedRes.text, ['dev-pin-1', pinnedLogged])
+
+    if (leaks.length > 0) {
+      for (const l of leaks) fail(`seed leaked — ${l}`)
+      return
+    }
+    pass('no response body or header contains a seed (create/reconnect/refusals/breakdown); client seeds ignored without ALLOW_CLIENT_SEED')
+  } catch (err) {
+    fail(`seed-leak check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    restore()
+    server?.close()
   }
 })()
 

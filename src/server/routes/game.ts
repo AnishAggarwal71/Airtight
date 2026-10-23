@@ -6,7 +6,6 @@
 
 import { Router } from 'express'
 import { toPublicCase } from '../../engine/generate'
-import { randomSeed } from '../../engine/rng'
 import {
   createSession,
   parsePlayerInput,
@@ -20,6 +19,7 @@ import { buildBreakdown, buildTranscript } from '../breakdown'
 import { checkBudget, estimateCostUsd, recordSpend } from '../budget'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
 import { getSession, getTranscriptPath, createSessionId, putSession } from '../sessions'
+import { chooseSeed } from '../seed'
 import {
   appendTranscriptExchange,
   appendTranscriptSessionEnd,
@@ -138,12 +138,9 @@ gameRouter.post(
       throw badRequest('Only homicide is available in this version.')
     }
 
-    const seed =
-      typeof body.seed === 'string' && body.seed.trim().length > 0
-        ? body.seed.trim()
-        : randomSeed()
-
-    const templateId = typeof body.templateId === 'string' ? body.templateId : undefined
+    // Seed policy lives in seed.ts: the server picks the seed, and client
+    // seed/templateId are ignored unless ALLOW_CLIENT_SEED=1 (never in prod).
+    const { seed, templateId } = chooseSeed(body)
 
     let session: GameSession
     try {
@@ -155,6 +152,18 @@ gameRouter.post(
     const sessionId = createSessionId()
     const transcriptPath = await createTranscriptLog(seed, 'homicide', sessionId)
     putSession(sessionId, session, transcriptPath)
+
+    // Server-side only: the one place the derived seed is recorded, so a
+    // case can be replayed with `npm run case <seed> homicide`. It must never
+    // be added to the response below.
+    console.log(
+      JSON.stringify({
+        evt: 'session_created',
+        sid: sessionId,
+        seed,
+        templateId: session.caseFile.templateId,
+      }),
+    )
 
     res.status(201).json({
       sessionId,

@@ -88,8 +88,10 @@ export function generate({ seed, crime, templateId }: GenerateOptions): CaseFile
 export function toPublicCase(file: CaseFile): PublicCase {
   // Strip crimeSummary from briefing — player-detective must not see it (M14)
   const { crimeSummary: _cs, ...publicBriefing } = file.detectiveBriefing
+  // The seed is deliberately NOT returned: it regenerates the whole hidden
+  // case. caseNumber is a lossy 4-digit hash, so it cannot be inverted back
+  // to the seed.
   return {
-    seed: file.seed,
     crime: file.crime,
     title: file.title,
     caseNumber: caseNumber(file.seed),

@@ -33,9 +33,25 @@ transcripts · 10 repo hygiene. Superseded: the Render persistent-disk
 rationale from 2026-10-15. Deferred: investigating the 0/18 Layer 1 eval.
 
 **Step 0 notes:** `maxDuration: 60` is below both Hobby and Pro defaults
-(300s). Not yet confirmed by a real `vercel build`: that Vercel's TypeScript
-handling resolves our extensionless relative ESM imports. Fallback if not: a
-bundling step.
+(300s). Confirmed by the user's local `vercel build` (2026-10-23): extensionless
+relative ESM imports resolve fine, no bundling step needed.
+
+**Step 1 notes (seed leak):** `seed` removed from `PublicCase` (so
+`toPublicCase()`) and `BreakdownResponse`; the "Case seed" UI input removed.
+New `src/server/seed.ts`: server picks a 128-bit crypto-random seed, stored
+seed = `HMAC-SHA256(SESSION_SECRET, raw)` truncated to 32 hex chars when the
+secret is set (identity when unset, so the CLI/dev stay reproducible without
+it). Derivation is outside `generate()`, which stays pure. Client
+`seed`/`templateId` are ignored (not rejected) unless `ALLOW_CLIENT_SEED=1`,
+and never on `VERCEL_ENV=production`. App boot throws on Vercel if
+`SESSION_SECRET` is missing or under 32 chars. The derived seed is logged
+once per session as `{"evt":"session_created","sid","seed","templateId"}` for
+replay with `npm run case <seed> homicide`; the HMAC means that log line is
+the only place the case can be reconstructed from. Kept `caseNumber()` as is:
+it is a 4-digit lossy hash of the stored seed, not invertible. Known gap:
+the transcript file header still contains the seed (`transcript.ts`), which
+is server-side only today; step 9 moves transcripts to Redis, and the seed
+there is acceptable because it never reaches a response.
 
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 

@@ -25,7 +25,6 @@ export type TurningPoint = {
 }
 
 export type BreakdownResponse = {
-  seed: string
   ending: Ending
   caseStrength: number
   caseStrengthHistory: number[]

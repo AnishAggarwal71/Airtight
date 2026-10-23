@@ -46,8 +46,9 @@ function findContradictedClaimIds(session: GameSession): string[] {
 }
 
 export function buildBreakdown(session: GameSession): BreakdownResponse {
+  // No seed in the response, even post-game: it would let a player replay
+  // this exact case. Replay uses the server-side session_created log line.
   return {
-    seed: session.seed,
     ending: session.ending!, // guarded by the caller — only reachable once ending is set
     caseStrength: session.caseStrength,
     caseStrengthHistory: session.caseStrengthHistory,

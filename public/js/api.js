@@ -24,10 +24,9 @@ async function request(method, path, body) {
   return data
 }
 
-export function createGame(seed) {
-  const body = {}
-  if (seed) body.seed = seed
-  return request('POST', '/api/game', body)
+// The server picks the case; the client never sends or receives a seed.
+export function createGame() {
+  return request('POST', '/api/game', {})
 }
 
 export function getGame(sessionId) {

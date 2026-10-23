@@ -92,9 +92,8 @@ export type CaseFile = {
   detectiveBriefing: DetectiveBriefing
 }
 
-/** Everything the client is allowed to see — evidence shown, strategy hidden. */
+/** Everything the client is allowed to see — evidence shown, strategy hidden. No seed: it regenerates the hidden case. */
 export type PublicCase = {
-  seed: string
   crime: CrimeType
   title: string
   caseNumber: string
