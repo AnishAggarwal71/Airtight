@@ -25,6 +25,7 @@ import {
   settleSpend,
   type SpendReservation,
 } from '../budget'
+import { rateLimit } from '../ratelimit'
 import { asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
 import { withSessionLock } from '../lock'
 import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
@@ -153,6 +154,7 @@ async function playWitnessTurnSafely(
 
 gameRouter.post(
   '/',
+  rateLimit('create'),
   asyncHandler(async (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>
 
@@ -207,6 +209,7 @@ gameRouter.post(
 
 gameRouter.get(
   '/:id',
+  rateLimit('read'),
   asyncHandler(async (req, res) => {
     const { session } = await requireSession(req, req.params.id)
     res.json({
@@ -338,6 +341,7 @@ async function runInterrogationTurn(req: Request, sessionId: string, input: stri
 // reserve spend -> run -> settle + save -> release lock -> respond.
 gameRouter.post(
   '/:id/interrogate',
+  rateLimit('turn'),
   asyncHandler(async (req, res) => {
     const sessionId = req.params.id
     const body = (req.body ?? {}) as Record<string, unknown>
@@ -440,6 +444,7 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
 
 gameRouter.post(
   '/:id/witness',
+  rateLimit('turn'),
   asyncHandler(async (req, res) => {
     const sessionId = req.params.id
     const body = (req.body ?? {}) as Record<string, unknown>
@@ -453,6 +458,7 @@ gameRouter.post(
 
 gameRouter.get(
   '/:id/breakdown',
+  rateLimit('read'),
   asyncHandler(async (req, res) => {
     const { session } = await requireSession(req, req.params.id)
     if (!session.ending) {

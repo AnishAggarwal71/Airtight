@@ -1,7 +1,7 @@
-# AIRTIGHT audit checklist (hardening steps 0-5)
+# AIRTIGHT audit checklist (hardening steps 0-6)
 
 Hand this file to the agent on the Windows test machine. It runs the commands,
-fills in the PASS/FAIL table at the bottom, and reports back. Steps 6-10 add
+fills in the PASS/FAIL table at the bottom, and reports back. Steps 7-10 add
 their own sections to this file as they land.
 
 ## Rules for the agent running this
@@ -19,11 +19,11 @@ git status -sb                      # expect: dev, clean (playtest-logs may show
 git log --oneline -6
 npm ci                              # clean install from the lockfile
 npm run typecheck                   # expect: NO output at all (exit 0)
-npm run verify                      # expect: 14 lines starting "ok", then "V2 green."
+npm run verify                      # expect: 15 lines starting "ok", then "V2 green."
 ```
 
 Expected `verify` lines include: determinism, leak-safety, seed never in any
-response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`.
+response, sessions persist in the store, `spend cap: ...`, `turn race: ...`, `failed-turn rollback: ...`, `rate limits: ...`.
 
 | # | Check | Pass when |
 |---|-------|-----------|
@@ -193,6 +193,27 @@ Invoke-RestMethod -Method Post -Uri "$LIVE/api/game/$sid/interrogate" -ContentTy
 
 Expect e1 `presented = True` after a SUCCESSFUL turn (field name may differ; report what you see).
 
+### C11. Rate limits (Step 6)
+
+Needs `@upstash/ratelimit` installed (`npm ci`) and a deployment with Redis set. This burns the
+create ration for YOUR IP for an hour, so run it last, and only against the live site.
+
+```powershell
+# 12 game creations from one machine: expect ten 200/201, then 429s
+1..12 | ForEach-Object {
+  $r = Invoke-WebRequest -SkipHttpErrorCheck -Method Post -Uri "$LIVE/api/game" -ContentType 'application/json' -Body '{}'
+  "$_ -> $($r.StatusCode)  Retry-After=$($r.Headers['Retry-After'])"
+}
+# Spoof test: a fake X-Forwarded-For must NOT reset the limit (expect 429 still)
+$r = Invoke-WebRequest -SkipHttpErrorCheck -Method Post -Uri "$LIVE/api/game" -ContentType 'application/json' -Body '{}' -Headers @{ 'X-Forwarded-For' = '203.0.113.77' }
+$r.StatusCode          # expect: 429
+($r.Content | ConvertFrom-Json).error.code    # expect: RATE_LIMITED
+```
+
+Then in Upstash Data Browser look for keys starting `rl:create`, `rl:turn`, `rl:read` (proves the
+library really ran on Redis). Report the exact status sequence, and whether the 429 body is a
+friendly sentence. Note: the limit window is a sliding hour, so wait before re-testing.
+
 ## D. Things only a live Redis can prove (report any surprise)
 
 These are the pieces that tests on this machine cannot run (no Redis here):
@@ -200,6 +221,7 @@ These are the pieces that tests on this machine cannot run (no Redis here):
 1. Spend reserve Lua script (C7 and the 429 behaviour).
 2. Lock acquire / release scripts (C4: one 200, rest 409; and the next turn works, not a stuck lock).
 3. Revision compare-and-set script (C3: second turn succeeds, no 409).
+4. The `@upstash/ratelimit` sliding window (C11: ten allowed, then 429 with Retry-After).
 
 If C3 and C4 pass, all three are working.
 
@@ -221,6 +243,7 @@ If C3 and C4 pass, all three are working.
 | C8 function time limit | | |
 | C9 injection | | |
 | C10 evidence after success | | |
+| C11 rate limits | | |
 
 ## Audit report — 2026-10-24 (Asia/Colombo)
 

@@ -169,6 +169,25 @@ check #12 compares the raw stored session before/after a failed persona call
 (suspect and witness) and confirms a retry succeeds with the item still
 unspent.
 
+**Step 6 notes (per-IP rate limits):** `src/server/ratelimit.ts`. Buckets:
+create 10/hour, turn 40/10 min (suspect and witness routes SHARE one bucket so
+alternating cannot double it; 40 is far above a legitimate game of 8 turns and
+only bites scripts), read 120/min. Upstash sliding window (`@upstash/ratelimit`,
+keys `rl:<bucket>:*`) when Redis creds exist, an exact in-process sliding log
+otherwise. The middleware is FIRST on every route, so a throttled request does
+no lock, load, reservation or model work. IP source: on Vercel,
+`x-vercel-forwarded-for` (set by the edge, unforgeable) then `x-real-ip`;
+elsewhere the socket address and NEVER forwarding headers (client-controlled
+off Vercel). IPv6 is keyed by /64; IPv4-mapped IPv6 collapses to IPv4; an
+unparseable value maps to one shared `unknown` bucket. Fails OPEN on a limiter
+error (logged as `ratelimit_error`): spend cap, lock and turn limits are the
+fail-closed backstops, and failing closed would make a Redis blip a full outage.
+Known limits: a visitor behind shared NAT (office, school) shares a bucket; a
+botnet with many IPs is not stopped (the daily spend cap is the backstop for
+that). `package.json` gained `@upstash/ratelimit`; the lockfile is NOT updated
+here (no installs on the build machine), so run `npm install` once on a machine
+with registry access and commit the lockfile before deploying.
+
 ## 2026-10-19 — Fixed invigilator cache-token reporting, ruled out prompt-injection work, ruled out cache-control breakpoints, set playtest-logs/eval-results retention policy
 
 **Context:** Real-world confirmed cost is ~$0.05/run (user-reported from

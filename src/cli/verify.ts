@@ -38,6 +38,13 @@ import { withSessionLock, SESSION_LOCK_TTL_MS } from '../server/lock'
 import { buildBreakdown } from '../server/breakdown'
 import { BUDGET_CONFIG, dayKey, reserveSpend } from '../server/budget'
 import { setModel } from '../engine/adjudicate'
+import {
+  clientIp,
+  createMemoryRateLimiter,
+  normalizeIp,
+  unlimitedRateLimiter,
+  type RateLimiter,
+} from '../server/ratelimit'
 import { MockLanguageModelV4 } from 'ai/test'
 import { mkdtemp } from 'node:fs/promises'
 import os from 'node:os'
@@ -907,7 +914,7 @@ await (async () => {
     const newGame = async (base: string) => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
     const counter = async (store: Store, key: string) => Number((await store.getJson(key)) ?? 0)
     const serve = (store: Store) => {
-      const srv = createApp({ store }).listen(0)
+      const srv = createApp({ store, rateLimiter: unlimitedRateLimiter }).listen(0)
       servers.push(srv)
       return `http://127.0.0.1:${(srv.address() as { port: number }).port}`
     }
@@ -1117,7 +1124,7 @@ await (async () => {
         body: JSON.stringify(body),
       })
     const serve = (store: Store) => {
-      const srv = createApp({ store }).listen(0)
+      const srv = createApp({ store, rateLimiter: unlimitedRateLimiter }).listen(0)
       servers.push(srv)
       return `http://127.0.0.1:${(srv.address() as { port: number }).port}`
     }
@@ -1395,7 +1402,7 @@ await (async () => {
         body: JSON.stringify(body),
       })
     const store = new MemoryStore()
-    const srv = createApp({ store }).listen(0)
+    const srv = createApp({ store, rateLimiter: unlimitedRateLimiter }).listen(0)
     servers.push(srv)
     const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`
     const newGame = async () => ((await (await post(base, '/api/game')).json()) as { sessionId: string }).sessionId
@@ -1479,6 +1486,172 @@ await (async () => {
     pass('failed-turn rollback: a failed persona call (suspect or witness) leaves the stored session byte-identical and the evidence item unspent; an invigilator failure commits a zero-delta turn')
   } catch (err) {
     fail(`failed-turn rollback check threw: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    console.log = origLog
+    console.error = origErr
+    setModel(null)
+    for (const k of Object.keys(process.env)) if (!(k in savedEnv)) delete process.env[k]
+    Object.assign(process.env, savedEnv)
+    for (const sv of servers) sv.close()
+  }
+})()
+
+// 13. Per-IP rate limiting. Proves: the client IP is read from the right place
+// (Vercel's own header on Vercel, the socket locally — a spoofed
+// X-Forwarded-For must NOT buy a fresh bucket; IPv6 is keyed by /64); the
+// sliding window refuses the N+1th hit with a Retry-After, forgives it after the
+// window, and keeps IPs and buckets apart; at route level a throttled request
+// gets 429 RATE_LIMITED BEFORE any lock, spend reservation or model call, the
+// two turn routes share one bucket, and a limiter outage fails open. Memory
+// limiter with an injected clock; the Upstash sliding window is Upstash's code.
+await (async () => {
+  const savedEnv = { ...process.env }
+  const servers: ReturnType<ReturnType<typeof createApp>['listen']>[] = []
+  const origLog = console.log
+  const origErr = console.error
+  try {
+    process.env.PLAYTEST_LOGS_DIR = await mkdtemp(path.join(os.tmpdir(), 'airtight-verify-'))
+    delete process.env.VERCEL
+    delete process.env.ALLOW_CLIENT_SEED
+    delete process.env.MAX_DAILY_SPEND_USD
+    console.log = (...a: unknown[]) => {
+      if (!String(a[0]).startsWith('{"evt"')) origLog(...a)
+    }
+    console.error = () => {}
+
+    // ── A. Which IP counts ──────────────────────────────────────────────
+    {
+      const sock = (addr: string) => ({ remoteAddress: addr }) as never
+      const req = (headers: Record<string, string>, addr = '10.0.0.9') => ({ headers, socket: sock(addr) })
+      const local = {} as NodeJS.ProcessEnv
+      const vercel = { VERCEL: '1' } as NodeJS.ProcessEnv
+      const cases: [string, string, string][] = [
+        ['local ignores a spoofed x-forwarded-for', clientIp(req({ 'x-forwarded-for': '1.2.3.4' }), local), '10.0.0.9'],
+        ['local ignores a spoofed x-vercel-forwarded-for', clientIp(req({ 'x-vercel-forwarded-for': '1.2.3.4' }), local), '10.0.0.9'],
+        ['vercel uses x-vercel-forwarded-for', clientIp(req({ 'x-vercel-forwarded-for': '1.2.3.4' }), vercel), '1.2.3.4'],
+        ['vercel takes the first of a list', clientIp(req({ 'x-vercel-forwarded-for': '1.2.3.4, 5.6.7.8' }), vercel), '1.2.3.4'],
+        ['vercel falls back to x-real-ip', clientIp(req({ 'x-real-ip': '9.9.9.9' }), vercel), '9.9.9.9'],
+        ['vercel with no usable header is one shared bucket', clientIp(req({}), vercel), 'unknown'],
+        ['garbage header is not trusted', clientIp(req({ 'x-vercel-forwarded-for': 'not-an-ip' }), vercel), 'unknown'],
+        ['ipv4-mapped ipv6 becomes the ipv4', clientIp(req({}, '::ffff:7.7.7.7'), local), '7.7.7.7'],
+        ['ipv6 keyed by /64 (a)', normalizeIp('2001:db8:1:2:aaaa:bbbb:cccc:dddd') ?? '', '2001:db8:1:2::/64'],
+        ['ipv6 keyed by /64 (b, same subnet)', normalizeIp('2001:db8:1:2::1') ?? '', '2001:db8:1:2::/64'],
+        ['ipv6 /64 differs across subnets', normalizeIp('2001:db8:1:3::1') ?? '', '2001:db8:1:3::/64'],
+      ]
+      for (const [name, got, want] of cases) {
+        if (got !== want) {
+          fail(`client IP: ${name}: got "${got}", want "${want}"`)
+          return
+        }
+      }
+    }
+
+    // ── B. Sliding window semantics ─────────────────────────────────────
+    const tiny = {
+      create: { limit: 3, windowSeconds: 3600 },
+      turn: { limit: 2, windowSeconds: 600 },
+      read: { limit: 2, windowSeconds: 60 },
+    }
+    {
+      let clock = 1_000_000
+      const rl = createMemoryRateLimiter(() => clock, tiny)
+      const hit = async (b: 'create' | 'turn' | 'read', ip: string) => rl.check(b, ip)
+      for (let i = 0; i < 2; i++) if (!(await hit('turn', 'a')).ok) return fail('turn hit within the limit was refused')
+      const over = await hit('turn', 'a')
+      if (over.ok || over.retryAfterSeconds < 1 || over.retryAfterSeconds > 600) {
+        return fail(`3rd turn hit: ${JSON.stringify(over)}; want refused with 1..600s retry`)
+      }
+      if (!(await hit('turn', 'b')).ok) return fail('a different IP shared another IP\'s bucket')
+      if (!(await hit('read', 'a')).ok) return fail('the read bucket shared the turn bucket')
+      clock += 601_000
+      if (!(await hit('turn', 'a')).ok) return fail('turn hits were not forgiven after the window')
+    }
+
+    // ── C. Route level ──────────────────────────────────────────────────
+    const fm = installFakeModel()
+    const store = new MemoryStore()
+    let clock = 5_000_000
+    const rl = createMemoryRateLimiter(() => clock, tiny)
+    const srv = createApp({ store, rateLimiter: rl }).listen(0)
+    servers.push(srv)
+    const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`
+    // A new X-Forwarded-For each time: if it bought a fresh bucket, the limit below would never trip.
+    let spoof = 0
+    const call = (method: string, route: string, body?: unknown) =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${++spoof}` },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+
+    const ids: string[] = []
+    for (let i = 0; i < 3; i++) {
+      const r = await call('POST', '/api/game', {})
+      if (r.status !== 201 && r.status !== 200) return fail(`create ${i + 1} within the limit returned ${r.status}`)
+      ids.push(((await r.json()) as { sessionId: string }).sessionId)
+    }
+    const blockedCreate = await call('POST', '/api/game', {})
+    const blockedBody = (await blockedCreate.json()) as { error?: { code?: string; message?: string } }
+    const retry = Number(blockedCreate.headers.get('retry-after'))
+    if (
+      blockedCreate.status !== 429 ||
+      blockedBody.error?.code !== 'RATE_LIMITED' ||
+      !Number.isInteger(retry) ||
+      retry < 1
+    ) {
+      return fail(`4th create: status ${blockedCreate.status}, code ${blockedBody.error?.code}, Retry-After ${retry}; want 429 RATE_LIMITED with Retry-After >= 1 (and a spoofed X-Forwarded-For must not help)`)
+    }
+    if (!blockedBody.error?.message || /undefined|\[object/.test(blockedBody.error.message)) {
+      return fail('rate-limit message is not a clean sentence')
+    }
+
+    // turn routes share ONE bucket, and a throttled turn costs nothing
+    const sid = ids[0]
+    const t1 = await call('POST', `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+    const t2 = await call('POST', `/api/game/${sid}/witness`, { question: 'What did you see?' }) // counts even though the witness is still locked (409)
+    const spendBefore = await store.getJson(dayKey(new Date()))
+    const callsBefore = { ...fm.calls }
+    const t3 = await call('POST', `/api/game/${sid}/interrogate`, { input: 'Where were you?' })
+    const spendAfter = await store.getJson(dayKey(new Date()))
+    const callsAfter = { ...fm.calls }
+    if (t1.status !== 200 || t2.status !== 409 || t3.status !== 429) {
+      return fail(`shared turn bucket: statuses ${t1.status}/${t2.status}/${t3.status}; want 200/409/429`)
+    }
+    if (spendAfter !== spendBefore || JSON.stringify(callsAfter) !== JSON.stringify(callsBefore)) {
+      return fail('a rate-limited turn reserved spend or called the model')
+    }
+    if ((await getSession(store, sid))?.session.interrogationTurn !== 1) {
+      return fail('a rate-limited turn changed the session')
+    }
+
+    // read bucket, then recovery once the window passes
+    const g = [await call('GET', `/api/game/${sid}`), await call('GET', `/api/game/${sid}`), await call('GET', `/api/game/${sid}`)]
+    if (g[0].status !== 200 || g[1].status !== 200 || g[2].status !== 429) {
+      return fail(`read bucket: ${g.map((x) => x.status).join('/')}; want 200/200/429`)
+    }
+    clock += 601_000
+    const again = await call('POST', `/api/game/${sid}/interrogate`, { input: 'Walk me through it again.' })
+    if (again.status !== 200) return fail(`turn after the window passed returned ${again.status}, want 200`)
+
+    // ── D. Limiter outage fails open ────────────────────────────────────
+    {
+      const broken: RateLimiter = { check: () => Promise.reject(new Error('SECRET-RL-DOWN')) }
+      const s2 = createApp({ store: new MemoryStore(), rateLimiter: broken }).listen(0)
+      servers.push(s2)
+      const b2 = `http://127.0.0.1:${(s2.address() as { port: number }).port}`
+      const r = await fetch(`${b2}/api/game`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const text = await r.text()
+      if ((r.status !== 200 && r.status !== 201) || text.includes('SECRET-RL-DOWN')) {
+        return fail(`create with the limiter down: status ${r.status}, leak ${text.includes('SECRET-RL-DOWN')}; want it to fail open`)
+      }
+    }
+
+    // sanity: the unlimited limiter used by the heavy checks really is unlimited
+    for (let i = 0; i < 200; i++) if (!(await unlimitedRateLimiter.check('turn', 'x')).ok) return fail('unlimitedRateLimiter refused')
+
+    pass('rate limits: IP read from the trusted header only (spoofed X-Forwarded-For ignored, IPv6 by /64); sliding window with Retry-After; throttled requests cost nothing (no lock, spend or model call); turn routes share a bucket; limiter outage fails open')
+  } catch (err) {
+    fail(`rate limit check threw: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     console.log = origLog
     console.error = origErr

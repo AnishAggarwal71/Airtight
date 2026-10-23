@@ -57,9 +57,14 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **Why:** The game marks evidence as "used" and counts the turn *before* it asks the model. The old code only undid the turn count by hand. If the model errored on `PRESENT e1:`, evidence e1 stayed marked as used, so a flaky API quietly cost the player their evidence.
 - **How:** We deleted the hand-written undo. Each request works on its own private copy of the game and saves it only after the suspect's reply succeeds. A failed request simply never saves, so everything is discarded in one go. If only the judge (invigilator) fails, the turn still counts with no score change, same as before.
 
-## Steps 6-10 (planned)
+## Step 6: Per-IP rate limits
 
-- **6 Per-IP rate limits:** one visitor can't flood the site.
+- **What:** Each visitor (by IP address) gets a ration of requests: 10 new games per hour, 40 questions per 10 minutes (suspect and witness share that ration), and 120 page loads/reloads per minute. Over the ration you get a polite "you're going a little fast, wait N seconds" (HTTP 429).
+- **Why:** The spend cap protects the money, but one script could still use up the whole day's budget in minutes and lock out every real player. Rate limits stop one person doing that.
+- **How:** A new `ratelimit.ts` counts requests per IP in Redis (the `@upstash/ratelimit` library, "sliding window", so there is no reset-at-the-top-of-the-hour loophole). It runs FIRST on every route, so a throttled request costs nothing: no lock, no spend, no model call. Which IP? On Vercel we trust Vercel's own `x-vercel-forwarded-for` header, which a visitor cannot fake. On your laptop we use the connection's real address and ignore forwarding headers, because there anyone can fake them. IPv6 visitors are grouped by their /64 block, since one home gets billions of addresses. If the limiter's Redis is down we let the request through (the spend cap and turn limits still protect us).
+
+## Steps 7-10 (planned)
+
 - **7 Timeouts:** a stuck model call can't hang a request for ever.
 - **8 Error handling and logging:** players see friendly messages, we log details privately.
 - **9 Transcripts to Redis:** playtest logs saved safely (14 days), with a notice in the UI.
