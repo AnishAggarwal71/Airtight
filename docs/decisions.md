@@ -5,6 +5,44 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-24 — Planned (after hardening step 10): bring-your-own-key (BYOK)
+
+**Status:** planned, not started. Do not begin until hardening steps 0-10 are
+done. A paid-credits (Razorpay) option was considered and deferred: a game
+costs ~$0.05 (~Rs 4), the likely audience is recruiters/friends who will not
+pay, and credits without accounts have no sound identity to attach to (IP
+changes, browser storage is lost). Revisit only if players actually hit the
+daily cap and ask for more.
+
+**Goal:** a player who has their own Anthropic API key can play without using
+the shared $2/day budget.
+
+**Design sketch**
+- The key travels in a request header (e.g. `X-Anthropic-Key`) on every game
+  request; the browser keeps it in `sessionStorage` only. The server never
+  stores it: not in the Redis session blob (which holds only a `byok: true`
+  flag), not in transcripts, not in logs or error bodies. The existing
+  transcript redaction list and Step 8's log redaction are extended to the
+  per-request key.
+- Per-request model, not a global: Vercel Fluid compute runs concurrent
+  requests in one instance, so the `setModel()` module-level seam used by
+  tests is unsafe for a per-user key. Thread an optional `model` (like the
+  `abortSignal` of Step 7) through `interrogateSuspect/Witness` and the
+  invigilator calls; the route builds `createAnthropic({ apiKey })` per
+  request.
+- Budget: BYOK turns skip the shared daily counter (the player's money, not
+  ours) but keep the per-session cap as a runaway guard, plus the turn lock
+  and per-IP rate limits from steps 4 and 6.
+- Bad key: map the provider's 401 to a clear "your key was rejected" message
+  without echoing the provider body.
+- UI: an opt-in "Use my own key" panel that says the key passes through our
+  server to Anthropic and is not stored.
+- Open question: whether to also grant one free session per IP via a Redis
+  counter (a speed bump, not a lock; shared IPs and rotation defeat it).
+- Verify check to add: with a sentinel key, no response, header, log line,
+  stored session or transcript contains it; BYOK turns leave the daily
+  counter unchanged.
+
 ## 2026-10-23 — Deploy on Vercel (supersedes Render); production-hardening plan
 
 **Context:** First public deployment. Hard constraint: no changes to game

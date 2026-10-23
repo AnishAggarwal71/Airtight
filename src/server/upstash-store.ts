@@ -41,6 +41,46 @@ redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
 return v
 `
 
+/**
+ * Lock acquire/release go through Lua (not the client's set()) so the stored
+ * token is the raw string we pass, with no client-side JSON encoding that the
+ * compare-and-delete could then fail to match.
+ * ACQUIRE: KEYS[1] = lock, ARGV[1] = token, ARGV[2] = ttl ms. Returns 'OK' or false (nil).
+ */
+const ACQUIRE_LOCK_LUA = `
+return redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', tonumber(ARGV[2]))
+`
+
+/** Deletes KEYS[1] only if it still holds ARGV[1]. */
+const RELEASE_LOCK_LUA = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+`
+
+/**
+ * Compare-and-set on the JSON blob's numeric "rev" field.
+ * KEYS[1] = key, ARGV[1] = expected rev, ARGV[2] = new JSON text, ARGV[3] = ttl seconds.
+ * A missing key, undecodable value or missing rev all count as rev 0.
+ * Returns 1 if written, 0 if the revision did not match.
+ */
+const SET_IF_REV_LUA = `
+local cur = redis.call('GET', KEYS[1])
+local rev = 0
+if cur then
+  local ok, decoded = pcall(cjson.decode, cur)
+  if ok and type(decoded) == 'table' and type(decoded.rev) == 'number' then
+    rev = decoded.rev
+  end
+end
+if rev ~= tonumber(ARGV[1]) then
+  return 0
+end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', tonumber(ARGV[3]))
+return 1
+`
+
 /** Builds a Store over the Upstash REST client for the given database. */
 export function createUpstashStore(url: string, token: string): Store {
   const redis = new Redis({ url, token })
@@ -68,6 +108,20 @@ export function createUpstashStore(url: string, token: string): Store {
     },
     async adjust(key, delta, ttlSeconds) {
       await redis.eval(ADJUST_LUA, [key], [String(delta), String(ttlSeconds)])
+    },
+    async acquireLock(key, token, ttlMs) {
+      return (await redis.eval(ACQUIRE_LOCK_LUA, [key], [token, String(ttlMs)])) === 'OK'
+    },
+    async releaseLock(key, token) {
+      await redis.eval(RELEASE_LOCK_LUA, [key], [token])
+    },
+    async setJsonIfRev(key, expectedRev, value, ttlSeconds) {
+      const written = await redis.eval(
+        SET_IF_REV_LUA,
+        [key],
+        [String(expectedRev), JSON.stringify(value), String(ttlSeconds)],
+      )
+      return Number(written) === 1
     },
   }
 }

@@ -40,6 +40,21 @@ export interface Store {
   reserve(limits: CounterLimit[], amount: number): Promise<ReserveResult>
   /** Atomically adds `delta` (may be negative) to one counter and refreshes its TTL. */
   adjust(key: string, delta: number, ttlSeconds: number): Promise<void>
+  /**
+   * Takes the lock `key` for `ttlMs` if nobody holds it (SET NX PX). `token`
+   * identifies the holder: only that token can release it. Returns false if
+   * the lock is already held.
+   */
+  acquireLock(key: string, token: string, ttlMs: number): Promise<boolean>
+  /** Compare-and-delete: removes the lock only if `token` still holds it (a lock that expired and was re-taken by someone else is left alone). */
+  releaseLock(key: string, token: string): Promise<void>
+  /**
+   * Compare-and-set on a revision counter. The stored value's numeric `rev`
+   * field (0 when the key is absent or has no `rev`) must equal
+   * `expectedRev`, otherwise nothing is written and false is returned. The
+   * caller puts the new revision inside `value`. Atomic, like reserve().
+   */
+  setJsonIfRev(key: string, expectedRev: number, value: unknown, ttlSeconds: number): Promise<boolean>
 }
 
 /**
@@ -99,6 +114,32 @@ export class MemoryStore implements Store {
   async adjust(key: string, delta: number, ttlSeconds: number): Promise<void> {
     this.writeCounter(key, this.counter(key) + delta, ttlSeconds)
   }
+
+  // Like reserve(), the three methods below have no await between their read
+  // and write, which is what makes them atomic in-process.
+  async acquireLock(key: string, token: string, ttlMs: number): Promise<boolean> {
+    const entry = this.entries.get(key)
+    if (entry && this.now() < entry.expiresAt) return false
+    this.entries.set(key, { json: JSON.stringify(token), expiresAt: this.now() + ttlMs })
+    return true
+  }
+
+  async releaseLock(key: string, token: string): Promise<void> {
+    const entry = this.entries.get(key)
+    if (entry && this.now() < entry.expiresAt && JSON.parse(entry.json) === token) this.entries.delete(key)
+  }
+
+  async setJsonIfRev(key: string, expectedRev: number, value: unknown, ttlSeconds: number): Promise<boolean> {
+    const entry = this.entries.get(key)
+    let currentRev = 0
+    if (entry && this.now() < entry.expiresAt) {
+      const current = JSON.parse(entry.json) as { rev?: unknown } | null
+      currentRev = Number(current?.rev ?? 0) || 0
+    }
+    if (currentRev !== expectedRev) return false
+    this.entries.set(key, { json: JSON.stringify(value), expiresAt: this.now() + ttlSeconds * 1000 })
+    return true
+  }
 }
 
 /**
@@ -133,6 +174,15 @@ class LazyUpstashStore implements Store {
   }
   async adjust(key: string, delta: number, ttlSeconds: number): Promise<void> {
     return (await this.load()).adjust(key, delta, ttlSeconds)
+  }
+  async acquireLock(key: string, token: string, ttlMs: number): Promise<boolean> {
+    return (await this.load()).acquireLock(key, token, ttlMs)
+  }
+  async releaseLock(key: string, token: string): Promise<void> {
+    return (await this.load()).releaseLock(key, token)
+  }
+  async setJsonIfRev(key: string, expectedRev: number, value: unknown, ttlSeconds: number): Promise<boolean> {
+    return (await this.load()).setJsonIfRev(key, expectedRev, value, ttlSeconds)
   }
 }
 

@@ -10,19 +10,26 @@
  * the seed — so a deploy that changes template code mid-game cannot change
  * the case a player is already in.
  *
+ * rev is a revision counter for optimistic concurrency: every save is a
+ * compare-and-set on it, so a write based on a stale read fails instead of
+ * silently overwriting a newer turn. The per-session lock (lock.ts) normally
+ * prevents the conflict; this is the backstop if a lock expires mid-request.
+ *
  * transcriptPath is a local-filesystem path used only by the CLI-style file
  * transcripts; it is replaced when transcripts move to Redis (step 9).
  */
 
 import crypto from 'node:crypto'
 import type { GameSession } from '../engine/types'
-import { storeUnavailable } from './errors'
+import { conflict, storeUnavailable } from './errors'
 import type { Store } from './store'
 
 export type StoredSession = {
   session: GameSession
   transcriptPath: string
   createdAt: number
+  /** Revision this copy was loaded at (0 = not yet stored). saveSession() bumps it. */
+  rev: number
 }
 
 /** Envelope version; bump if StoredSession's shape changes so old blobs read as expired. */
@@ -37,6 +44,11 @@ const sessionKey = (sessionId: string) => `sess:${sessionId}`
 
 export function createSessionId(): string {
   return crypto.randomUUID()
+}
+
+/** True for a well-formed session id. Anything else must never be used to build a store key. */
+export function isValidSessionId(sessionId: string): boolean {
+  return SESSION_ID_PATTERN.test(sessionId)
 }
 
 /**
@@ -60,14 +72,26 @@ export async function putSession(
   session: GameSession,
   transcriptPath: string,
 ): Promise<void> {
-  const stored: StoredSession = { session, transcriptPath, createdAt: Date.now() }
+  const stored: StoredSession = { session, transcriptPath, createdAt: Date.now(), rev: 0 }
   await saveSession(store, sessionId, stored)
 }
 
-/** Writes a (possibly mutated) session back and refreshes its TTL. */
+/**
+ * Writes a (possibly mutated) session back and refreshes its TTL, as a
+ * compare-and-set on `stored.rev`. Throws a 409 if the stored copy has moved
+ * on since this one was loaded (nothing is written in that case). On success
+ * `stored.rev` is advanced so the same object can be saved again.
+ */
 export async function saveSession(store: Store, sessionId: string, stored: StoredSession): Promise<void> {
-  const envelope = { v: ENVELOPE_VERSION, ...stored }
-  await guarded('save', () => store.setJson(sessionKey(sessionId), envelope, SESSION_TTL_SECONDS))
+  const nextRev = stored.rev + 1
+  const envelope = { v: ENVELOPE_VERSION, ...stored, rev: nextRev }
+  const written = await guarded('save', () =>
+    store.setJsonIfRev(sessionKey(sessionId), stored.rev, envelope, SESSION_TTL_SECONDS),
+  )
+  if (!written) {
+    throw conflict('This case changed while your request was running. Please try again.')
+  }
+  stored.rev = nextRev
 }
 
 /**
@@ -86,5 +110,6 @@ export async function getSession(store: Store, sessionId: string): Promise<Store
     session: envelope.session,
     transcriptPath: envelope.transcriptPath ?? '',
     createdAt: envelope.createdAt ?? 0,
+    rev: Number(envelope.rev ?? 0) || 0,
   }
 }
