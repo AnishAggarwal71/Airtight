@@ -390,8 +390,8 @@ $5.00/1M output) if the cost figure needs re-verifying later.
   (504 `MODEL_TIMEOUT`, nothing saved, same as step 5); an invigilator timeout is
   the existing zero-delta fallback, and an expired deadline stops its retries.
   The 50s deadline and the 70s lock TTL assume the function is cut off at 60s:
-  keep `maxDuration` at 60 in `vercel.json` (currently absent, so the platform
-  default applies — check it). Step 8 (errors and logs): `src/server/log.ts`
+  keep `maxDuration` at 60 in `vercel.json` (restored 2026-10-24 under
+  `functions."src/index.ts"`; confirm on the deployed function, audit C8). Step 8 (errors and logs): `src/server/log.ts`
   `logEvent`/`logError` emit one JSON line per event (`evt` first) and run every
   string field through `scrub()` (secret env values, `sk-ant-` keys, Bearer
   tokens, URL credentials; 500-char cap). `upstreamModelError` sends the player

@@ -147,10 +147,33 @@ $r.StatusCode                                           # expect: 400
 | B5 | malformed key | 401 `INVALID_API_KEY` |
 | B6 | empty input | 400 |
 
-**If B4 returns 502** (it did on the last run): do not investigate or fix. Copy the server terminal's
-`turn_failed` JSON line (the `err` field is the real provider reason, already scrubbed) into the
-report, and say whether `.env.local` has the key set (set/missing only). That one line is what the
-owner needs to tell a bad key from a billing problem from a model-id problem.
+**If B4 returns 502** (it did on the last run), do not fix anything, but DO run this diagnosis and paste the
+results. The cause is unknown: it could be a bad or empty key, no credit on the key, a wrong model id,
+or a network/proxy problem on that machine.
+
+```powershell
+# 1. The real reason. In the server terminal, find the JSON line {"evt":"turn_failed",...}; paste its "err" field.
+#    (It is already scrubbed of keys.)
+
+# 2. Is the key set, and does it look right? Prints only booleans/length, never the key.
+$k = (Select-String -Path .env.local -Pattern '^ANTHROPIC_API_KEY=(.*)$').Matches.Groups[1].Value.Trim()
+"set: $($k.Length -gt 0)   startsWithSkAnt: $($k.StartsWith('sk-ant-'))   length: $($k.Length)   hasQuotesOrSpaces: $($k -match '[\s\"'']')"
+
+# 3. Does Anthropic accept that key directly? (key goes in a header, never printed)
+$resp = Invoke-WebRequest -SkipHttpErrorCheck -Method Post -Uri https://api.anthropic.com/v1/messages `
+  -Headers @{ 'x-api-key' = $k; 'anthropic-version' = '2023-06-01' } -ContentType 'application/json' `
+  -Body '{"model":"claude-haiku-4-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}'
+$resp.StatusCode
+($resp.Content | ConvertFrom-Json).error | Select-Object type, message
+```
+
+How to read step 3 (report the status and the `error.type`, not the key):
+- `200`: key, credit and model id are fine, so the 502 is something else (a network proxy, or `ANTHROPIC_BASE_URL`: also run `echo $env:ANTHROPIC_BASE_URL` and report whether it is set; the game pins the base URL in code, so it should not matter).
+- `401 authentication_error`: bad key in `.env.local`.
+- `400 invalid_request_error` mentioning credit balance: no credit on the key.
+- `404 not_found_error`: the key cannot use `claude-haiku-4-5`.
+- `429`: rate limited by Anthropic.
+- A connection error / timeout: network or proxy on that machine.
 
 Stop the server (Ctrl+C) when done.
 
@@ -266,10 +289,18 @@ resting for today". Do NOT try to reach the cap on the live site unless asked.
 
 ### C8. Function time limit (Steps 0, 7)
 
-`vercel.json` currently has no `maxDuration`. Report the limit the deployed function actually has
-(Vercel dashboard -> Project -> Settings -> Functions, or `vercel inspect`). The 50s turn deadline
-and the 70s session lock assume the function is cut off at 60s or later. **If the limit is under
-60 seconds, mark BLOCKER** and say the value.
+`vercel.json` sets `functions."src/index.ts".maxDuration = 60` (restored after commit `ba62268` removed it).
+Confirm it took effect on the DEPLOYED function:
+
+```powershell
+Get-Content vercel.json                  # expect the functions block with maxDuration 60
+vercel inspect $LIVE                     # note the Functions list: expect a function for src/index.ts, not only "."
+```
+
+Also check the Vercel dashboard -> Project -> Settings -> Functions -> Max Duration, or the build log line
+for the function. Report the value you can see and where you saw it. The 50s turn deadline and the 70s
+session lock assume the function runs for at least 60s. **If the effective limit is under 60 seconds,
+or the build failed/warned about the `functions` path, mark BLOCKER** and paste the message.
 
 ### C9. Prompt-injection attempt (manual, three turns on a fresh browser game)
 
@@ -443,19 +474,44 @@ $b.Content -match '"seed"'                      # expect: False, even after the 
 If the game has not ended after 6 suspect turns, the verdict is submitted from the browser (E2); the
 breakdown check is then done there.
 
-## D. Things only a live Redis can prove (report any surprise)
+## D. Known unknowns: things no offline test can prove
 
-These cannot run on the build machine (no Redis there):
+The build machine has no Redis, no live Anthropic call and no Vercel runtime, so these were written
+carefully but never executed there. Each has an exact test and a "what a failure looks like" so the report
+can say precisely what is wrong. Mark each PASS / FAIL / BLOCKED in the report.
 
-1. Spend reserve and settle Lua scripts (C7, and the 429 behaviour).
-2. Lock acquire / release scripts (C4: one 200, rest 409; then the next turn works, not a stuck lock).
-3. Revision compare-and-set script (C3: second turn succeeds, no 409).
-4. The `@upstash/ratelimit` sliding window (C11: ten allowed, then 429 with Retry-After).
-5. The transcript append script and list read (C14: right count, 14-day TTL).
-6. Whether the real Anthropic SDK puts `statusCode` 401 on a bad-key error (C16 wrong-key case).
-7. Whether the real provider honours the abort signal (C12; only visible if a 504 ever occurs).
+**D1. Spend scripts on real Redis** (Step 3). Covered by C7. Pass when: after N turns on a shared-key game the
+`spend:sess:<sid>` value is positive, below 80000 (the $0.08 cap in micro-dollars), and the day counter
+rose by about the same amount. Failure looks like: 503 `STORE_UNAVAILABLE` on every turn (script error; look for `store_error` in the Vercel logs and
+paste the Vercel log line), or both counters stuck at 0 or at the reservation size (settle never ran).
 
-If C3 and C4 pass, the three core Redis scripts (reserve, lock, CAS) are working.
+**D2. Lock scripts** (Step 4). Covered by C4. Failure looks like: all four parallel requests 409 (lock never
+released from an earlier run, wait 70s and retry once), or all four 200 (lock not exclusive; BLOCKER).
+
+**D3. Revision compare-and-set** (Step 4). Covered by C3. Failure looks like: the second turn returns 409
+"case changed while your request was running" (BUG).
+
+**D4. Rate limits on real Redis** (Step 6). Covered by C11. Pass when: ten `201`, then `429` with a
+`Retry-After` header and error code `RATE_LIMITED`; a spoofed `X-Forwarded-For` does not reset the count;
+`rl:create*` keys exist in Upstash. Extra things to report because they were assumed, not seen:
+1. Which header Vercel actually sends: if every request is counted as the SAME IP for different people (the limit trips for everyone at once), or the limit never trips, the IP source is wrong. Test from two networks if you can (home Wi-Fi and a phone hotspot): each should have its own ration.
+2. Whether the limiter ever "fails open" silently: in the Vercel logs search for `ratelimit_error`; report any line.
+3. Whether the turn limit (40 per 10 minutes) trips at the 41st turn: do NOT spend money on this; instead report how many turns the audit sent in 10 minutes and whether any 429 appeared on `/interrogate`.
+
+**D5. Transcript list scripts** (Step 9). Covered by C14. Failure looks like: `LLEN` is 0 or the entries are
+not valid JSON lines, `TTL` is -1 (no expiry set; BUG) or the list passes 200 entries.
+
+**D6. The real Anthropic response to a bad key** (BYOK). Covered by C16. The server decides "your key was
+refused" by looking for HTTP status 401 or 403 on the error the Anthropic SDK throws. That shape was
+assumed from the SDK's types, not observed. Run the wrong-key test in C16 and report:
+1. The status code the player got. Expected `401` with code `INVALID_API_KEY`. If it is `502 MODEL_REQUEST_FAILED`, the SDK error does NOT expose `statusCode` the way the code expects: paste the Vercel `turn_failed` line (its `err` field) so the check can be fixed.
+2. A real key with ZERO credit (if you have one, or a free-tier key): the status and `turn_failed` text. Anthropic reports billing problems as `400 invalid_request_error` ("credit balance is too low"), which the code does NOT treat as a rejected key, so the player would see the generic "suspect could not answer" message. Report which you see; this is a known gap, not a failure, but the owner needs the observed behaviour.
+3. That the wrong-key turn charged nothing: the S4 `interrogationTurn` is unchanged and `spend:sess:<sid4>` did not grow.
+
+**D7. Provider honours the abort signal** (Step 7). Only observable if a 504 ever occurs (C12). Report any `MODEL_TIMEOUT` and the elapsed time (should be about 25s for the suspect, never above 60s).
+
+**D8. Function build** (Step 0). C8 and P3: the deployed function exists, uses `src/index.ts`, and the lazy
+`@upstash/*` imports were included in the bundle (if the first request 500s with "Cannot find module", paste it).
 
 ## E. Manual browser checks (a person at the live site, DevTools open)
 
@@ -516,7 +572,7 @@ Give each item PASS / FAIL / BLOCKED. Paste exact output on FAIL.
 | C5 turn limit | | |
 | C6 no leaks (API) | | |
 | C7 spend counters (day / session values) | | |
-| C8 function time limit (value) | | |
+| C8 function time limit (value, where seen) | | |
 | C9 injection | | |
 | C10 evidence after success | | |
 | C11 rate limits | | |
@@ -526,6 +582,13 @@ Give each item PASS / FAIL / BLOCKED. Paste exact output on FAIL.
 | C15 repo hygiene | | |
 | C16 BYOK | | |
 | C17 ending / breakdown via API | | |
+| D1-D3 Redis spend / lock / CAS | | |
+| D4 rate limits (IP source, two networks, ratelimit_error) | | |
+| D5 transcript scripts | | |
+| D6 bad-key response (status seen; zero-credit key behaviour) | | |
+| D7 abort signal / any MODEL_TIMEOUT | | |
+| D8 function build / lazy imports | | |
+| B4 502 diagnosis (steps 1-3 results) | | |
 | E1 start screen | | |
 | E2 full playthrough (which endings) | | |
 | E2 mid-game breakdown refused | | |

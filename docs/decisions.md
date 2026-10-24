@@ -242,10 +242,12 @@ failed turn (step 5 path: nothing saved, 504 `MODEL_TIMEOUT` with a friendly
 timeout = existing zero-delta turn (full reservation charged). `isAbortError`
 walks the `cause` chain because the persona wrappers re-throw as a new `Error`
 (they now pass `{cause}`). The `ai` SDK's own `maxRetries` (default 2) runs
-INSIDE the persona cap, so retries cannot extend it. Open assumption:
-`vercel.json` has no `maxDuration` (removed in `ba62268`); with the platform
-default below 50s the platform would kill the function first. Restore
-`"functions": {"src/index.ts": {"maxDuration": 60}}` or confirm the plan default.
+INSIDE the persona cap, so retries cannot extend it. `maxDuration: 60` was
+removed from `vercel.json` in `ba62268` and restored 2026-10-24
+(`"functions": {"src/index.ts": {"maxDuration": 60}}`), because the 50s deadline
+and 70s lock only make sense if the function runs for about 60s. Still to
+confirm on the live deployment (audit C8): Vercel applies the setting to the
+function and the build does not reject the `src/index.ts` path.
 
 **Step 8 notes (errors and logs):** `src/server/log.ts`. All server logging is
 one JSON object per line (`logEvent` stdout, `logError` stderr), `evt` first,

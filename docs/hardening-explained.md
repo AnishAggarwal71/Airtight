@@ -24,6 +24,7 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **What:** Made the app deployable on Vercel.
 - **Why:** Vercel runs functions, not an always-on server.
 - **How:** `src/index.ts` exports the Express app; the static front-end is served by Vercel's CDN.
+- **The 60-second setting:** `vercel.json` tells Vercel the function may run up to 60 seconds (`maxDuration: 60`). It had been deleted by accident during the first deploy, which would have left Vercel's own default in charge. Steps 4 and 7 rely on the 60 seconds: a turn gives up at 50 seconds and a lock expires at 70, so the function must not be killed earlier than that. It is restored; the audit (C8) checks the deployed function really got it.
 
 ## Step 1: Stop leaking the seed
 
@@ -92,3 +93,17 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 - **What:** On the start screen there is an optional "Use my own Anthropic key" box. A player who pastes their own key plays on their own Anthropic account: the game no longer uses the shared $2/day budget, and keeps working even when that budget has run out.
 - **Why:** The shared key is a small gift that runs out. Someone who already has a key should be able to keep playing without waiting for tomorrow, and without us paying.
 - **How:** The key stays in the player's browser tab (it is forgotten when the tab closes) and is sent along with each request. Our server uses it for that one request to talk to Anthropic and then forgets it. It is not saved in Redis, not in the transcript, not in logs, not in any reply. Only a "this game uses the player's own key" flag is saved, so the player must send the key again every turn. Each request builds its own connection to Anthropic with that key, instead of changing the shared one, because many players share one server copy at the same moment. These still apply to BYOK games: the $0.08 per-game cap, one-request-at-a-time lock, and per-IP rate limits. If Anthropic refuses the key, the player sees "Anthropic rejected the API key you provided", not Anthropic's own message, and the turn is not used or charged. Honest caveat: the key does pass through our server, so players should use a key they can revoke, with a low spend limit.
+
+## What we have NOT seen run yet (and how the audit finds out)
+
+Everything above was tested on the build laptop with a pretend ("fake") model and a pretend ("in-memory")
+Redis. That proves our logic, not the real services. These are the pieces that only run for real once the
+game is live, each paired with the audit check that will show whether it works:
+
+- **The Redis scripts** (spend cap, lock, version check, transcripts). The real Upstash Redis runs them, not our fake. If one has a typo or a wrong assumption, the symptom is a 503 on every turn or a stuck game. Audit C3, C4, C7, C14, D1-D5 exercise each one.
+- **The rate limiter** (`@upstash/ratelimit`). We assume Vercel tells us the real visitor address in a header it controls, and that the library counts as we expect. If the address is wrong, the limit either trips for everyone at once or never trips. Audit C11 and D4 test from one and two networks.
+- **What Anthropic says to a wrong key.** Our "your key was refused" message depends on the error having an HTTP status of 401 or 403. We believe the Anthropic library supplies that, but have not seen a real one. If it does not, a wrong key shows the generic "suspect could not answer" message instead. A key with no credit is a related case: Anthropic reports it as a 400, which we deliberately do not call "rejected", so the player sees the generic message. Audit D6 records exactly what each case returns.
+- **The function limit and the build.** Whether Vercel accepted the 60-second setting and bundled the lazily-loaded Redis libraries. Audit C8 and D8.
+- **The local 502.** On the Windows test machine, one real turn against the local server failed with a "bad gateway" (the server's polite wrapper for "the AI service failed"). The cause is not known: it could be a missing or wrong key, a key with no credit, or the machine's network. The audit (B4) runs a three-step check that tells these apart without touching code.
+
+None of this changes the game. If an item fails, the fix is a small code change we make after seeing the exact error, not a redesign.
