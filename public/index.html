@@ -126,7 +126,24 @@
           <div class="hud-meter-value" id="hud-value" aria-hidden="true">15</div>
         </div>
         <div class="hud-turns" id="hud-turns"></div>
+        <button type="button" id="case-file-btn" class="btn btn-ghost hud-casefile-btn" aria-expanded="false" aria-controls="case-file">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 2h7l3 3v17H7z"/><path d="M14 2v3h3M10 12h6M10 16h6"/></svg>
+          Case file
+        </button>
       </div>
+      <div class="casefile-scrim hidden" id="case-file-scrim"></div>
+      <aside id="case-file" class="case-file glass-panel" role="dialog" aria-label="Case file" aria-hidden="true">
+        <span class="bracket-bl"></span><span class="bracket-br"></span>
+        <div class="case-file-head">
+          <h2 class="case-file-title" id="case-file-title">Case file</h2>
+          <button type="button" id="case-file-close" class="btn btn-ghost case-file-close" aria-label="Close case file">Close</button>
+        </div>
+        <div class="case-file-tabs" role="tablist" aria-label="Case file sections">
+          <button type="button" role="tab" class="case-file-tab" id="tab-briefing" data-tab="briefing" aria-selected="true" aria-controls="case-file-body">Briefing</button>
+          <button type="button" role="tab" class="case-file-tab" id="tab-evidence" data-tab="evidence" aria-selected="false" aria-controls="case-file-body">Evidence</button>
+        </div>
+        <div class="case-file-body" id="case-file-body" role="tabpanel"></div>
+      </aside>
       <div class="interrogation-shell">
         <div class="transcript-panel glass-panel">
           <span class="bracket-bl"></span><span class="bracket-br"></span>
@@ -135,6 +152,7 @@
           <div class="composer" id="composer">
             <p class="composer-mode-label" id="composer-mode-label">Questioning the suspect</p>
             <div class="evidence-tray" id="evidence-tray"></div>
+            <p class="evidence-staged-note hidden" id="evidence-staged-note" aria-live="polite"></p>
             <form id="interrogation-form" class="composer-row">
               <label class="hidden" for="interrogation-input">Question</label>
               <textarea id="interrogation-input" maxlength="300" rows="2" placeholder="Ask your question..."></textarea>
@@ -150,6 +168,8 @@
           </div>
 
           <div class="composer-ended hidden" id="composer-ended">
+            <p class="composer-ended-label" id="composer-ended-label"></p>
+            <p class="composer-ended-hint">Read the last answer above, then continue when you're ready.</p>
             <button type="button" id="to-reveal-btn" class="btn btn-primary">View case outcome</button>
           </div>
         </div>
@@ -172,7 +192,10 @@
           <div class="hud-meter-value" id="hud-value-reveal" aria-hidden="true"></div>
         </div>
 
-        <button type="button" id="restart-btn" class="btn btn-primary">New case</button>
+        <div class="reveal-actions">
+          <button type="button" id="review-btn" class="btn btn-ghost">Review the interrogation</button>
+          <button type="button" id="restart-btn" class="btn btn-primary">New case</button>
+        </div>
 
         <div class="reveal-reviewer">
           <button type="button" id="reveal-reviewer-toggle" class="btn btn-ghost reveal-reviewer-toggle" aria-expanded="false">

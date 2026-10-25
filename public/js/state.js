@@ -31,6 +31,10 @@ export const state = {
   error: null, // { message, retry: () => Promise<void> } | null
   breakdown: null, // BreakdownResponse from GET /:id/breakdown, fetched only once state.ending is set
   reviewerExpanded: false, // whether the "How the judge scored this" <details> is open
+  caseFileOpen: false, // whether the case-file drawer (briefing + evidence recap) is open over the transcript
+  // phase === 'ended' only means the game is over. The outcome overlay stays
+  // closed until the player opts in, so they can read the final answer first.
+  revealOpen: false,
 }
 
 export function resetForNewCase() {
@@ -54,4 +58,6 @@ export function resetForNewCase() {
   state.error = null
   state.breakdown = null
   state.reviewerExpanded = false
+  state.caseFileOpen = false
+  state.revealOpen = false
 }

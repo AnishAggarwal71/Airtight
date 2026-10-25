@@ -266,6 +266,11 @@ src/server/
   log.ts                One-line JSON logging with secret scrubbing (logEvent/logError)
   byok.ts               Bring-your-own-key: header reader/validator, per-request model, provider-401 test
 public/js/byok.js       "Use my own key" panel; key kept in sessionStorage only
+public/js/{state,render,main}.js  Browser UI. `state.caseFileOpen` drives the case-file
+                          drawer (briefing + evidence recap on the interrogation screen);
+                          `state.revealOpen` gates the outcome overlay separately from
+                          `phase === 'ended'`, so the final answer is readable first.
+                          `render.js` is the only module that touches the DOM.
 ```
 
 ---

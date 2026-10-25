@@ -62,6 +62,46 @@ document.getElementById('restart-btn-briefing').addEventListener('click', () => 
   paint()
 })
 
+// ─── Case-file drawer ────────────────────────────────────────────────────────
+// Opens over the transcript from the HUD. Tab choice lives on the element
+// (data-tab) rather than in state: it is pure view state and survives repaints.
+
+const caseFileEl = document.getElementById('case-file')
+const caseFileBtn = document.getElementById('case-file-btn')
+
+function setCaseFileOpen(open) {
+  if (state.caseFileOpen === open) return
+  state.caseFileOpen = open
+  paint()
+  // Move focus into the dialog on open and back to its trigger on close, so
+  // keyboard users aren't stranded behind the drawer.
+  if (open) document.getElementById('case-file-close').focus()
+  else caseFileBtn.focus()
+}
+
+caseFileBtn.addEventListener('click', () => setCaseFileOpen(!state.caseFileOpen))
+document.getElementById('case-file-close').addEventListener('click', () => setCaseFileOpen(false))
+document.getElementById('case-file-scrim').addEventListener('click', () => setCaseFileOpen(false))
+
+caseFileEl.addEventListener('click', (e) => {
+  const tab = e.target.closest('.case-file-tab')
+  if (!tab) return
+  caseFileEl.dataset.tab = tab.dataset.tab
+  paint()
+})
+
+// Esc closes the topmost layer: the drawer first, then the outcome overlay
+// (which returns to the transcript rather than discarding the finished game).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return
+  if (state.caseFileOpen) {
+    setCaseFileOpen(false)
+  } else if (state.revealOpen) {
+    state.revealOpen = false
+    paint()
+  }
+})
+
 // ─── Evidence tray staging (one at a time, no network call) ───────────────
 
 document.getElementById('evidence-tray').addEventListener('click', (e) => {
@@ -197,8 +237,17 @@ async function submitWitness(question, inputEl) {
 
 document.getElementById('to-reveal-btn').addEventListener('click', async () => {
   state.phase = 'ended'
+  state.caseFileOpen = false
+  state.revealOpen = true
   paint()
   await loadBreakdown()
+})
+
+// Lets the player step back from the outcome overlay to the finished
+// transcript (and the case file) to re-read what happened.
+document.getElementById('review-btn').addEventListener('click', () => {
+  state.revealOpen = false
+  paint()
 })
 
 async function loadBreakdown() {
@@ -261,6 +310,8 @@ async function tryReconnect() {
     state.witnessUsed = result.witnessUsed
     state.ending = result.ending
     state.phase = result.ending ? 'ended' : result.phase === 'briefing' ? 'briefing' : 'interrogation'
+    // A returning player has already read the answers, so go straight to the outcome.
+    state.revealOpen = !!result.ending
 
     state.transcript = []
     let inWitnessPhase = false

@@ -172,6 +172,77 @@ function renderBriefing(state) {
   }
 }
 
+// ─── Case-file drawer (interrogation screen) ───────────────────────────
+// Re-presents everything the briefing screen showed (suspect, victim, window,
+// the four prose summaries, evidence with descriptions) so the player can look
+// it up mid-interrogation without cluttering the transcript. Closed by default.
+
+// Last HTML written into the drawer body. paint() runs on every keystroke, and
+// rewriting identical markup would reset the drawer's scroll position.
+let lastCaseFileHtml = ''
+
+function renderCaseFileBriefing(pc) {
+  const field = (label, value) =>
+    `<div class="subject-field"><span class="field-label">${label}</span><span class="field-value">${escapeHtml(value)}</span></div>`
+  return `
+    <p class="dossier-case-type">Homicide</p>
+    <h3 class="case-file-case-title">${escapeHtml(pc.title)}</h3>
+    <div class="subject-grid case-file-grid">
+      ${field('Suspect', pc.suspect.name)}
+      ${field('Occupation', capitalize(pc.suspect.occupation))}
+      ${field('Victim', `${pc.victim.name} (${pc.victim.relationship})`)}
+      ${field('Window', `${pc.window.start} – ${pc.window.end}`)}
+    </div>
+    <div class="dossier-prose">
+      <p>${escapeHtml(pc.briefing.victimSummary)}</p>
+      <p>${escapeHtml(pc.briefing.suspectSummary)}</p>
+      <p>${escapeHtml(pc.briefing.sceneSummary)}</p>
+      <p>${escapeHtml(pc.briefing.evidenceSummary)}</p>
+    </div>
+  `
+}
+
+function renderCaseFileEvidence(pc) {
+  const rows = pc.evidence
+    .map(
+      (item) => `
+        <li class="exhibit-tag${item.presented ? ' spent' : ''}">
+          ${renderExhibitTag(item)}
+          <span class="exhibit-status">${item.presented ? 'Presented' : 'Not yet presented'}</span>
+        </li>`,
+    )
+    .join('')
+  return `<ul class="exhibit-list">${rows}</ul>`
+}
+
+function renderCaseFile(state) {
+  const drawer = el('case-file')
+  const btn = el('case-file-btn')
+  const scrim = el('case-file-scrim')
+  const open = state.caseFileOpen && !!state.publicCase && state.phase !== 'setup'
+
+  drawer.classList.toggle('open', open)
+  drawer.setAttribute('aria-hidden', String(!open))
+  // inert keeps a closed (off-screen) drawer out of the tab order and the
+  // accessibility tree; visibility alone would not stop focus during the slide.
+  drawer.inert = !open
+  scrim.classList.toggle('hidden', !open)
+  btn.setAttribute('aria-expanded', String(open))
+
+  const tab = drawer.dataset.tab === 'evidence' ? 'evidence' : 'briefing'
+  for (const t of drawer.querySelectorAll('.case-file-tab')) {
+    t.setAttribute('aria-selected', String(t.dataset.tab === tab))
+  }
+
+  const pc = state.publicCase
+  if (!pc) return
+  const html = tab === 'evidence' ? renderCaseFileEvidence(pc) : renderCaseFileBriefing(pc)
+  if (html !== lastCaseFileHtml) {
+    el('case-file-body').innerHTML = html
+    lastCaseFileHtml = html
+  }
+}
+
 // ─── Interrogation: transcript ──────────────────────────────────────────
 
 function renderVerdictLine(entry) {
@@ -188,9 +259,19 @@ function renderVerdictLine(entry) {
   `
 }
 
+// What the transcript looked like on the previous paint. renderTranscript uses
+// it to scroll only when something actually arrived: paint() also runs on every
+// keystroke in the composer, and unconditional scroll-to-bottom made it
+// impossible to scroll up and re-read while typing the next question.
+let lastExchangeCount = 0
+let lastThinking = false
+let lastHadError = false
+
 function renderTranscript(state) {
   const container = el('transcript')
+  const previousScroll = container.scrollTop
   container.innerHTML = ''
+  container.setAttribute('aria-busy', String(state.thinking))
 
   state.transcript.forEach((entry, index) => {
     const aged = index < state.transcript.length - 1
@@ -214,25 +295,46 @@ function renderTranscript(state) {
 
   if (state.thinking) {
     const thinking = document.createElement('div')
-    thinking.className = 'thinking-squares'
-    thinking.innerHTML = '<span></span><span></span><span></span>'
+    thinking.className = 'thinking-indicator'
+    thinking.innerHTML = `<span class="thinking-squares"><span></span><span></span><span></span></span><span class="thinking-label">${state.witnessMode ? 'Witness' : 'Suspect'} is answering…</span>`
     container.appendChild(thinking)
   }
 
-  if (state.error && state.phase !== 'setup') {
+  const hasError = !!(state.error && state.phase !== 'setup')
+  if (hasError) {
     const errEl = document.createElement('div')
     errEl.className = 'transcript-error'
     errEl.innerHTML = `<span>${escapeHtml(state.error.message)}</span><button type="button" class="btn btn-ghost" id="transcript-retry-btn">Retry</button>`
     container.appendChild(errEl)
   }
 
-  container.scrollTop = container.scrollHeight
+  const count = state.transcript.length
+  const newExchange = count > lastExchangeCount
+  const waitingStarted = (state.thinking && !lastThinking) || (hasError && !lastHadError)
+  if (newExchange) {
+    // Start the new answer at its first line instead of the bottom, so a long
+    // answer is read from the top rather than the player landing mid-paragraph.
+    const exchanges = container.querySelectorAll('.exchange')
+    const latest = exchanges[exchanges.length - 1]
+    container.scrollTop = latest ? latest.offsetTop - container.offsetTop - 16 : container.scrollHeight
+  } else if (waitingStarted) {
+    container.scrollTop = container.scrollHeight
+  } else {
+    container.scrollTop = previousScroll
+  }
+  lastExchangeCount = count
+  lastThinking = state.thinking
+  lastHadError = hasError
 }
 
 function renderEvidenceTray(state) {
   const tray = el('evidence-tray')
+  const note = el('evidence-staged-note')
   tray.innerHTML = ''
-  if (!state.publicCase) return
+  if (!state.publicCase) {
+    note.classList.add('hidden')
+    return
+  }
   for (const item of state.publicCase.evidence) {
     const presented = item.presented
     const staged = state.evidenceStaged === item.id
@@ -241,6 +343,7 @@ function renderEvidenceTray(state) {
     btn.className = 'exhibit-tag'
     btn.dataset.evidenceId = item.id
     btn.disabled = presented || state.witnessMode
+    btn.title = item.description
     btn.setAttribute('aria-pressed', String(staged))
     btn.innerHTML = `
       <span class="exhibit-icon">${evidenceIcon(item.type)}</span>
@@ -249,6 +352,12 @@ function renderEvidenceTray(state) {
     `
     tray.appendChild(btn)
   }
+
+  // Show what the staged exhibit actually is, so the player isn't presenting
+  // by name alone and doesn't have to open the case file to check.
+  const stagedItem = state.publicCase.evidence.find((e) => e.id === state.evidenceStaged)
+  note.classList.toggle('hidden', !stagedItem)
+  note.textContent = stagedItem ? `Presenting ${stagedItem.name}: ${stagedItem.description}` : ''
 }
 
 function renderComposer(state) {
@@ -259,12 +368,20 @@ function renderComposer(state) {
 
   el('composer').classList.toggle('hidden', ended)
   el('composer-ended').classList.toggle('hidden', !ended)
+  if (ended) {
+    const copy = ENDING_COPY[state.ending]
+    el('composer-ended-label').textContent = `Case closed — ${copy ? copy.label : state.ending}`
+  }
 
   const composer = el('composer')
   composer.dataset.mode = state.witnessMode ? 'witness' : 'suspect'
+  // The next question to be asked is turn+1; clamp so the label never reads
+  // "Question 7 of 6" in the instant before the ending lands.
+  const nextQ = Math.min(state.interrogationTurn + 1, state.maxInterrogationTurns)
+  const left = state.maxInterrogationTurns - state.interrogationTurn
   el('composer-mode-label').textContent = state.witnessMode
-    ? `Questioning the witness (${state.witnessTurn}/${state.maxWitnessTurns})`
-    : 'Questioning the suspect'
+    ? `Questioning the witness — question ${Math.min(state.witnessTurn + 1, state.maxWitnessTurns)} of ${state.maxWitnessTurns}`
+    : `Questioning the suspect — question ${nextQ} of ${state.maxInterrogationTurns} (${left} left)`
 
   const input = el('interrogation-input')
   const submit = el('interrogation-submit')
@@ -417,7 +534,9 @@ function renderReviewerBody(breakdown) {
 
 function renderReveal(state) {
   const overlay = el('reveal-placeholder')
-  const show = state.phase === 'ended' && !!state.ending
+  // phase === 'ended' only means the game is over; the overlay waits for the
+  // player to opt in (revealOpen) so the final answer can be read first.
+  const show = state.phase === 'ended' && !!state.ending && state.revealOpen
   overlay.classList.toggle('hidden', !show)
   if (!show) return
 
@@ -457,6 +576,7 @@ export function render(state) {
   renderHud(state, '')
   renderHud(state, '-briefing')
   renderBriefing(state)
+  renderCaseFile(state)
   renderTranscript(state)
   renderEvidenceTray(state)
   renderComposer(state)

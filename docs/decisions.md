@@ -5,6 +5,30 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-10-25 — Case-file drawer and held end state (web UI)
+
+**Decided:** (1) The interrogation screen gets a **Case file** drawer holding
+everything the briefing screen showed (briefing prose, suspect/victim/window,
+evidence with descriptions and presented status). (2) The outcome overlay no
+longer opens in the same paint as the last answer; the game holds on a
+"Case closed" line with a **View case outcome** button, and the overlay has a
+**Review the interrogation** way back.
+
+**Why:** Playtesters were engaged but could not retain the briefing across six
+questions, and never actually saw the final answer: `phase = 'ended'` opened the
+full-screen overlay immediately, hiding it. A drawer keeps the transcript clean
+(closed by default) where a docked column would have taken space from the
+transcript and the room art. A button rather than a timer for the end state,
+because reading speed varies and a timer would cut off slow readers.
+
+**Also fixed:** the transcript scrolled to the bottom on every keystroke
+(`paint()` runs on input), so players could not re-read while typing; it now
+scrolls only when an exchange arrives or a wait starts. The pixel-art room had
+no rule for `data-phase="ended"` and vanished at game end. Older-exchange
+opacity went from 0.55 to 0.72 (DESIGN.md updated).
+
+**Not changed:** engine, scoring, server, and the outcome screen's content.
+
 ## 2026-10-24 — Bring-your-own-key (BYOK) — implemented
 
 **Status:** implemented after hardening step 10 (verify check #17). The

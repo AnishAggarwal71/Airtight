@@ -82,9 +82,12 @@ body[data-phase="briefing"][data-pronoun="he"] .room { background-image: url('/a
 body[data-phase="briefing"][data-pronoun="she"] .room { background-image: url('/assets/zoom-she.png'); }
 body[data-phase="briefing"] .room::after { opacity: .34; }
 
-body[data-phase="interrogation"][data-pronoun="he"] .room { background-image: url('/assets/dim-he.png'); }
-body[data-phase="interrogation"][data-pronoun="she"] .room { background-image: url('/assets/dim-she.png'); }
-body[data-phase="interrogation"] .room::after { opacity: 0; }
+body[data-phase="interrogation"][data-pronoun="he"] .room,
+body[data-phase="ended"][data-pronoun="he"] .room { background-image: url('/assets/dim-he.png'); }
+body[data-phase="interrogation"][data-pronoun="she"] .room,
+body[data-phase="ended"][data-pronoun="she"] .room { background-image: url('/assets/dim-she.png'); }
+body[data-phase="interrogation"] .room::after,
+body[data-phase="ended"] .room::after { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .room, .room::after { transition: none; }
@@ -618,7 +621,10 @@ body[data-pronoun="she"] .subject-thumb { background-image: url('/assets/zoom-sh
   gap: var(--sp-5);
 }
 .exchange { display: flex; flex-direction: column; gap: var(--sp-2); opacity: 1; transition: opacity 300ms; }
-.exchange.aged { opacity: .55; }
+/* 0.72 (DESIGN.md said 0.55): earlier answers must stay readable now that the
+   player is expected to re-read them. Full strength on hover/focus. */
+.exchange.aged { opacity: .72; }
+.exchange.aged:hover, .exchange.aged:focus-within { opacity: 1; }
 
 .bubble-question {
   align-self: flex-end;
@@ -673,6 +679,8 @@ body[data-pronoun="she"] .subject-thumb { background-image: url('/assets/zoom-sh
 .verdict-line .verdict-reason { flex: 1; color: inherit; opacity: .9; }
 .verdict-line .verdict-delta { font-family: var(--font-mono); margin-left: auto; }
 
+.thinking-indicator { display: flex; align-items: center; gap: var(--sp-3); align-self: flex-start; padding: var(--sp-2) 0; }
+.thinking-label { font-size: 14px; color: var(--ink-muted); }
 .thinking-squares { display: flex; gap: 6px; align-self: flex-start; padding: var(--sp-2) 0; }
 .thinking-squares span {
   width: 8px;
@@ -806,8 +814,92 @@ body[data-pronoun="she"] .subject-thumb { background-image: url('/assets/zoom-sh
 
 .composer-ended {
   display: flex;
-  justify-content: center;
-  padding: var(--sp-3) 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  border-top: 1px solid var(--line);
+  padding: var(--sp-5) 40px;
+  text-align: center;
+}
+.composer-ended-label { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink-strong); }
+.composer-ended-hint { margin: 0 0 var(--sp-2); font-size: 14px; color: var(--ink-muted); }
+
+/* Shows what the staged exhibit is, directly under the tray. */
+.evidence-staged-note { margin: 0; font-size: 13px; color: var(--ink); }
+
+/* ─── Case-file drawer ────────────────────────────────────────────────── */
+/* Slides over the right-hand transcript panel, under the 64px HUD, so it never
+   covers the suspect figure on the left. Animates transform only. */
+
+.hud-casefile-btn { min-height: 44px; padding: 8px 14px; font-size: 14px; flex: 0 0 auto; }
+
+.casefile-scrim {
+  position: fixed;
+  inset: 64px 0 0 0;
+  z-index: 9;
+  background: rgba(0, 0, 0, .45);
+}
+
+.case-file {
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  width: min(460px, 100vw);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: var(--glass-interrogation);
+  transform: translateX(100%);
+  visibility: hidden;
+  /* Exit is faster than entry; visibility waits for the slide-out to finish. */
+  transition: transform 150ms ease-in, visibility 0s linear 150ms;
+}
+.case-file.open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 220ms ease-out, visibility 0s;
+}
+
+.case-file-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-6) var(--sp-3);
+}
+.case-file-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--ink-strong); }
+.case-file-close { padding: 8px 16px; }
+
+.case-file-tabs { display: flex; gap: var(--sp-2); padding: 0 var(--sp-6); border-bottom: 1px solid var(--line); }
+.case-file-tab {
+  min-height: 44px;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-muted);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.case-file-tab:hover { color: var(--ink); }
+.case-file-tab[aria-selected="true"] { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+.case-file-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-5) var(--sp-6) var(--sp-7); }
+.case-file-case-title { margin: 0 0 var(--sp-4); font-size: 22px; line-height: 1.2; font-weight: 600; color: var(--ink-strong); }
+.case-file-grid { margin-bottom: var(--sp-5); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--line); }
+
+/* Evidence rows in the drawer: wrap the status under the description, and use
+   the dashed "unavailable" border for exhibits already presented. */
+.case-file-body .exhibit-tag { flex-wrap: wrap; }
+.case-file-body .exhibit-tag.spent { border-style: dashed; }
+.exhibit-status { flex: 1 0 100%; font-size: 12px; color: var(--ink-muted); padding-left: 32px; }
+.exhibit-tag.spent .exhibit-status { color: var(--cyan); }
+
+@media (prefers-reduced-motion: reduce) {
+  .case-file, .case-file.open { transition: none; }
 }
 
 /* ─── Reveal screen ───────────────────────────────────────────────────── */
@@ -848,6 +940,8 @@ body[data-pronoun="she"] .subject-thumb { background-image: url('/assets/zoom-sh
   max-width: 320px;
 }
 .reveal-meter .hud-meter-track { flex: 1; }
+
+.reveal-actions { display: flex; gap: var(--sp-3); justify-content: center; flex-wrap: wrap; }
 
 .reveal-reviewer {
   margin-top: var(--sp-7);
@@ -963,6 +1057,11 @@ body[data-pronoun="she"] .subject-thumb { background-image: url('/assets/zoom-sh
   .dossier-footer { padding: var(--sp-4) 20px; }
   .composer { padding: var(--sp-3) 20px var(--sp-4); }
   .hud-meter-label { display: none; }
+  .hud { gap: var(--sp-3); padding: 0 var(--sp-3); }
+  .hud-case-number { display: none; }
+  .composer-ended { padding: var(--sp-4) 20px; }
+  .case-file-head, .case-file-tabs { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+  .case-file-body { padding-left: var(--sp-4); padding-right: var(--sp-4); }
   .subject-block { flex-direction: column; }
   .subject-thumb { width: 100%; height: 90px; }
 }

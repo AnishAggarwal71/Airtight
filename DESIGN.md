@@ -189,7 +189,7 @@ The transcript (`role="log"`, scrolls internally) holds one exchange per questio
 - **Detective question:** right-aligned, cyan hairline box, cyan text. If evidence was presented, the exhibit tag sits at the top of the box.
 - **Suspect answer:** left-aligned, `--ink-strong`, no box.
 - **Verdict line:** directly under the answer. Icon, verdict type, one-line reason, delta in mono on the right. This line is the invigilator thinking out loud, and it is the most important element on the screen: it makes the hidden-state scoring legible to a reviewer in seconds. A crack verdict gets the `--crack-wash` background and an amber border; other verdicts sit on the glass with no box.
-- Older exchanges drop to 55% opacity so the latest exchange leads.
+- Older exchanges drop to 72% opacity (was 55%: too faint to re-read) and return to full on hover or focus; the latest exchange still leads.
 - While the suspect is answering: three blinking squares in place of the answer. Respect `prefers-reduced-motion` with static squares.
 
 Witness questions use the same structure, with a small witness marker beside the answer so the two speakers cannot be confused.
@@ -199,7 +199,9 @@ The composer, pinned to the bottom, holds three rows:
 2. **Question input** (textarea, 300-char limit) with the **Ask** button beside it. Enter sends; Shift+Enter makes a new line. Disable both while the suspect is answering.
 3. **Witness button** (disabled with a lock icon until unlocked, with the hint "You may not have enough yet") plus the remaining character count on the right.
 
-When the game ends (80 reached, or turns run out), the composer disables and a single button replaces it to go to the reveal screen. That screen is out of scope for now: route to a placeholder.
+When the game ends (80 reached, or turns run out), the composer is replaced by a held end state: a "Case closed" line naming the ending and a single **View case outcome** button. The outcome screen does not open on its own, so the final answer and its verdict line stay on screen until the player chooses to continue. The outcome screen has a **Review the interrogation** button (and Esc) that returns to the finished transcript. Reloading a finished game opens the outcome screen directly.
+
+**Case file drawer.** A **Case file** button in the interrogation HUD opens a drawer over the right-hand side, under the HUD, so it never covers the suspect. It holds everything the briefing screen showed: a Briefing tab (case title, suspect, occupation, victim, window, the four prose summaries) and an Evidence tab (every exhibit with its description, marked presented or not yet presented). Closed by default. Esc, the Close button or a click outside closes it. Slides in with transform only (220ms in, 150ms out), instant under `prefers-reduced-motion`. Below 720px it is full width. While an exhibit is staged in the evidence tray, a one-line note under the tray shows its description; tray tags also carry the description as a tooltip.
 
 ---
 
