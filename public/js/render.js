@@ -115,11 +115,32 @@ function renderHud(state, suffix) {
 
   if (turnsEl) {
     turnsEl.innerHTML = ''
+    turnsEl.setAttribute('role', 'img')
+    turnsEl.setAttribute(
+      'aria-label',
+      `${state.interrogationTurn} of ${state.maxInterrogationTurns} questions asked`,
+    )
+    // Two captioned groups ("Questions" pips, "Witness" status) sharing the
+    // same caption-over-value layout as the Case and Case strength groups.
+    const makeGroup = (caption) => {
+      const group = document.createElement('div')
+      group.className = 'hud-group'
+      const label = document.createElement('span')
+      label.className = 'hud-label'
+      label.textContent = caption
+      const row = document.createElement('div')
+      row.className = 'hud-group-row'
+      group.append(label, row)
+      turnsEl.appendChild(group)
+      return row
+    }
+    const pipRow = makeGroup('Questions')
     for (let i = 0; i < state.maxInterrogationTurns; i++) {
       const pip = document.createElement('span')
       pip.className = `hud-pip${i < state.interrogationTurn ? ' spent' : ''}`
-      turnsEl.appendChild(pip)
+      pipRow.appendChild(pip)
     }
+    const witnessRow = makeGroup('Witness')
     const slot = document.createElement('span')
     slot.className = 'hud-witness-slot'
     if (state.witnessUsed) {
@@ -131,8 +152,14 @@ function renderHud(state, suffix) {
         state.witnessPulsed = true
       }
     }
-    slot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
-    turnsEl.appendChild(slot)
+    const slotText = state.witnessUsed ? 'Used' : state.witnessAvailable ? 'Available' : 'Locked'
+    slot.title = state.witnessUsed
+      ? 'Witness questioned'
+      : state.witnessAvailable
+        ? 'Witness available: use the button below the transcript'
+        : 'A witness becomes available once your case starts to build'
+    slot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="hud-witness-text">' + slotText + '</span>'
+    witnessRow.appendChild(slot)
   }
 }
 
@@ -378,10 +405,9 @@ function renderComposer(state) {
   // The next question to be asked is turn+1; clamp so the label never reads
   // "Question 7 of 6" in the instant before the ending lands.
   const nextQ = Math.min(state.interrogationTurn + 1, state.maxInterrogationTurns)
-  const left = state.maxInterrogationTurns - state.interrogationTurn
   el('composer-mode-label').textContent = state.witnessMode
     ? `Questioning the witness — question ${Math.min(state.witnessTurn + 1, state.maxWitnessTurns)} of ${state.maxWitnessTurns}`
-    : `Questioning the suspect — question ${nextQ} of ${state.maxInterrogationTurns} (${left} left)`
+    : `Questioning the suspect — question ${nextQ} of ${state.maxInterrogationTurns}`
 
   const input = el('interrogation-input')
   const submit = el('interrogation-submit')

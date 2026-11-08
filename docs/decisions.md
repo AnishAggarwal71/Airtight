@@ -5,6 +5,17 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-11-08 — HUD labels (web UI)
+
+**Decided:** Playtest feedback: the interrogation HUD (a bare case number, a
+bar with a number, six circles and a lock icon) was unreadable to a new
+player, and "question 1 of 6 (6 left)" said the same thing twice. The HUD now
+labels each element (`CASE`, `CASE STRENGTH` with a "Reach 80 for a strong
+case" goal line, `QUESTIONS`, a `WITNESS` chip), and the composer drops the
+"(N left)" suffix. Presentation only: no scoring, engine or API change, and the
+80 threshold text mirrors `SCORING_CONFIG` as a display string (update it in
+`index.html` if the threshold ever changes). Details in `DESIGN.md` §5.
+
 ## 2026-10-25 — Case-file drawer and held end state (web UI)
 
 **Decided:** (1) The interrogation screen gets a **Case file** drawer holding
