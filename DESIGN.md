@@ -26,7 +26,7 @@ Never ask for, or work around the need for, anything in the deny list: pushing, 
 - **Stack stays as is.** Express server, vanilla JS/HTML/CSS in `public/`. No React, Next.js, Tailwind, or UI framework. A small animation helper is acceptable only if CSS cannot do the job; ask first.
 - **Do not change scoring or invigilator logic.** The UI only displays what the engine produces. If the UI needs data the engine does not expose, add a read-only field to the session/state response and say so in the plan.
 - **Server/browser split holds.** The server regenerates the private case from the seed on each request. The browser only ever receives public data. Nothing in this UI may require sending hidden state (the claim ledger, the true timeline, the suspect's cover story) to the client. Section 6 lists exactly what the client may receive.
-- **Package installs** go through whatever registry the machine is already configured for. On a Lilly-managed machine that is JFrog Artifactory. Do not add `--registry` flags, `.npmrc` overrides, or anything that points at public npm.
+- **Package installs** go through whatever registry the machine is already configured for. Do not add `--registry` flags or `.npmrc` overrides to the project.
 
 ### Dependencies this build waits on
 
