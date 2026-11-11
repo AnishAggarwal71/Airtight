@@ -312,7 +312,7 @@ function renderTranscript(state) {
     wrap.innerHTML = `
       <div class="bubble-question">${presentedTags}${escapeHtml(entry.question)}</div>
       <div class="bubble-answer">
-        <span class="speaker-marker">${entry.isWitness ? 'Witness' : 'Suspect'}${entry.demeanor ? ` — ${entry.demeanor}` : ''}</span>
+        <span class="speaker-marker">${entry.isWitness ? 'Witness' : 'Suspect'}${entry.demeanor ? `, ${entry.demeanor}` : ''}</span>
         ${escapeHtml(entry.answerText)}
       </div>
       ${renderVerdictLine(entry)}
@@ -397,7 +397,7 @@ function renderComposer(state) {
   el('composer-ended').classList.toggle('hidden', !ended)
   if (ended) {
     const copy = ENDING_COPY[state.ending]
-    el('composer-ended-label').textContent = `Case closed — ${copy ? copy.label : state.ending}`
+    el('composer-ended-label').textContent = `Case closed: ${copy ? copy.label : state.ending}`
   }
 
   const composer = el('composer')
@@ -406,8 +406,8 @@ function renderComposer(state) {
   // "Question 7 of 6" in the instant before the ending lands.
   const nextQ = Math.min(state.interrogationTurn + 1, state.maxInterrogationTurns)
   el('composer-mode-label').textContent = state.witnessMode
-    ? `Questioning the witness — question ${Math.min(state.witnessTurn + 1, state.maxWitnessTurns)} of ${state.maxWitnessTurns}`
-    : `Questioning the suspect — question ${nextQ} of ${state.maxInterrogationTurns}`
+    ? `Witness · question ${Math.min(state.witnessTurn + 1, state.maxWitnessTurns)} of ${state.maxWitnessTurns}`
+    : `Suspect · question ${nextQ} of ${state.maxInterrogationTurns}`
 
   const input = el('interrogation-input')
   const submit = el('interrogation-submit')
@@ -445,19 +445,19 @@ function renderComposer(state) {
 
 const ENDING_COPY = {
   CHARGED_STRONG: {
-    label: 'Charged — strong case',
+    label: 'Charged, strong case',
     body: (cs, suspect) =>
-      `Case Strength hit ${cs}. The evidence speaks for itself. ${suspect} is going away.`,
+      `Case Strength hit ${cs}. It's airtight. ${suspect} isn't talking their way out of this one.`,
   },
   CHARGED_WEAK: {
-    label: 'Charged — qualified case',
+    label: 'Charged, shaky case',
     body: (cs, suspect) =>
-      `Case Strength ended at ${cs}. Not airtight, but enough to charge. ${suspect} goes to trial on a case with real holes in it.`,
+      `Case Strength ended at ${cs}. Not airtight, but you charged anyway. ${suspect} goes to trial and a good lawyer will find the holes.`,
   },
   RELEASED: {
     label: 'Released',
     body: (cs, suspect) =>
-      `Case Strength ended at ${cs} — not enough to charge. ${suspect} walks. The detective failed to build the case.`,
+      `Case Strength ended at ${cs}. That wasn't enough to charge, so ${suspect} walks out the door. You couldn't make it stick.`,
   },
 }
 
@@ -489,7 +489,7 @@ function renderReviewerExchange(d, isWitness) {
         lines.push(`<p class="reviewer-signal crack">Guilty knowledge leak: ${escapeHtml(inv.signals.guiltyKnowledgeLeak.description)}</p>`)
       }
       for (const eh of inv.signals.evidenceHandling) {
-        lines.push(`<p class="reviewer-signal">${escapeHtml(eh.evidenceId)} — quality ${eh.quality} (${EVIDENCE_QUALITY_LABELS[eh.quality]}): ${escapeHtml(eh.description)}</p>`)
+        lines.push(`<p class="reviewer-signal">${escapeHtml(eh.evidenceId)}: quality ${eh.quality} (${EVIDENCE_QUALITY_LABELS[eh.quality]}): ${escapeHtml(eh.description)}</p>`)
       }
       if (inv.signals.demeanorShift) {
         lines.push('<p class="reviewer-signal">Demeanor shift observed.</p>')
@@ -504,7 +504,7 @@ function renderReviewerExchange(d, isWitness) {
 
   return `
     <div class="verdict-line${delta > 0 ? ' crack' : ''}">
-      <span class="verdict-label">${isWitness ? 'Witness' : 'Suspect'} turn ${d.turn}${demeanor ? ` — ${escapeHtml(demeanor)}` : ''}</span>
+      <span class="verdict-label">${isWitness ? 'Witness' : 'Suspect'} turn ${d.turn}${demeanor ? `, ${escapeHtml(demeanor)}` : ''}</span>
       <span class="verdict-delta">${deltaText} (${d.caseStrengthBefore} → ${d.caseStrengthAfter})</span>
     </div>
     <div class="reviewer-exchange-body">
@@ -529,13 +529,13 @@ function renderReviewerBody(breakdown) {
     .map((e) => {
       const quality = findEvidenceQuality(breakdown, e.id)
       const qualityNote = quality
-        ? ` — quality ${quality.quality} (${EVIDENCE_QUALITY_LABELS[quality.quality]})`
+        ? `, quality ${quality.quality} (${EVIDENCE_QUALITY_LABELS[quality.quality]})`
         : ''
       return `
         <p class="reviewer-evidence-row${e.presented ? '' : ' never-presented'}">
           <span class="exhibit-id">${escapeHtml(e.id)}</span>
           ${escapeHtml(e.claim)}
-          <span class="reviewer-evidence-status">${e.presented ? 'presented' : 'crackable — never pushed'}</span>${qualityNote}
+          <span class="reviewer-evidence-status">${e.presented ? 'presented' : 'had a weak spot, never played'}</span>${qualityNote}
         </p>
       `
     })

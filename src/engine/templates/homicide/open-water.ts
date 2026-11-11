@@ -32,7 +32,7 @@ export const openWater: Template = {
     return {
       suspect: { name: suspect.name, occupation: r.pick(['solicitor', 'surveyor', 'IT consultant', 'nurse']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's spouse of several years` },
-      location: `${lake} — found in the shallows near the eastern jetty`,
+      location: `${lake}, found in the shallows near the eastern jetty`,
       window: { start, end },
 
       truth: beats(
@@ -49,30 +49,30 @@ export const openWater: Template = {
           id: 'e1', type: 'digital',
           linkedBeats: ['t6'],
           claim: `The suspect's phone pinged a tower covering the lake and its car park at ${pingTime}, ${pingOffset - 20} minutes after the time they say they left.`,
-          vulnerability: `That tower's coverage radius is wide and imprecise, overlapping the public car park and a stretch of the main road — the ping shows the phone was somewhere in a broad area, not specifically at the jetty.`,
+          vulnerability: `That tower's coverage radius is wide and imprecise, overlapping the public car park and a stretch of the main road, the ping shows the phone was somewhere in a broad area, not specifically at the jetty.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t3'],
           claim: `Pre-death bruising on ${victim.name}'s scalp is consistent with striking a submerged post, not with a straightforward drowning.`,
-          vulnerability: `That stretch of shoreline is littered with old mooring posts just under the surface — the pathologist concedes an accidental fall from the jetty could produce the same injury without anyone else involved.`,
+          vulnerability: `That stretch of shoreline is littered with old mooring posts just under the surface, the pathologist concedes an accidental fall from the jetty could produce the same injury without anyone else involved.`,
         },
         {
           id: 'e3', type: 'circumstantial',
           linkedBeats: ['t1', 't2'],
           claim: `Messages between the suspect and ${lover} show the affair was ongoing, and that ${victim.name} had found out and confronted the suspect two days before the walk.`,
-          vulnerability: `An affair gives a motive for divorce, not necessarily for murder — plenty of marriages survive discovered affairs, and the messages don't show the suspect wanting ${victim.name} dead, only wanting to avoid losing everything in a split.`,
+          vulnerability: `An affair gives a motive for divorce, not necessarily for murder, plenty of marriages survive discovered affairs, and the messages don't show the suspect wanting ${victim.name} dead, only wanting to avoid losing everything in a split.`,
         },
         {
           id: 'e4', type: 'digital',
           linkedBeats: ['t5'],
-          claim: `CCTV from the lake car park shows only the suspect's car leaving that evening — ${victim.name}'s car remained in the car park overnight.`,
-          vulnerability: `${victim.name} often walked to the lake from home rather than driving — ${vp.poss} car not being there could mean ${vp.subj} walked, not that ${vp.subj} never left.`,
+          claim: `CCTV from the lake car park shows only the suspect's car leaving that evening, and ${victim.name}'s car remained in the car park overnight.`,
+          vulnerability: `${victim.name} often walked to the lake from home rather than driving, ${vp.poss} car not being there could mean ${vp.subj} walked, not that ${vp.subj} never left.`,
         },
         {
           id: 'e5', type: 'physical',
           linkedBeats: ['t4'],
-          claim: `Post-mortem bruising on ${victim.name}'s shoulders is consistent with downward pressure from above — the pathologist says the marks don't match the head injury from the submerged post.`,
+          claim: `Post-mortem bruising on ${victim.name}'s shoulders is consistent with downward pressure from above, and the pathologist says the marks don't match the head injury from the submerged post.`,
           vulnerability: `The lakeside current could press a floating body against mooring posts, and the pathologist concedes a strong undertow might produce similar marks to manual pressure.`,
         },
       ],
@@ -89,7 +89,7 @@ export const openWater: Template = {
         ],
       },
 
-      fatalFact: `The suspect held ${victim.name} under rather than pulling ${vp.obj} out once ${vp.subj} was already struggling in the water — this was not a failed rescue attempt.`,
+      fatalFact: `The suspect held ${victim.name} under rather than pulling ${vp.obj} out once ${vp.subj} was already struggling in the water; this was not a failed rescue attempt.`,
 
       suspectPersona: {
         personality: `Performs grief convincingly and leans hard into the "devoted but imperfect spouse" framing, treating the affair as the real crime they're ashamed of rather than deflecting from the death itself. Becomes clipped and evasive specifically around the moment ${victim.name} went into the water.`,
@@ -107,7 +107,7 @@ export const openWater: Template = {
         suspectSummary: `${suspect.name}, ${victim.name}'s spouse, had been having an affair with ${lover}, recently discovered by ${victim.name}, who was pushing for a divorce and a full asset split.`,
         sceneSummary: `${lake}, eastern jetty and shoreline. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was pushed from the jetty during an argument, struck their head on a submerged post, and was held under rather than pulled out. The suspect is ${victim.name}'s spouse, who was recently discovered to be having an affair with ${lover} and was facing a demand for divorce and a full asset split.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

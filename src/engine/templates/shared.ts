@@ -12,13 +12,13 @@ import type {
  *
  * A template describes one interrogation scenario: fixed narrative shape,
  * randomised slots (names, times, amounts). `build()` is called with a seeded
- * Rng and must be pure — same Rng draw sequence, same output — since generate()
+ * Rng and must be pure, same Rng draw sequence, same output, since generate()
  * relies on it for determinism.
  */
 
 export type DetectiveIdentity = { name: string; rank: string }
 
-/** Evidence as authored by a template — generate() adds `presented: false`. */
+/** Evidence as authored by a template, generate() adds `presented: false`. */
 export type TemplateEvidence = {
   id: string
   type: EvidenceType

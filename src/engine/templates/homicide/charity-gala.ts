@@ -33,7 +33,7 @@ export const charityGala: Template = {
     return {
       suspect: { name: suspect.name, occupation: r.pick(['fundraising manager', 'events director', 'communications lead', 'account director']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's professional rival` },
-      location: `${venue} — found at the base of the service stairwell behind the kitchen`,
+      location: `${venue}, found at the base of the service stairwell behind the kitchen`,
       window: { start, end },
 
       truth: beats(
@@ -50,31 +50,31 @@ export const charityGala: Template = {
           id: 'e1', type: 'witness',
           linkedBeats: ['t1'],
           claim: `CCTV from the bar area shows the suspect handing ${victim.name} a drink directly, rather than ${victim.name} collecting it themselves.`,
-          vulnerability: `It was an open bar with the suspect and ${victim.name} both circulating and handing each other drinks all night, like most of the guests — dozens of similar hand-offs happened on the same footage.`,
+          vulnerability: `It was an open bar with the suspect and ${victim.name} both circulating and handing each other drinks all night, like most of the guests, dozens of similar hand-offs happened on the same footage.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t1', 't2'],
           claim: `Toxicology found a sedative in ${victim.name}'s system consistent with being administered earlier in the evening.`,
-          vulnerability: `The ingestion window toxicology gives is wide, covering several hours during which ${victim.name} had dozens of drinks from the open bar handed by many different people — the sedative's presence doesn't identify who administered it.`,
+          vulnerability: `The ingestion window toxicology gives is wide, covering several hours during which ${victim.name} had dozens of drinks from the open bar handed by many different people, the sedative's presence doesn't identify who administered it.`,
         },
         {
           id: 'e3', type: 'physical',
           linkedBeats: ['t3', 't4'],
-          claim: `Bruising on ${victim.name}'s upper arms is consistent with being supported or walked while heavily sedated — the marks suggest ${vp.subj} was physically moved into the service corridor.`,
-          vulnerability: `${victim.name} was visibly unsteady from the sedative by that point — anyone nearby, including kitchen staff, may have grabbed ${vp.poss} arms simply trying to help ${vp.obj} walk, which could leave the same marks.`,
+          claim: `Bruising on ${victim.name}'s upper arms is consistent with being supported or walked while heavily sedated, and the marks suggest ${vp.subj} was physically moved into the service corridor.`,
+          vulnerability: `${victim.name} was visibly unsteady from the sedative by that point; anyone nearby, including kitchen staff, may have grabbed ${vp.poss} arms simply trying to help ${vp.obj} walk, which could leave the same marks.`,
         },
         {
           id: 'e4', type: 'digital',
           linkedBeats: ['t3', 't5'],
           claim: `CCTV from the main ballroom shows the suspect leaving through the service corridor door at ${addMinutes(start, 27)} and returning ${cctvReturnMinutes} minutes later, without ${victim.name}.`,
-          vulnerability: `The service corridor leads to the restrooms as well as the stairwell — the suspect could have been going to or from the toilets, and ${victim.name} may have stayed behind or gone elsewhere.`,
+          vulnerability: `The service corridor leads to the restrooms as well as the stairwell; the suspect could have been going to or from the toilets, and ${victim.name} may have stayed behind or gone elsewhere.`,
         },
         {
           id: 'e5', type: 'financial',
           linkedBeats: ['t1'],
           claim: `HR records show the suspect and ${victim.name} were the two finalists for the same ${promotion} role, with a decision due the following week.`,
-          vulnerability: `Competing for the same promotion is extremely common and resolves without incident the overwhelming majority of the time — professional rivalry is a motive in the abstract, not evidence of this specific act.`,
+          vulnerability: `Competing for the same promotion is extremely common and resolves without incident the overwhelming majority of the time, professional rivalry is a motive in the abstract, not evidence of this specific act.`,
         },
       ],
 
@@ -82,7 +82,7 @@ export const charityGala: Template = {
         id: 'w1',
         name: caterer.name,
         relationship: `catering staff working the service corridor that night`,
-        personality: `Busy and task-focused during the event, recalling things through the lens of the service schedule rather than the social drama — precise about timing because of the supply runs, vague about everything else.`,
+        personality: `Busy and task-focused during the event, recalling things through the lens of the service schedule rather than the social drama, precise about timing because of the supply runs, vague about everything else.`,
         knowledgeBoundary: `Was doing supply runs through the service corridor most of the evening and saw two people near the top of the service stairwell around the time in question, but was focused on a tray and didn't get a clear look at faces. Found ${victim.name} at the bottom on a later run. Has no knowledge of the drink or the sedative.`,
         suspectContradictions: [
           `If the suspect claims they never went near the service corridor that night, ${cp.subj} saw two people near the stairwell at roughly that time.`,
@@ -90,16 +90,16 @@ export const charityGala: Template = {
         ],
       },
 
-      fatalFact: `The suspect administered a lethal dose of sedative via the drink and left ${victim.name} in the service corridor to die — this was not an accidental overdose from a few too many drinks.`,
+      fatalFact: `The suspect administered a lethal dose of sedative via the drink and left ${victim.name} in the service corridor to die; this was not an accidental overdose from a few too many drinks.`,
 
       suspectPersona: {
-        personality: `Polished and professionally composed even under direct questioning — the same skill that makes them good at the job makes them hard to read here. Frames the promotion rivalry as "healthy competition" to downplay motive, and expresses performative shock about the "accident."`,
-        coverStory: `Saw ${victim.name} looking unsteady near the bar around ${addMinutes(start, 15)} and assumed ${vp.subj}'d had too much to drink, like plenty of people that night. Didn't walk ${vp.obj} anywhere — last saw ${vp.obj} heading toward the restrooms, which happen to be past the service corridor. Went back to mingling and only learned about the fall when the gala was interrupted.`,
+        personality: `Polished and professionally composed even under direct questioning, the same skill that makes them good at the job makes them hard to read here. Frames the promotion rivalry as "healthy competition" to downplay motive, and expresses performative shock about the "accident."`,
+        coverStory: `Saw ${victim.name} looking unsteady near the bar around ${addMinutes(start, 15)} and assumed ${vp.subj}'d had too much to drink, like plenty of people that night. Didn't walk ${vp.obj} anywhere; last saw ${vp.obj} heading toward the restrooms, which happen to be past the service corridor. Went back to mingling and only learned about the fall when the gala was interrupted.`,
         breakingPoints: ['the CCTV of handing over the drink', 'what exactly happened in the service corridor', 'the timing of the supply-run witness sighting', 'the promotion decision due the following week'],
         guiltyKnowledge: [
           `The drink was deliberately laced with a sedative, not just normal party drinking`,
           `${victim.name} was guided to the stairwell specifically, not heading to the restrooms alone`,
-          `The dose was calculated to be lethal — ${victim.name} was not going to recover regardless of whether anyone found ${vp.obj}`,
+          `The dose was calculated to be lethal, ${victim.name} was not going to recover regardless of whether anyone found ${vp.obj}`,
         ],
       },
 
@@ -108,7 +108,7 @@ export const charityGala: Template = {
         suspectSummary: `${suspect.name}, a colleague of ${victim.name}'s, was the other finalist for the same ${promotion} role, with a decision due the following week.`,
         sceneSummary: `${venue}, service stairwell behind the kitchen. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was given a lethal dose of sedative via a drink at the open bar and left to die in the service corridor. The body was found at the base of the service stairwell where ${vp.subj} collapsed. The suspect is a colleague of ${victim.name}'s, the other finalist for the same ${promotion} role with a decision due the following week.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

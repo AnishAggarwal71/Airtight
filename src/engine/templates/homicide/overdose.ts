@@ -30,9 +30,9 @@ export const overdose: Template = {
     const refillOffset = r.int(-4, -1)
 
     return {
-      suspect: { name: suspect.name, occupation: r.pick(['registered carer', 'part-time nurse', 'none — full-time family carer']), pronoun: suspect.pronoun },
+      suspect: { name: suspect.name, occupation: r.pick(['registered carer', 'part-time nurse', 'full-time family carer']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's elderly, dependent parent` },
-      location: `${house} — found unresponsive in the bedroom`,
+      location: `${house}, found unresponsive in the bedroom`,
       window: { start, end },
 
       truth: beats(
@@ -49,13 +49,13 @@ export const overdose: Template = {
           id: 'e1', type: 'financial',
           linkedBeats: ['t1'],
           claim: `Pharmacy records show the suspect, as registered carer, collected a repeat prescription of ${medication} ${Math.abs(refillOffset)} days early.`,
-          vulnerability: `${victim.name}'s dosing needs fluctuated and early refills had happened before, documented in the care notes — an early refill alone has a mundane explanation on this specific case history.`,
+          vulnerability: `${victim.name}'s dosing needs fluctuated and early refills had happened before, documented in the care notes, an early refill alone has a mundane explanation on this specific case history.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t2', 't3'],
           claim: `Toxicology shows a ${medication} level in ${victim.name}'s blood significantly above the prescribed dose.`,
-          vulnerability: `${victim.name}'s declining kidney function meant the drug cleared more slowly than it used to — a correctly measured dose could still show as elevated in a post-mortem toxicology reading, depending on timing.`,
+          vulnerability: `${victim.name}'s declining kidney function meant the drug cleared more slowly than it used to, a correctly measured dose could still show as elevated in a post-mortem toxicology reading, depending on timing.`,
         },
         {
           id: 'e3', type: 'circumstantial',
@@ -67,13 +67,13 @@ export const overdose: Template = {
           id: 'e4', type: 'financial',
           linkedBeats: ['t2'],
           claim: `${victim.name}'s will leaves the bulk of a £${estate.toLocaleString()} estate to the suspect in recognition of years of caregiving, over objections from a sibling.`,
-          vulnerability: `The will predates the death by years and reflects an existing, long-settled family arrangement — it's evidence of motive in the abstract, not of anything done this particular evening.`,
+          vulnerability: `The will predates the death by years and reflects an existing, long-settled family arrangement; it's evidence of motive in the abstract, not of anything done this particular evening.`,
         },
         {
           id: 'e5', type: 'physical',
           linkedBeats: ['t6', 't1'],
-          claim: `Pharmacy dispensing records show ${Math.abs(refillOffset) + 4} tablets of ${medication} supplied over the past month; only ${Math.abs(refillOffset) + 1} are accounted for in the blister pack and the care diary — at least 3 tablets are missing.`,
-          vulnerability: `Tablet counts in home care are notoriously unreliable — pills get dropped, miscounted, or taken by the patient themselves in confusion.`,
+          claim: `Pharmacy dispensing records show ${Math.abs(refillOffset) + 4} tablets of ${medication} supplied over the past month; only ${Math.abs(refillOffset) + 1} are accounted for in the blister pack and the care diary, so at least 3 tablets are missing.`,
+          vulnerability: `Tablet counts in home care are notoriously unreliable, pills get dropped, miscounted, or taken by the patient themselves in confusion.`,
         },
       ],
 
@@ -89,11 +89,11 @@ export const overdose: Template = {
         ],
       },
 
-      fatalFact: `The early prescription refill was collected specifically to have surplus medication on hand for that evening — not an administrative accident, as the suspect's account implies.`,
+      fatalFact: `The early prescription refill was collected specifically to have surplus medication on hand for that evening, not an administrative accident, as the suspect's account implies.`,
 
       suspectPersona: {
-        personality: `Visibly worn down by months of caregiving, which reads as genuine exhaustion rather than performance — because it is genuine, which makes the deliberate act underneath harder for the suspect to reconcile even in their own account. Defensive about being "blamed for doing their best."`,
-        coverStory: `Gave ${vp.obj} the normal evening dose about ${start}, same as always, following the care diary. ${victim.name} seemed tired but not unusual at first. When ${vp.poss} breathing changed, the suspect tried to figure out if it was serious before panicking and calling for help — didn't want to overreact and waste the ambulance crew's time over nothing.`,
+        personality: `Visibly worn down by months of caregiving, which reads as genuine exhaustion rather than performance, because it is genuine, which makes the deliberate act underneath harder for the suspect to reconcile even in their own account. Defensive about being "blamed for doing their best."`,
+        coverStory: `Gave ${vp.obj} the normal evening dose about ${start}, same as always, following the care diary. ${victim.name} seemed tired but not unusual at first. When ${vp.poss} breathing changed, the suspect tried to figure out if it was serious before panicking and calling for help, didn't want to overreact and waste the ambulance crew's time over nothing.`,
         breakingPoints: ['the early prescription refill', 'the exact dose given that evening', 'the 35-minute gap before calling 999', 'the missing surplus medication'],
         guiltyKnowledge: [
           `The dose given was deliberately beyond the prescribed amount, not a normal dose`,
@@ -107,7 +107,7 @@ export const overdose: Template = {
         suspectSummary: `${suspect.name}, ${victim.name}'s registered carer and child, stood to inherit the bulk of a £${estate.toLocaleString()} estate and had collected an early prescription refill days before the death.`,
         sceneSummary: `${house}, bedroom. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was given a dose of ${medication} well beyond the prescribed amount during the evening medication round, and help was delayed afterward. The suspect is ${victim.name}'s child and full-time carer, who stood to inherit the bulk of a £${estate.toLocaleString()} estate and had collected a prescription refill days early.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

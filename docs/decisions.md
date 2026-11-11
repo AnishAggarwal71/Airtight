@@ -5,6 +5,25 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-11-11 — Plain-voice copy pass, no em dashes in player-facing text
+
+**Decided:** All text the player sees (start screen, in-game labels, ending
+screens, breakdown, case-template briefings/evidence/relationships, server
+error messages) was rewritten without em dashes and with less stock
+"product/AI" phrasing. The suspect and witness prompts got a voice rule
+(`adjudicate.ts` rule 11, `witness.ts` rule 5): plain speech, contractions,
+no em dashes, no stock phrases like "I assure you". Em dashes in the hidden
+template fields (vulnerabilities, fatal facts, cover stories) were also
+replaced so the persona model has no dash-heavy text to imitate.
+
+**Caveats:** The voice rule is a prompt instruction, not a guarantee, so a
+dash can still slip into model-written dialogue; if that shows up in
+playtests, strip them in the response handler rather than adding more prompt
+text. `npm run play` (CLI) output and code comments still use em dashes on
+purpose. `verify.ts` check 11 now matches the new daily-budget message
+("closed for the day"). Ending labels changed to "Charged, strong case" /
+"Charged, shaky case".
+
 ## 2026-11-08 — HUD labels (web UI)
 
 **Decided:** Playtest feedback: the interrogation HUD (a bare case number, a

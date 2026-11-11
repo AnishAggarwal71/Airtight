@@ -33,7 +33,7 @@ export const allotment: Template = {
     return {
       suspect: { name: suspect.name, occupation: r.pick(['retired postal worker', 'school caretaker', 'plumber', 'market trader']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the plot-holder two rows over` },
-      location: `${site} — found face-down between the runner bean canes on ${vp.poss} own plot`,
+      location: `${site}, found face-down between the runner bean canes on ${vp.poss} own plot`,
       window: { start, end },
 
       truth: beats(
@@ -50,13 +50,13 @@ export const allotment: Template = {
           id: 'e1', type: 'physical',
           linkedBeats: ['t5'],
           claim: `A torn fragment of ${gloveColour} fabric was caught on the rusted latch of the communal shed.`,
-          vulnerability: `Half the plot-holders use that shed and that latch snags everyone — three other people have reported torn gloves on it this year. It proves presence at the shed, not at the body.`,
+          vulnerability: `Half the plot-holders use that shed and that latch snags everyone, three other people have reported torn gloves on it this year. It proves presence at the shed, not at the body.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t3'],
           claim: `A ligature mark consistent with cord or line, not a fall, was found on ${victim.name}'s neck.`,
-          vulnerability: `${victim.name} grew runner beans up garden twine strung at neck height — the pathologist admits a bad fall into strung twine could leave a similar mark, though it's a stretch.`,
+          vulnerability: `${victim.name} grew runner beans up garden twine strung at neck height, the pathologist admits a bad fall into strung twine could leave a similar mark, though it's a stretch.`,
         },
         {
           id: 'e3', type: 'witness',
@@ -67,8 +67,8 @@ export const allotment: Template = {
         {
           id: 'e4', type: 'circumstantial',
           linkedBeats: ['t2'],
-          claim: `A watering can on ${victim.name}'s plot was knocked over near the bean canes, consistent with a sudden interruption or struggle — yet the suspect claims the conversation was brief and calm.`,
-          vulnerability: `A watering can next to runner beans gets knocked over by wind, foxes, or anyone walking between the rows — it's hardly proof of a struggle.`,
+          claim: `A watering can on ${victim.name}'s plot was knocked over near the bean canes, consistent with a sudden interruption or struggle, yet the suspect claims the conversation was brief and calm.`,
+          vulnerability: `A watering can next to runner beans gets knocked over by wind, foxes, or anyone walking between the rows; it's hardly proof of a struggle.`,
         },
         {
           id: 'e5', type: 'digital',
@@ -81,16 +81,16 @@ export const allotment: Template = {
       witness: {
         id: 'w1',
         name: otherHolder.name,
-        relationship: `fellow plot-holder — tends the plot backing onto ${victim.name}'s`,
+        relationship: `fellow plot-holder, tends the plot backing onto ${victim.name}'s`,
         personality: `Blunt and a little gossipy, enjoys being asked for an opinion. Will volunteer rumour as readily as fact unless pressed to separate the two. Genuinely liked the victim.`,
-        knowledgeBoundary: `Was watering nearby and heard the suspect and victim talking, tone rising, around the time of the visit. Didn't see the confrontation itself — the sheds blocked the view. Heard what sounded like the shed door later, around ${addMinutes(start, latchOffset - 1)}. Has no idea how the victim actually died.`,
+        knowledgeBoundary: `Was watering nearby and heard the suspect and victim talking, tone rising, around the time of the visit. Didn't see the confrontation itself, the sheds blocked the view. Heard what sounded like the shed door later, around ${addMinutes(start, latchOffset - 1)}. Has no idea how the victim actually died.`,
         suspectContradictions: [
           `If the suspect claims they never went near ${victim.name}'s plot that evening, ${op.subj} heard them talking right there.`,
           `If the suspect claims the conversation was calm, ${op.subj} heard raised voices.`,
         ],
       },
 
-      fatalFact: `The suspect returned to the shed and handled the latch minutes after ${victim.name} stopped answering — not before, as their account implies.`,
+      fatalFact: `The suspect returned to the shed and handled the latch minutes after ${victim.name} stopped answering, not before, as their account implies.`,
 
       suspectPersona: {
         personality: `Prickly and self-righteous about the dispute, treats the whole thing as a grievance rather than a crime. Happy to litigate the boundary argument at length as a deflection. Goes quiet and short when the conversation moves from the dispute to the actual evening.`,
@@ -108,7 +108,7 @@ export const allotment: Template = {
         suspectSummary: `${suspect.name}, who holds a nearby plot, had been in a long and documented dispute with ${victim.name} over ${dispute}. They admit to visiting the plot that evening.`,
         sceneSummary: `${site}. The body lay between the bean canes on ${victim.name}'s plot. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was strangled with a washing line among the bean canes on their own plot and the body left to look like a fall or heart attack. The suspect holds a nearby plot and had been in a long-running dispute with ${victim.name} over ${dispute}.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

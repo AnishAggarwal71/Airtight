@@ -26,7 +26,7 @@ import { serializeLedger } from './ledger'
 
 export const WitnessResponseSchema = z.object({
   dialogue: z.string().describe(
-    'The witness\'s spoken response — in character, 2–4 sentences. ' +
+    'The witness\'s spoken response, in character, 2-4 sentences. ' +
     'Stay within your knowledge boundary. Don\'t speculate beyond what you know.',
   ),
   claims: z.array(z.object({
@@ -66,7 +66,9 @@ export function buildWitnessSystemPrompt(caseFile: CaseFile): string {
   lines.push('2. Stay within your knowledge boundary. If asked something you don\'t know, say so. Don\'t fabricate details.')
   lines.push('3. If the detective asks about something where your knowledge contradicts the suspect\'s claims, answer honestly — this will naturally create the contradiction.')
   lines.push('4. Don\'t volunteer information the detective hasn\'t asked about. Be responsive, not proactive.')
-  lines.push('5. Return ONLY the structured JSON matching the schema. No extra text outside the JSON.')
+  // Voice rule: same intent as the suspect prompt's rule 11 (plain speech, no em dashes).
+  lines.push('5. Talk like an ordinary person who got dragged into this, not a press statement. Short, plain sentences. Contractions. Hesitate or backtrack when you are unsure. Never use em dashes (use a comma, a full stop, or "..." instead). Avoid stock phrases like "I understand your concern" or "to be clear".')
+  lines.push('6. Return ONLY the structured JSON matching the schema. No extra text outside the JSON.')
   lines.push('')
   lines.push('## CASE CONTEXT')
   lines.push(`Suspect: ${caseFile.suspect.name}`)

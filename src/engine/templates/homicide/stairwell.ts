@@ -41,7 +41,7 @@ export const stairwell: Template = {
     return {
       suspect: { name: suspect.name, occupation: suspectOccupation, pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship },
-      location: `${block} — found at the foot of the service stairwell`,
+      location: `${block}, found at the foot of the service stairwell`,
       window: { start, end },
 
       truth: beats(
@@ -58,13 +58,13 @@ export const stairwell: Template = {
           id: 'e1', type: 'digital',
           linkedBeats: ['t6'],
           claim: `The suspect's key card opened the bin store door at ${keyCardExit}.`,
-          vulnerability: `The log records the card, not the person holding it. Cards in that block get lent out all the time — to contractors, to family, to whoever does the gutters.`,
+          vulnerability: `The log records the card, not the person holding it. Cards in that block get lent out all the time, to contractors, to family, to whoever does the gutters.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t3', 't4'],
-          claim: `The pathologist thinks the head injury doesn't quite fit a fall down that stairwell — the angle looks wrong.`,
-          vulnerability: `The report says "less consistent with," not impossible — that's a hedged opinion, not a finding. ${victim.name} also fell in that same stairwell two months ago and was treated for a head injury then.`,
+          claim: `The pathologist thinks the head injury doesn't quite fit a fall down that stairwell. The angle looks wrong.`,
+          vulnerability: `The report says "less consistent with," not impossible; that's a hedged opinion, not a finding. ${victim.name} also fell in that same stairwell two months ago and was treated for a head injury then.`,
         },
         {
           id: 'e3', type: 'digital',
@@ -76,12 +76,12 @@ export const stairwell: Template = {
           id: 'e4', type: 'circumstantial',
           linkedBeats: ['t1'],
           claim: `${victim.name} owed the suspect £${debt.toLocaleString()} and had missed the last three repayment dates.`,
-          vulnerability: `A debt is a reason to want someone alive and earning. Dead, the suspect is just an unsecured creditor at the back of a queue — they lose the money entirely.`,
+          vulnerability: `A debt is a reason to want someone alive and earning. Dead, the suspect is just an unsecured creditor at the back of a queue; they lose the money entirely.`,
         },
         {
           id: 'e5', type: 'physical',
           linkedBeats: ['t2', 't5'],
-          claim: `There's a gap in the wine rack in the kitchen — one bottle missing, and none found in the flat or the bins.`,
+          claim: `There's a gap in the wine rack in the kitchen: one bottle missing, and none found in the flat or the bins.`,
           vulnerability: `${victim.name} drank. A missing bottle from a wine rack is about the least remarkable thing in that kitchen.`,
         },
       ],
@@ -89,25 +89,25 @@ export const stairwell: Template = {
       witness: {
         id: 'w1',
         name: neighbour.name,
-        relationship: `neighbour — lives in the flat directly below ${victim.name}`,
+        relationship: `neighbour, lives in the flat directly below ${victim.name}`,
         personality: `Elderly, eager to help but prone to embellishment. Tends to present guesses as facts. Genuinely wants to assist the police but ${np.poss} hearing and memory aren't what they used to be.`,
-        knowledgeBoundary: `Heard raised voices from ${victim.name}'s flat that night — two people, one of them shouting. Took ${np.poss} hearing aids out before it got loud, so couldn't make out words. Heard a door slam later, around ${addMinutes(start, 22)}. Saw nothing. Did not see anyone enter or leave the building. Has no knowledge of the stairwell or the body.`,
+        knowledgeBoundary: `Heard raised voices from ${victim.name}'s flat that night, two people, one of them shouting. Took ${np.poss} hearing aids out before it got loud, so couldn't make out words. Heard a door slam later, around ${addMinutes(start, 22)}. Saw nothing. Did not see anyone enter or leave the building. Has no knowledge of the stairwell or the body.`,
         suspectContradictions: [
           `If the suspect claims the visit was friendly and quiet, the neighbour heard shouting.`,
           `If the suspect claims they left early, the neighbour heard a door slam around ${addMinutes(start, 22)}.`,
         ],
       },
 
-      fatalFact: `The suspect was still inside that building at ${wifiDrop} — later than the account they're giving allows for.`,
+      fatalFact: `The suspect was still inside that building at ${wifiDrop}, later than the account they're giving allows for.`,
 
       suspectPersona: {
         personality: `Quiet confidence masking genuine fear. Speaks in measured sentences, pauses before answering as if choosing words carefully. Defaults to grieving family member rather than defensive suspect. Will express concern about ${victim.name} to deflect. Becomes terse and guarded when pushed on specific times.`,
-        coverStory: `Went over to check on ${victim.name} around ${start}, had a brief friendly visit — maybe twenty minutes. They talked about money but it was civil. Left before half past, walked to the car, drove home. Was home by ${homeTime}. Had no idea anything had happened until the police called.`,
+        coverStory: `Went over to check on ${victim.name} around ${start}, had a brief friendly visit, maybe twenty minutes. They talked about money but it was civil. Left before half past, walked to the car, drove home. Was home by ${homeTime}. Had no idea anything had happened until the police called.`,
         breakingPoints: ['the wine bottle', 'the exact time they left the building', 'the wifi data showing they stayed late', 'what route they used to leave'],
         guiltyKnowledge: [
           `The body was arranged at the bottom of the stairs to look like a fall`,
           `The bottle ended up in the canal`,
-          `The bin store exit route — most residents wouldn't use it`,
+          `The bin store exit route, most residents wouldn't use it`,
         ],
       },
 
@@ -116,7 +116,7 @@ export const stairwell: Template = {
         suspectSummary: `${suspect.name}, ${suspectOccupation}. ${victim.name} owed ${vp.obj} £${debt.toLocaleString()}. They admit to visiting the flat that evening but say it was a short, friendly visit.`,
         sceneSummary: `${block}. The body was found at the bottom of the service stairwell between the fourth and third floors. Time of death window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was struck twice with a wine bottle in their own flat and the body moved to the stairwell to stage it as a fall. The suspect is ${relationship} to the victim and had been chasing repayment of a £${debt.toLocaleString()} debt that was going nowhere.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

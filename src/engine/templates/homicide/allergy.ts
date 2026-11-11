@@ -33,7 +33,7 @@ export const allergy: Template = {
     return {
       suspect: { name: suspect.name, occupation: r.pick(['estate agent', 'accountant', 'teacher', 'pharmacist']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's sibling, co-heir to the family estate` },
-      location: `${house} — collapsed in the dining room during a family dinner`,
+      location: `${house}, collapsed in the dining room during a family dinner`,
       window: { start, end },
 
       truth: beats(
@@ -50,31 +50,31 @@ export const allergy: Template = {
           id: 'e1', type: 'physical',
           linkedBeats: ['t2'],
           claim: `A receipt shows the suspect bought a jar of ${allergen} paste that same afternoon, despite nobody at the dinner having a stated use for it.`,
-          vulnerability: `The suspect cooks with ${allergen} paste regularly in other dishes — nobody checked whether the pantry already had an opened jar, which would make a fresh purchase unremarkable.`,
+          vulnerability: `The suspect cooks with ${allergen} paste regularly in other dishes; nobody checked whether the pantry already had an opened jar, which would make a fresh purchase unremarkable.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t6'],
           claim: `The ramekin used for the sauce was found rinsed and put away, unlike every other dish from that dinner, which was left in the sink.`,
-          vulnerability: `The suspect says they rinsed it on autopilot while panicking and calling 999 — an understandable, if unlucky-looking, reflex rather than evidence of concealment.`,
+          vulnerability: `The suspect says they rinsed it on autopilot while panicking and calling 999, an understandable, if unlucky-looking, reflex rather than evidence of concealment.`,
         },
         {
           id: 'e3', type: 'physical',
           linkedBeats: ['t4'],
-          claim: `Paramedic records show a ${Math.round(reactionOffset * 0.3)}-minute gap between the onset of anaphylaxis symptoms and the administration of the auto-injector — longer than expected given the device was reportedly kept in the hallway.`,
-          vulnerability: `Panicked people searching a familiar house for a small object under pressure often take longer than they would normally — a few delayed minutes reads very differently in hindsight than it did in the moment.`,
+          claim: `Paramedic records show a ${Math.round(reactionOffset * 0.3)}-minute gap between the onset of anaphylaxis symptoms and the administration of the auto-injector, which is longer than expected given the device was reportedly kept in the hallway.`,
+          vulnerability: `Panicked people searching a familiar house for a small object under pressure often take longer than they would normally, a few delayed minutes reads very differently in hindsight than it did in the moment.`,
         },
         {
           id: 'e4', type: 'financial',
           linkedBeats: ['t1'],
           claim: `Estate paperwork shows the suspect stood to gain sole control of the £${inheritance.toLocaleString()} house sale if ${victim.name} were out of the picture.`,
-          vulnerability: `${victim.name}'s death doesn't remove other heirs or legal complications from the estate — several other relatives have a claim, so the suspect doesn't automatically inherit sole control.`,
+          vulnerability: `${victim.name}'s death doesn't remove other heirs or legal complications from the estate, several other relatives have a claim, so the suspect doesn't automatically inherit sole control.`,
         },
         {
           id: 'e5', type: 'circumstantial',
           linkedBeats: ['t6'],
-          claim: `The kitchen bin was emptied that evening — the only night in months the bin was taken out before morning, according to the collection schedule.`,
-          vulnerability: `The suspect says they were tidying while waiting for the ambulance — emptying the bin is exactly the kind of automatic task people do under stress.`,
+          claim: `The kitchen bin was emptied that evening. It's the only night in months the bin was taken out before morning, according to the collection schedule.`,
+          vulnerability: `The suspect says they were tidying while waiting for the ambulance, emptying the bin is exactly the kind of automatic task people do under stress.`,
         },
       ],
 
@@ -86,15 +86,15 @@ export const allergy: Template = {
         knowledgeBoundary: `Was at the table and saw ${victim.name} start struggling to breathe. Noticed earlier that the suspect had plated a separate ramekin of sauce for ${victim.name}'s portion, which ${op.subj} thought was considerate at the time. Didn't see the actual cooking. Has no idea the sauce was tampered with.`,
         suspectContradictions: [
           `If the suspect claims they found the injector immediately, ${op.subj} remembers it taking a while.`,
-          `If the suspect claims everyone ate the same food, ${op.subj} noticed the suspect plating a separate ramekin of sauce for ${victim.name}'s portion — ${op.subj} thought it was considerate at the time.`,
+          `If the suspect claims everyone ate the same food, ${op.subj} noticed the suspect plating a separate ramekin of sauce for ${victim.name}'s portion, ${op.subj} thought it was considerate at the time.`,
         ],
       },
 
-      fatalFact: `The suspect bought the allergen that same afternoon and worked it specifically into ${victim.name}'s portion — this wasn't an accidental cross-contamination.`,
+      fatalFact: `The suspect bought the allergen that same afternoon and worked it specifically into ${victim.name}'s portion; this wasn't an accidental cross-contamination.`,
 
       suspectPersona: {
-        personality: `Grief-stricken and guilt-ridden in a way that reads, at first, as pure sibling loss rather than concealment — genuinely did love their sibling, which makes the self-justification underneath harder to access. Gets defensive fast about "being blamed for an accident."`,
-        coverStory: `Everyone sat down about ${start} for a normal family dinner to patch things up about the house. Had no idea any of the ingredients could be a problem — the recipe was one the family has made for years, and nobody mentioned the allergy had gotten worse. Looked for the injector as fast as they could. Rinsed the ramekin without thinking, out of pure habit, while waiting for the ambulance.`,
+        personality: `Grief-stricken and guilt-ridden in a way that reads, at first, as pure sibling loss rather than concealment; genuinely did love their sibling, which makes the self-justification underneath harder to access. Gets defensive fast about "being blamed for an accident."`,
+        coverStory: `Everyone sat down about ${start} for a normal family dinner to patch things up about the house. Had no idea any of the ingredients could be a problem, the recipe was one the family has made for years, and nobody mentioned the allergy had gotten worse. Looked for the injector as fast as they could. Rinsed the ramekin without thinking, out of pure habit, while waiting for the ambulance.`,
         breakingPoints: ['the receipt for the allergen paste', 'exactly how long they searched for the injector', 'the rinsed ramekin', 'what the dinner was actually called to discuss'],
         guiltyKnowledge: [
           `The allergen was deliberately worked into ${victim.name}'s specific portion, not a general ingredient`,
@@ -108,7 +108,7 @@ export const allergy: Template = {
         suspectSummary: `${suspect.name}, ${victim.name}'s sibling, hosted the dinner and stood to gain control of a disputed £${inheritance.toLocaleString()} inherited property if ${victim.name} were out of the picture.`,
         sceneSummary: `${house}, dining room and kitchen. ${victim.name} collapsed at the table. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was deliberately fed ${allergen} paste worked into their portion of the meal, then treatment was delayed by several critical minutes. The suspect is ${victim.name}'s sibling, co-heir to a £${inheritance.toLocaleString()} estate ${victim.name} had refused three times to sell.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

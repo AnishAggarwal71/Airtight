@@ -1028,8 +1028,8 @@ await (async () => {
       await store.setJson(dayKey(new Date()), 1_000_000 - TURN + 1, 3600)
       const res = await post(base, '/api/game')
       const body = (await res.json()) as { error?: { code?: string; message?: string } }
-      if (res.status !== 429 || body.error?.code !== 'BUDGET_EXCEEDED' || !/resting/i.test(body.error?.message ?? '')) {
-        fail(`new game with the daily budget spent returned ${res.status} ${JSON.stringify(body)}, want 429 "resting for today"`)
+      if (res.status !== 429 || body.error?.code !== 'BUDGET_EXCEEDED' || !/closed for the day/i.test(body.error?.message ?? '')) {
+        fail(`new game with the daily budget spent returned ${res.status} ${JSON.stringify(body)}, want 429 "closed for the day"`)
         return
       }
       await store.setJson(dayKey(new Date()), 1_000_000 - TURN, 3600)

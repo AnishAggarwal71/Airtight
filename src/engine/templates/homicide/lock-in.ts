@@ -32,7 +32,7 @@ export const lockIn: Template = {
     return {
       suspect: { name: suspect.name, occupation: 'co-owner and licensee', pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's business partner, co-owner of the pub` },
-      location: `${pub} — found behind the bar after an apparent break-in`,
+      location: `${pub}, found behind the bar after an apparent break-in`,
       window: { start, end },
 
       truth: beats(
@@ -49,31 +49,31 @@ export const lockIn: Template = {
           id: 'e1', type: 'digital',
           linkedBeats: ['t4', 't5'],
           claim: `The till system logged a cash count under ${victim.name}'s own staff credentials at ${loginTime}, after the suspect claims they had both already left.`,
-          vulnerability: `Shared logins are common practice among the long-serving staff at that pub — several people are known to use each other's credentials when their own card won't scan. It shows the login happened, not who physically typed it.`,
+          vulnerability: `Shared logins are common practice among the long-serving staff at that pub, several people are known to use each other's credentials when their own card won't scan. It shows the login happened, not who physically typed it.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t4'],
           claim: `The back door glass was broken from the inside, not the outside, inconsistent with the reported break-in.`,
-          vulnerability: `Glass fracture direction from a single blow is notoriously hard to read conclusively, and the forensic examiner's report hedges — "more consistent with," not definitive, leaving room for an unusual break-in method.`,
+          vulnerability: `Glass fracture direction from a single blow is notoriously hard to read conclusively, and the forensic examiner's report hedges, "more consistent with," not definitive, leaving room for an unusual break-in method.`,
         },
         {
           id: 'e3', type: 'financial',
           linkedBeats: ['t2'],
           claim: `Partnership paperwork shows ${victim.name} had served formal notice demanding the suspect either match a £${buyout.toLocaleString()} buyout offer within thirty days or agree to sell.`,
-          vulnerability: `A thirty-day ultimatum is a business dispute with a clear legal process attached, not an immediate crisis — the suspect had options besides violence, which a jury could read either way.`,
+          vulnerability: `A thirty-day ultimatum is a business dispute with a clear legal process attached, not an immediate crisis; the suspect had options besides violence, which a jury could read either way.`,
         },
         {
           id: 'e4', type: 'physical',
           linkedBeats: ['t3'],
           claim: `A bar stool recovered from behind the counter has a chip consistent with recent, forceful impact against a hard surface.`,
-          vulnerability: `That stool gets knocked around every busy Friday night — a recent chip in a well-used piece of pub furniture isn't unusual on its own.`,
+          vulnerability: `That stool gets knocked around every busy Friday night, a recent chip in a well-used piece of pub furniture isn't unusual on its own.`,
         },
         {
           id: 'e5', type: 'witness',
           linkedBeats: ['t1'],
           claim: `A regular customer recalls the suspect saying "${victim.name} is not going to force me out of my own pub" at the bar earlier that week.`,
-          vulnerability: `People say things like that about business disputes all the time without meaning it literally — it's the kind of frustrated remark that gets said in every stressed small business, not a declared threat.`,
+          vulnerability: `People say things like that about business disputes all the time without meaning it literally; it's the kind of frustrated remark that gets said in every stressed small business, not a declared threat.`,
         },
       ],
 
@@ -85,19 +85,19 @@ export const lockIn: Template = {
         knowledgeBoundary: `Left before closing and wasn't present for the lock-in conversation. Knows the business tension had been building for weeks from overheard remarks. Returned the next morning to find the "break-in" already reported. Has no direct knowledge of what happened after closing.`,
         suspectContradictions: [
           `If the suspect claims the partnership was amicable with no real conflict, ${sp.subj} overheard the suspect's remark about not being forced out, which says otherwise.`,
-          `If the suspect claims they left together with ${victim.name} at closing, ${sp.subj} knows they stayed behind — that was the usual Tuesday routine for the books.`,
+          `If the suspect claims they left together with ${victim.name} at closing, ${sp.subj} knows they stayed behind, that was the usual Tuesday routine for the books.`,
         ],
       },
 
-      fatalFact: `The till login under ${victim.name}'s credentials happened after the altercation, staged by the suspect — ${victim.name} was not still alive and working alone at that point.`,
+      fatalFact: `The till login under ${victim.name}'s credentials happened after the altercation, staged by the suspect, ${victim.name} was not still alive and working alone at that point.`,
 
       suspectPersona: {
-        personality: `Businesslike and practical-sounding even under pressure, treats the whole interview as a logistics problem to be managed — a tell in itself, since most people in this situation would be visibly distressed rather than composed. Cracks only when pushed specifically on the till login timing.`,
-        coverStory: `Stayed behind with ${victim.name} to go through the buyout paperwork, which got heated but ended with both of them agreeing to speak again in the morning once tempers cooled. The suspect left first, about ${addMinutes(start, 20)}. Came back the next day to find the back door smashed and ${victim.name} dead — assumed a break-in gone wrong.`,
+        personality: `Businesslike and practical-sounding even under pressure, treats the whole interview as a logistics problem to be managed, a tell in itself, since most people in this situation would be visibly distressed rather than composed. Cracks only when pushed specifically on the till login timing.`,
+        coverStory: `Stayed behind with ${victim.name} to go through the buyout paperwork, which got heated but ended with both of them agreeing to speak again in the morning once tempers cooled. The suspect left first, about ${addMinutes(start, 20)}. Came back the next day to find the back door smashed and ${victim.name} dead, assumed a break-in gone wrong.`,
         breakingPoints: ['the till login timing', 'the direction of the broken glass', 'the bar stool', 'what was actually agreed about the buyout before they "left"'],
         guiltyKnowledge: [
-          `The back door was smashed from inside the bar, then the suspect stepped through the gap — not the other way around`,
-          `The suspect knew ${victim.name}'s till PIN because they'd watched ${vp.obj} type it dozens of times — it wasn't guessed`,
+          `The back door was smashed from inside the bar, then the suspect stepped through the gap, not the other way around`,
+          `The suspect knew ${victim.name}'s till PIN because they'd watched ${vp.obj} type it dozens of times, it wasn't guessed`,
           `${victim.name} did not leave the building alive that night`,
         ],
       },
@@ -107,7 +107,7 @@ export const lockIn: Template = {
         suspectSummary: `${suspect.name}, ${victim.name}'s business partner, was under pressure to match a £${buyout.toLocaleString()} buyout offer or sell the pub within thirty days.`,
         sceneSummary: `${pub}, behind the bar. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was struck with a bar stool during an after-hours argument over the pub's buyout terms, and the scene staged as a break-in using the victim's own till credentials. The suspect is ${victim.name}'s business partner and co-owner, who couldn't afford to match the £${buyout.toLocaleString()} buyout the victim was demanding.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

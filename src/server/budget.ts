@@ -92,9 +92,9 @@ function failClosed(op: string, err: unknown) {
 }
 
 const DAILY_MESSAGE =
-  'The detective bureau is resting for today — the daily budget for this game has been used up. Please come back tomorrow.'
+  'The bureau has closed for the day: the shared daily budget is used up. Come back tomorrow, or play on your own Anthropic key.'
 const SESSION_MESSAGE =
-  'This case has hit its model-spend limit for a single session. Start a new case to continue playing.'
+  'This case has used up its spending limit. Start a new case to keep playing.'
 
 /**
  * Gate for creating a new game: refuses with a friendly 429 when today's

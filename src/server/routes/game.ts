@@ -422,7 +422,7 @@ async function runWitnessTurn(req: Request, sessionId: string, question: string)
       throw conflict(
         session.witnessUsed
           ? 'The witness has already been questioned; that one-time session is closed.'
-          : 'The witness is not available yet — Case Strength has not cleared the unlock threshold.',
+          : 'The witness isn\'t available yet. Build the case a bit more first.',
       )
     }
     const byok = attachByokModel(req, stored, callOpts)

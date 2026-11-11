@@ -31,7 +31,7 @@ export const hikingTrail: Template = {
     return {
       suspect: { name: suspect.name, occupation: r.pick(['architect', 'personal trainer', 'graphic designer', 'veterinary nurse']), pronoun: suspect.pronoun },
       victim: { name: victim.name, relationship: `the suspect's close friend of many years` },
-      location: `${trail} — found at the base of a cliff section known locally as the Scar`,
+      location: `${trail}, found at the base of a cliff section known locally as the Scar`,
       window: { start, end },
 
       truth: beats(
@@ -48,31 +48,31 @@ export const hikingTrail: Template = {
           id: 'e1', type: 'digital',
           linkedBeats: ['t4', 't5'],
           claim: `The suspect's phone GPS shows them stationary at the Scar viewpoint for several minutes, starting around the time ${victim.name} is believed to have fallen.`,
-          vulnerability: `The Scar is the single most photographed viewpoint on the entire trail — hikers routinely stop there for minutes at a time for photos, and the suspect has a documented habit of doing exactly that on previous hikes.`,
+          vulnerability: `The Scar is the single most photographed viewpoint on the entire trail, hikers routinely stop there for minutes at a time for photos, and the suspect has a documented habit of doing exactly that on previous hikes.`,
         },
         {
           id: 'e2', type: 'physical',
           linkedBeats: ['t3'],
           claim: `${victim.name}'s injuries are consistent with being pushed from a standing position rather than losing footing on loose scree.`,
-          vulnerability: `The scree at that exact section is notoriously unstable, and the pathologist's report notes a fall from standing could produce near-identical injuries to a push — it's a judgment call, not a hard finding.`,
+          vulnerability: `The scree at that exact section is notoriously unstable, and the pathologist's report notes a fall from standing could produce near-identical injuries to a push; it's a judgment call, not a hard finding.`,
         },
         {
           id: 'e3', type: 'circumstantial',
           linkedBeats: ['t2'],
           claim: `Messages from ${victim.name} to a mutual friend the night before say "I'm telling everyone this weekend, I can't carry this anymore about ${suspect.name} and ${affairPartner}."`,
-          vulnerability: `The message doesn't name what ${victim.name} intended to reveal — the detective is inferring it was the affair, but ${victim.name} may have meant something else entirely unrelated to the suspect.`,
+          vulnerability: `The message doesn't name what ${victim.name} intended to reveal, the detective is inferring it was the affair, but ${victim.name} may have meant something else entirely unrelated to the suspect.`,
         },
         {
           id: 'e4', type: 'digital',
           linkedBeats: ['t6'],
-          claim: `A trail-cam photo timestamped at ${addMinutes(start, 50)} shows the suspect walking alone past the marker post below the Scar, at a normal pace — no sign of urgency or distress.`,
-          vulnerability: `Shock affects people very differently — a flat or calm affect after trauma is a recognised and common response, not reliable evidence of guilt on its own.`,
+          claim: `A trail-cam photo timestamped at ${addMinutes(start, 50)} shows the suspect walking alone past the marker post below the Scar, at a normal pace, with no sign of urgency or distress.`,
+          vulnerability: `Shock affects people very differently, a flat or calm affect after trauma is a recognised and common response, not reliable evidence of guilt on its own.`,
         },
         {
           id: 'e5', type: 'physical',
           linkedBeats: ['t3'],
           claim: `Scuff marks at the cliff edge are consistent with two sets of boot prints close together, not one person walking alone to the edge.`,
-          vulnerability: `That viewpoint sees dozens of hikers a week standing close together for photos — overlapping boot prints from unrelated hikers earlier that day are entirely plausible.`,
+          vulnerability: `That viewpoint sees dozens of hikers a week standing close together for photos, overlapping boot prints from unrelated hikers earlier that day are entirely plausible.`,
         },
       ],
 
@@ -88,25 +88,25 @@ export const hikingTrail: Template = {
         ],
       },
 
-      fatalFact: `The suspect stood at the viewpoint for several minutes after ${victim.name} went over the edge before moving on — this was not someone who had just witnessed an accidental fall and rushed to help.`,
+      fatalFact: `The suspect stood at the viewpoint for several minutes after ${victim.name} went over the edge before moving on; this was not someone who had just witnessed an accidental fall and rushed to help.`,
 
       suspectPersona: {
-        personality: `Leans on the decades-long friendship as a shield — "I would never, we've hiked together for years" — treating the accusation itself as the offense. Composed in a way that reads as denial rather than innocence once the GPS data comes up.`,
+        personality: `Leans on the decades-long friendship as a shield, "I would never, we've hiked together for years", treating the accusation itself as the offense. Composed in a way that reads as denial rather than innocence once the GPS data comes up.`,
         coverStory: `Got to the trailhead about ${start}. ${victim.name} seemed a bit distracted that day but nothing alarming. They were hiking together near the Scar, the suspect went ahead a short way to take photos, and when they turned back ${victim.name} was gone. Assumed ${vp.subj} had gone on ahead. Only realised something was wrong much further down the trail and called it in immediately.`,
         breakingPoints: ['the GPS data showing them stationary at the Scar', `what ${victim.name} actually said about telling everyone`, 'why they didn\'t call for help sooner', 'their demeanor when the other hiker passed them'],
         guiltyKnowledge: [
           `${victim.name} went over the edge during a confrontation, not while out of sight ahead on the trail`,
           `The suspect saw ${victim.name} at the base of the cliff and did not immediately seek help`,
-          `${victim.name} had already told one person about the affair before the hike — the suspect found out from a text notification on ${victim.name}'s phone at the viewpoint`,
+          `${victim.name} had already told one person about the affair before the hike, the suspect found out from a text notification on ${victim.name}'s phone at the viewpoint`,
         ],
       },
 
       detectiveBriefing: {
         victimSummary: `${victim.name} was found dead at the base of a cliff section known as the Scar on ${trail}, while hiking with the suspect. Initial assessment leaned toward a fall on unstable scree.`,
-        suspectSummary: `${suspect.name}, ${victim.name}'s close friend of many years, was about to be exposed for having an affair — ${victim.name} had threatened to tell ${affairPartner} that weekend.`,
+        suspectSummary: `${suspect.name}, ${victim.name}'s close friend of many years, was about to be exposed for having an affair. ${victim.name} had threatened to tell ${affairPartner} that weekend.`,
         sceneSummary: `${trail}, the Scar viewpoint and cliff base. Time window: ${start}–${end}.`,
         crimeSummary: `${victim.name} was pushed from the cliff edge at the Scar during a confrontation and left there while the suspect walked on. The suspect is ${victim.name}'s close friend of many years, who was about to be exposed for an ongoing affair with ${affairPartner}.`,
-        evidenceSummary: `Your team has assembled five pieces of evidence. None is conclusive alone, but together they paint a picture. The suspect doesn't know which items you have — use them carefully.`,
+        evidenceSummary: `Five pieces of evidence. None of them closes the case alone, but together they might. The suspect has no idea what you're holding, so pick your moments.`,
       },
     }
   },

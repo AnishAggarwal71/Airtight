@@ -11,7 +11,7 @@ import { smartGarage } from './homicide/smart-garage'
 import { charityGala } from './homicide/charity-gala'
 
 /**
- * Homicide — the anchor crime type. Long timelines, a relationship with the
+ * Homicide, the anchor crime type. Long timelines, a relationship with the
  * victim that gives every question a second layer, and pathology evidence that
  * is almost always hedged in the report and therefore arguable.
  *
