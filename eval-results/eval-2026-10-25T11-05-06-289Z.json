@@ -1,0 +1,179 @@
+{
+  "timestamp": "2026-10-25T11:05:06.283Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 0,
+    "passed": 0,
+    "precision": 0,
+    "recall": 0,
+    "results": []
+  },
+  "layer2": {
+    "gamesRequested": 5,
+    "gamesCompleted": 5,
+    "gamesAbandoned": 0,
+    "endingDistribution": {
+      "CHARGED_WEAK": 3,
+      "CHARGED_STRONG": 2
+    },
+    "caseStrength": {
+      "mean": 74,
+      "median": 77,
+      "min": 51,
+      "max": 87
+    },
+    "signalFrequency": {
+      "contradictions/game": 1.2,
+      "guiltyKnowledgeLeaks/game": 0,
+      "demeanorShifts/game": 0.6,
+      "witnessContradictions/game": 1.6
+    },
+    "games": [
+      {
+        "seed": "eval-game-0-1792925944355",
+        "completed": true,
+        "finalCaseStrength": 77,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          3,
+          25,
+          8,
+          10,
+          10,
+          3
+        ],
+        "tokenUsage": {
+          "inputTokens": 37466,
+          "outputTokens": 3831,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0
+        }
+      },
+      {
+        "seed": "eval-game-1-1792926013983",
+        "completed": true,
+        "finalCaseStrength": 77,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 0,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          3,
+          25,
+          8,
+          10,
+          10,
+          3
+        ],
+        "tokenUsage": {
+          "inputTokens": 41006,
+          "outputTokens": 4386,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0
+        }
+      },
+      {
+        "seed": "eval-game-2-1792926090340",
+        "completed": true,
+        "finalCaseStrength": 87,
+        "ending": "CHARGED_STRONG",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          8,
+          0,
+          8,
+          11,
+          25,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 40373,
+          "outputTokens": 3878,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0
+        }
+      },
+      {
+        "seed": "eval-game-3-1792926158816",
+        "completed": true,
+        "finalCaseStrength": 80,
+        "ending": "CHARGED_STRONG",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 2,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 0,
+          "witnessContradictions": 2
+        },
+        "perTurnDeltas": [
+          0,
+          0,
+          11,
+          8,
+          3,
+          23,
+          10,
+          10
+        ],
+        "tokenUsage": {
+          "inputTokens": 42087,
+          "outputTokens": 4415,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0
+        }
+      },
+      {
+        "seed": "eval-game-4-1792926236362",
+        "completed": true,
+        "finalCaseStrength": 51,
+        "ending": "CHARGED_WEAK",
+        "turns": 8,
+        "signalCounts": {
+          "contradictions": 1,
+          "guiltyKnowledgeLeaks": 0,
+          "demeanorShifts": 1,
+          "witnessContradictions": 0
+        },
+        "perTurnDeltas": [
+          0,
+          3,
+          11,
+          3,
+          11,
+          8,
+          0,
+          0
+        ],
+        "tokenUsage": {
+          "inputTokens": 41810,
+          "outputTokens": 3953,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0
+        }
+      }
+    ]
+  }
+}

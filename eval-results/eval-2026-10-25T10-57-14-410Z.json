@@ -1,0 +1,424 @@
+{
+  "timestamp": "2026-10-25T10:57:14.408Z",
+  "model": "claude-haiku-4-5",
+  "layer1": {
+    "total": 18,
+    "passed": 13,
+    "precision": 0.692,
+    "recall": 0.9,
+    "results": [
+      {
+        "caseId": "gk-bottle-canal",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e5": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e5": 1
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "Emily deflects on the bottle with a non-answer ('I have no idea') and then pivots to speculation about the canal — a location she should not know was involved without guilty knowledge. She maintains calm composure and doesn't contradict her prior claims directly, but the canal reference is a critical leak. Her denial of taking anything from the kitchen is technically consistent with c1 and c3, though it reads evasive under pressure."
+      },
+      {
+        "caseId": "gk-bin-store-exit",
+        "passed": true,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect provided a plausible explanation for the bin store access that exploits the known vulnerability of e1 — key cards are lent out and shared, and the log records the card, not the person. She stayed calm and matter-of-fact, offering a routine reason (shortcut to car park) without defensive hedging. However, this response directly contradicts her prior claim (c2) that she left through the main entrance. She cannot simultaneously have left via the main entrance and used the bin store as a shortcut to her car. Her demeanor remained composed and measured, showing no shift from her previous calm state."
+      },
+      {
+        "caseId": "gk-staged-fall",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Emily offers a vague timeline ('that evening') without specifying when she left, which is evasive given the detective's direct question about when she last saw Michael Hall alive. She pivots to expressing sympathy and volunteering unprompted details about the stairwell — its steepness and poor lighting — which reads as defensive deflection rather than a natural response. Critically, she mentions the stairwell as the site of death before the detective has revealed how Michael Hall died, which is a potential guilty knowledge leak. Her demeanor remains outwardly calm and measured, though the deflection is notable."
+      },
+      {
+        "caseId": "gk-weapon-bottle",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect speculates unprompted that Michael Hall might have been hit with 'a bottle'—a highly specific and guilty detail that the detective never mentioned. The detective only said the injury doesn't match a fall; they presented no weapon theory, no bottle, nothing. An innocent person would either ask what caused the injury or suggest generic violence (a fight, a punch, a fall from somewhere else), not zero in on the exact murder weapon. The suspect remains superficially calm but this suggestion is a catastrophic leak. The claim 'I was home by then' directly contradicts the wifi evidence (which wasn't presented this turn, but is a fact the suspect should not know will exonerate them), and more immediately contradicts their own timeline if they're now entertaining a bottle scenario."
+      },
+      {
+        "caseId": "contra-time-discrepancy",
+        "passed": true,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "Emily Murphy has shifted her account of when she left the building, moving from 'before half past' (22:30) to 'around quarter to' (22:45), which now aligns with the wifi data ending at 23:14. This is a strategic concession that appears designed to neutralize the digital evidence by claiming she simply lost track of time during conversation. She remains calm and measured, offering a plausible innocent explanation for the extended timeline. However, she has not addressed why her phone remained connected until 23:14 if she left at 22:45 — a critical gap that the vulnerability note flags. Her framing ('we were talking and I lost track') attempts to reposition the extended visit as normal rather than suspicious."
+      },
+      {
+        "caseId": "contra-visit-length",
+        "passed": true,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect significantly revised their account of time spent at the flat, now claiming 'over an hour' instead of the previously stated 'about twenty minutes.' This is a major shift that directly contradicts c1. The suspect also added a new detail about drinking tea together, which was never mentioned before. Demeanor remains calm and measured despite this substantial revision—no shift. The suspect continues to avoid specifics about departure time and route, maintaining their deflective strategy of emphasizing 'catching up' over any conflict."
+      },
+      {
+        "caseId": "contra-location-flip",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            },
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e1": 2
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect has just been confronted with the bin store key card data and immediately shifted her account. She now admits using the bin store exit at 23:19, directly contradicting her earlier claim that she left through the main entrance and walked directly to the car from the front door. This is a clean, unambiguous contradiction of c1 and c2. Her explanation—that the lift was broken and the bin area was a shortcut to her car—is plausible on its surface and exploits the vulnerability that the card log doesn't prove who held it. However, the timing (23:19) is dangerously close to the fatal window and to when her phone finally disconnected from the building wifi. She remains measured and composed, attributing the earlier misstatement to forgetfulness rather than deception, which maintains her established demeanor of quiet confidence under pressure.\n  Mismatches: spurious contradiction: flagged c2 (major), not expected"
+      },
+      {
+        "caseId": "contra-relationship-detail",
+        "passed": true,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 1
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c2",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 1
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect admits to discussing money and having 'words' about it with Michael Hall, directly contradicting their earlier claim (c2) that money was not discussed. This is a significant shift from the cover story. However, the admission itself is measured and framed defensively—they're acknowledging the fact while minimizing its implications. The demeanor remains calm and controlled despite being pressed; there is no shift from their previous composure, just a strategic retreat to a more defensible position."
+      },
+      {
+        "caseId": "ev-wifi-terrible",
+        "passed": false,
+        "expected": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "minor"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 0
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 0
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "Emily flatly denies the wifi evidence and claims her records are wrong, shifting from measured deflection to direct contradiction. She was calm before; she remains calm now, so no demeanor shift. However, her new claim—that she was in her car driving home at 23:14—directly contradicts her prior claim c2 that she left 'before half past' (i.e., before 23:30). If she left before 23:30 and was already driving home at 23:14, the timeline is technically possible but her denial of the wifi data itself is the real problem: the FATAL FACT establishes she was still in the building at 23:14, making this response factually impossible. She's also offering no explanation for how the wifi log could exist if innocent—just blanket denial.\n  Mismatches: contradiction missed: expected against c1 (minor)"
+      },
+      {
+        "caseId": "ev-debt-decent",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 2
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e4": 3
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect delivered a logically sound defense against the motive allegation, correctly articulating that a dead debtor benefits the creditor in no way — this is a strong, coherent counter-argument that directly addresses the detective's implication. The response stays in character: measured, composed, and intellectually engaged rather than emotionally defensive. The suspect did not contradict any prior claim and did not leak guilty knowledge. Demeanor remained calm and controlled, consistent with their previous presentation."
+      },
+      {
+        "caseId": "ev-pathology-airtight",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e2": 3
+          },
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": true,
+          "evidenceQuality": {
+            "e2": 2
+          },
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect directly addressed e2 by citing its hedged language and introducing the prior fall—a sophisticated tactical move that neutralizes the pathologist's opinion. The demeanor remains calm and controlled; no shift. However, the suspect has now made a dangerous admission: they know about Michael Hall's fall in that same stairwell two months ago. The detective never mentioned this fall. The suspect claims 'everyone in the building knows it,' but this is exactly the kind of detail an innocent visitor would not naturally volunteer—and it comes at precisely the moment the detective is pressing them on the injury inconsistency. This is a guilty knowledge leak. The suspect is also attempting to preempt and defang the evidence by framing it as uninformative, which is strategically sound but leaves the leak unaddressed.\n  Mismatches: guiltyKnowledgeLeak: expected false, got true"
+      },
+      {
+        "caseId": "dem-shift-nervous",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {
+            "e3": 1
+          },
+          "demeanorShift": true
+        },
+        "reasoning": "Emily's response to the wifi data is evasive and defensive. She has clearly been caught out—her phone data contradicts her cover story of leaving 'before half past' (23:30), but instead of adjusting her account or providing an explanation for the late wifi connection, she retreats into vagueness ('I don't know exactly,' 'I wasn't watching the clock') and deflection ('Why does the exact minute matter so much?'). She does not admit a specific new time or offer a reason why her phone remained connected later; she simply refuses to be pinned down. This is a major demeanor shift from 'calm'—she has become noticeably defensive and evasive under pressure.\n  Mismatches: spurious contradiction: flagged c1 (major), not expected"
+      },
+      {
+        "caseId": "dem-stays-calm",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "This is the suspect's first account. Emily presents a measured, composed narrative: arrived around 22:00 (\"around ten, maybe a bit before\"), stayed twenty minutes, left peacefully, drove home, in bed before midnight. The story is internally coherent so far and matches her cover story. She frames the visit as casual (tea, talking about \"how things were going\") with no mention of tension or money. No prior claims exist to contradict yet, and no evidence has been presented for her to address. Her demeanor is calm and controlled, as expected from her profile."
+      },
+      {
+        "caseId": "clean-good-deflection",
+        "passed": false,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [
+            {
+              "againstClaimId": "c1",
+              "severity": "major"
+            }
+          ],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Emily denied arguing with Michael Hall, claiming instead that they discussed normal, benign topics. However, the neighbour Matthew Wilson heard raised voices and shouting from the flat that night — a direct contradiction to her account of a calm, friendly visit. She also defensively asserted she hasn't done anything, which is consistent with her cover story but doesn't address the fact that the detective's question itself (asking if they argued) implies evidence of conflict. Her demeanor remains calm and measured; she's not shifting into nervousness or defensiveness yet, just deflecting with reassurance.\n  Mismatches: spurious contradiction: flagged c1 (major), not expected"
+      },
+      {
+        "caseId": "clean-expressing-grief",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Emily presents herself as emotionally affected and emphasizes closeness with Michael Hall, which is consistent with her cover story of a brief friendly visit (c1). She recalls a casual parting phrase ('see you Thursday') that fits the narrative of a cordial, unhurried goodbye. However, she does not specify when she left or how long she stayed — she remains vague on the breaking point timeline. Her demeanor remains composed and measured despite the emotional content; this is grief-stricken but not a shift from her baseline calm confidence."
+      },
+      {
+        "caseId": "clean-why-suspect",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "The suspect avoided engaging with the detective's framing and instead deflected by questioning why she's being treated as a suspect, recharacterizing the visit as a routine family check-in ('I do it every week'). She maintained composure and switched to an appeal for clarity rather than addressing the substance of the detective's observation. No new factual claims were made this turn, so there are no direct contradictions to prior statements. The demeanor remained calm—measured speech with defensive framing but no visible emotional shift from the previous baseline. The response is strategically vague, which protects her cover story without advancing it."
+      },
+      {
+        "caseId": "clean-vague-nonanswer",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Emily is employing a vague deflection strategy here—she's claiming she doesn't remember or wasn't paying attention to the route she took. This is a weak position under pressure because the question is direct and factual, not something an innocent person visiting a familiar building would genuinely be unable to recall. However, she has not made any NEW factual claim that contradicts her prior testimony about timing or actions. She's simply refusing to be specific. Her demeanor remains calm and measured, consistent with her profile of quiet confidence masking fear. She hasn't shifted into defensive nervousness—she's still in controlled hedge-and-evade mode."
+      },
+      {
+        "caseId": "clean-redirect-to-victim",
+        "passed": true,
+        "expected": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "actual": {
+          "contradictions": [],
+          "guiltyKnowledgeLeak": false,
+          "evidenceQuality": {},
+          "demeanorShift": false
+        },
+        "reasoning": "Emily offers a deflection by casting suspicion on an unnamed third party who lent Michael money, claiming this person made her 'uneasy.' This maintains her composed demeanor while shifting focus away from herself. She stays broadly consistent with prior claims (the visit was still brief and civil from her framing), but she's now introducing new information about Michael's associates to sow doubt. The response is strategically defensive — suggesting alternative suspects — without contradicting her established timeline or account."
+      }
+    ]
+  },
+  "layer2": null
+}
