@@ -20,8 +20,8 @@ import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
 dotenv.config()
 
-import { runLayer1, runLayer2 } from '../eval/detective'
-import type { EvalReport } from '../eval/types'
+import { runLayer1, runLayer2 } from '../eval/detective.js'
+import type { EvalReport } from '../eval/types.js'
 
 // ─── ANSI helpers ───────────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /** Import the case list for ID lookups without re-importing at top level. */
-import { EVAL_CASES } from '../eval/cases'
+import { EVAL_CASES } from '../eval/cases.js'
 const EVAL_CASES_BY_ID = new Map(EVAL_CASES.map((c) => [c.id, c]))
 
 function formatPercent(ratio: number): string {

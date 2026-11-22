@@ -14,7 +14,7 @@ import type {
   TimelineBeat,
   TokenUsage,
   WitnessDetail,
-} from '../engine/types'
+} from '../engine/types.js'
 
 export type TurningPoint = {
   turn: number

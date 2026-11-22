@@ -12,15 +12,15 @@
 
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { getModel } from './adjudicate'
-import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts'
+import { getModel } from './adjudicate.js'
+import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts.js'
 import type {
   CaseFile,
   Claim,
   TokenUsage,
   WitnessResponse,
-} from './types'
-import { serializeLedger } from './ledger'
+} from './types.js'
+import { serializeLedger } from './ledger.js'
 
 // ─── Structured output schema ─────────────────────────────────────────────────
 

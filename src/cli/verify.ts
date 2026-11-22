@@ -25,29 +25,29 @@
  *      and reads the refusal, no model call involved.
  */
 
-import { generate, toPublicCase } from '../engine/generate'
-import { parsePlayerInput, createSession } from '../engine/session'
-import { ALL_TEMPLATES } from '../engine/templates'
-import type { CrimeType, InvigilatorSuspectResponse, InvigilatorWitnessResponse } from '../engine/types'
-import { deriveSuspectVerdictType, deriveWitnessVerdictType, deriveVerdictReason } from '../server/verdict'
-import { createApp } from '../server/app'
-import { assertSeedConfig, chooseSeed, deriveSeed } from '../server/seed'
-import { MemoryStore, createStore, type Store } from '../server/store'
-import { getSession, saveSession, SESSION_TTL_SECONDS } from '../server/sessions'
-import { withSessionLock, SESSION_LOCK_TTL_MS } from '../server/lock'
-import { buildBreakdown } from '../server/breakdown'
-import { BUDGET_CONFIG, dayKey, reserveSpend } from '../server/budget'
-import { setModel } from '../engine/adjudicate'
+import { generate, toPublicCase } from '../engine/generate.js'
+import { parsePlayerInput, createSession } from '../engine/session.js'
+import { ALL_TEMPLATES } from '../engine/templates/index.js'
+import type { CrimeType, InvigilatorSuspectResponse, InvigilatorWitnessResponse } from '../engine/types.js'
+import { deriveSuspectVerdictType, deriveWitnessVerdictType, deriveVerdictReason } from '../server/verdict.js'
+import { createApp } from '../server/app.js'
+import { assertSeedConfig, chooseSeed, deriveSeed } from '../server/seed.js'
+import { MemoryStore, createStore, type Store } from '../server/store.js'
+import { getSession, saveSession, SESSION_TTL_SECONDS } from '../server/sessions.js'
+import { withSessionLock, SESSION_LOCK_TTL_MS } from '../server/lock.js'
+import { buildBreakdown } from '../server/breakdown.js'
+import { BUDGET_CONFIG, dayKey, reserveSpend } from '../server/budget.js'
+import { setModel } from '../engine/adjudicate.js'
 import {
   clientIp,
   createMemoryRateLimiter,
   normalizeIp,
   unlimitedRateLimiter,
   type RateLimiter,
-} from '../server/ratelimit'
+} from '../server/ratelimit.js'
 import { MockLanguageModelV4 } from 'ai/test'
-import { describeError, scrub } from '../server/log'
-import { MAX_TRANSCRIPT_ENTRIES, TRANSCRIPT_TTL_SECONDS, readTranscript, recordTranscript } from '../server/transcripts'
+import { describeError, scrub } from '../server/log.js'
+import { MAX_TRANSCRIPT_ENTRIES, TRANSCRIPT_TTL_SECONDS, readTranscript, recordTranscript } from '../server/transcripts.js'
 import { mkdtemp, readdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'

@@ -1,7 +1,7 @@
-import type { CrimeType } from '../types'
-import type { Template } from './shared'
-import { embezzlementTemplates } from './embezzlement'
-import { homicideTemplates } from './homicide'
+import type { CrimeType } from '../types.js'
+import type { Template } from './shared.js'
+import { embezzlementTemplates } from './embezzlement.js'
+import { homicideTemplates } from './homicide.js'
 
 /** Templates keyed by crime type, what generate() draws from. */
 export const TEMPLATES: Record<CrimeType, Template[]> = {

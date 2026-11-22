@@ -18,7 +18,7 @@
 // server/app.ts). This import exists for that check; without it the build
 // fails with "No entrypoint found which imports express".
 import express from 'express'
-import { createApp } from './server/app'
+import { createApp } from './server/app.js'
 
 const app: ReturnType<typeof express> = createApp()
 export default app

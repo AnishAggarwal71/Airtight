@@ -7,7 +7,7 @@
  * instead of growing with raw dialogue.
  */
 
-import type { Claim } from './types'
+import type { Claim } from './types.js'
 
 /**
  * Append new claims to a ledger. The model returns `{ text, checkable }` pairs;

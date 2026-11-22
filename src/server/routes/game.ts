@@ -5,17 +5,17 @@
  */
 
 import { Router, type Request } from 'express'
-import { toPublicCase } from '../../engine/generate'
+import { toPublicCase } from '../../engine/generate.js'
 import {
   createSession,
   parsePlayerInput,
   playInterrogationTurn,
   playWitnessTurn,
   isWitnessAvailable,
-} from '../../engine/session'
-import type { PlayInterrogationResult, PlayWitnessResult } from '../../engine/session'
-import type { GameSession, TokenUsage } from '../../engine/types'
-import { buildBreakdown, buildTranscript } from '../breakdown'
+} from '../../engine/session.js'
+import type { PlayInterrogationResult, PlayWitnessResult } from '../../engine/session.js'
+import type { GameSession, TokenUsage } from '../../engine/types.js'
+import { buildBreakdown, buildTranscript } from '../breakdown.js'
 import {
   assertDailyCapacity,
   BUDGET_CONFIG,
@@ -25,24 +25,24 @@ import {
   reserveSpend,
   settleSpend,
   type SpendReservation,
-} from '../budget'
-import { invalidApiKey, isAuthRejection, modelFromKey, readApiKey } from '../byok'
-import { rateLimit } from '../ratelimit'
-import { ApiError, asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors'
-import { resolveTimeouts, type TurnCallOptions, type TurnTimeouts } from '../../engine/timeouts'
-import { describeError, logError, logEvent } from '../log'
-import { withSessionLock } from '../lock'
-import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions'
-import type { Store } from '../store'
-import { chooseSeed } from '../seed'
-import { recordTranscript, transcriptError } from '../transcripts'
-import { validateQuestionInput } from '../validation'
+} from '../budget.js'
+import { invalidApiKey, isAuthRejection, modelFromKey, readApiKey } from '../byok.js'
+import { rateLimit } from '../ratelimit.js'
+import { ApiError, asyncHandler, badRequest, conflict, notFoundSession, upstreamModelError } from '../errors.js'
+import { resolveTimeouts, type TurnCallOptions, type TurnTimeouts } from '../../engine/timeouts.js'
+import { describeError, logError, logEvent } from '../log.js'
+import { withSessionLock } from '../lock.js'
+import { getSession, createSessionId, putSession, saveSession, type StoredSession } from '../sessions.js'
+import type { Store } from '../store.js'
+import { chooseSeed } from '../seed.js'
+import { recordTranscript, transcriptError } from '../transcripts.js'
+import { validateQuestionInput } from '../validation.js'
 import {
   deriveSuspectVerdictType,
   deriveWitnessVerdictType,
   deriveVerdictReason,
   type Verdict,
-} from '../verdict'
+} from '../verdict.js'
 
 /**
  * Builds the client-safe turn result: everything from the engine's result

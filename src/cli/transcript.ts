@@ -5,7 +5,7 @@ import type {
   Ending,
   InvigilatorSuspectResponse,
   InvigilatorWitnessResponse,
-} from '../engine/types'
+} from '../engine/types.js'
 
 export type TranscriptPhase = 'interrogation' | 'witness'
 

@@ -10,10 +10,10 @@
  * quickest way to confirm nothing strategic is leaking through toPublicCase().
  */
 
-import { generate, toPublicCase } from '../engine/generate'
-import { randomSeed } from '../engine/rng'
-import type { CrimeType } from '../engine/types'
-import { CRIME_LABELS } from '../engine/types'
+import { generate, toPublicCase } from '../engine/generate.js'
+import { randomSeed } from '../engine/rng.js'
+import type { CrimeType } from '../engine/types.js'
+import { CRIME_LABELS } from '../engine/types.js'
 
 const C = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,

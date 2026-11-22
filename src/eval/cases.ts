@@ -11,7 +11,7 @@
  * 2 demeanor, 5 clean/negative = 18 total.
  */
 
-import type { EvalCase } from './types'
+import type { EvalCase } from './types.js'
 
 export const EVAL_CASES: EvalCase[] = [
   // ── Guilty knowledge leaks (4) ──────────────────────────────────────────

@@ -1,7 +1,7 @@
-import { Rng } from './rng'
-import type { CaseFile, CrimeType, DetectiveEvidence, PublicCase } from './types'
-import { TEMPLATES } from './templates'
-import { DETECTIVE_NAMES } from './templates/shared'
+import { Rng } from './rng.js'
+import type { CaseFile, CrimeType, DetectiveEvidence, PublicCase } from './types.js'
+import { TEMPLATES } from './templates/index.js'
+import { DETECTIVE_NAMES } from './templates/shared.js'
 
 /**
  * Scenario generation — deterministic, no model call, no network.

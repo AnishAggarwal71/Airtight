@@ -14,10 +14,10 @@
  */
 
 import crypto from 'node:crypto'
-import { conflict, notFoundSession, storeUnavailable } from './errors'
-import { describeError, logError } from './log'
-import { isValidSessionId } from './sessions'
-import type { Store } from './store'
+import { conflict, notFoundSession, storeUnavailable } from './errors.js'
+import { describeError, logError } from './log.js'
+import { isValidSessionId } from './sessions.js'
+import type { Store } from './store.js'
 
 /** Lock lifetime. Must stay above vercel.json maxDuration (60s). */
 export const SESSION_LOCK_TTL_MS = 70_000

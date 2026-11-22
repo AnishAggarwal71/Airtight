@@ -24,7 +24,7 @@
  */
 
 import crypto from 'node:crypto'
-import { badRequest } from './errors'
+import { badRequest } from './errors.js'
 
 /** Result of seed selection for one new session. */
 export type SeedChoice = {

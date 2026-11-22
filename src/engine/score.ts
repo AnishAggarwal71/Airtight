@@ -14,7 +14,7 @@ import type {
   InvigilatorWitnessResponse,
   Ending,
   Claim,
-} from './types'
+} from './types.js'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

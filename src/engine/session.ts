@@ -15,31 +15,31 @@
  * player choice. See docs/decisions.md (2026-10-15, ending reframe).
  */
 
-import { generate } from './generate'
+import { generate } from './generate.js'
 import {
   interrogateSuspect,
   type InterrogateSuspectInput,
-} from './adjudicate'
+} from './adjudicate.js'
 import {
   interrogateWitness,
   type InterrogateWitnessInput,
-} from './witness'
+} from './witness.js'
 import {
   evaluateSuspectTurn,
   evaluateWitnessTurn,
   InvigilatorError,
   type EvaluateSuspectInput,
   type EvaluateWitnessInput,
-} from './invigilator'
-import { addClaims } from './ledger'
-import type { TurnCallOptions } from './timeouts'
+} from './invigilator.js'
+import { addClaims } from './ledger.js'
+import type { TurnCallOptions } from './timeouts.js'
 import {
   scoreSuspectTurn,
   scoreWitnessTurn,
   checkEnding,
   SCORING_CONFIG,
   type ScoringConfig,
-} from './score'
+} from './score.js'
 import type {
   CrimeType,
   DetectiveEvidence,
@@ -51,7 +51,7 @@ import type {
   SuspectResponse,
   TokenUsage,
   WitnessDetail,
-} from './types'
+} from './types.js'
 
 // ─── Session creation ────────────────────────────────────────────────────────
 

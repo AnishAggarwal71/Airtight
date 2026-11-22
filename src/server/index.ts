@@ -15,7 +15,7 @@ import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
 dotenv.config()
 
-import { createApp } from './app'
+import { createApp } from './app.js'
 
 const PORT = Number(process.env.PORT) || 3000
 

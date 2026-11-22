@@ -9,26 +9,26 @@
  * Both layers share the same model/provider configured in adjudicate.ts.
  */
 
-import { generate } from '../engine/generate'
+import { generate } from '../engine/generate.js'
 import {
   evaluateSuspectTurn,
   buildInvigilatorSystemPrompt,
   type EvaluateSuspectInput,
-} from '../engine/invigilator'
+} from '../engine/invigilator.js'
 import {
   createSession,
   playInterrogationTurn,
   playWitnessTurn,
   isWitnessAvailable,
-} from '../engine/session'
-import { SCORING_CONFIG } from '../engine/score'
+} from '../engine/session.js'
+import { SCORING_CONFIG } from '../engine/score.js'
 import type {
   Claim,
   Ending,
   InvigilatorSuspectResponse,
-} from '../engine/types'
-import type { EvalCase, EvalResult, GameResult, EvalReport } from './types'
-import { EVAL_CASES } from './cases'
+} from '../engine/types.js'
+import type { EvalCase, EvalResult, GameResult, EvalReport } from './types.js'
+import { EVAL_CASES } from './cases.js'
 
 // ─── Layer 1: Invigilator accuracy ──────────────────────────────────────────
 
@@ -413,7 +413,7 @@ export async function runOneGame(
 
 /** Package a completed session into a GameResult. */
 function buildGameResult(
-  session: import('../engine/types').GameSession,
+  session: import('../engine/types.js').GameSession,
   seed: string,
   completed: boolean,
   perTurnDeltas: number[],

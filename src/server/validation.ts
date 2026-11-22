@@ -10,7 +10,7 @@
  * status code; anything else falls through to a generic 500.
  */
 
-import { badRequest } from './errors'
+import { badRequest } from './errors.js'
 
 export const MAX_QUESTION_LENGTH = 300
 

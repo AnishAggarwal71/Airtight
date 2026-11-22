@@ -1,6 +1,6 @@
-import type { Template } from '../shared'
-import { beats, fullName, namedPerson } from '../shared'
-import { addMinutes, hhmm } from '../../rng'
+import type { Template } from '../shared.js'
+import { beats, fullName, namedPerson } from '../shared.js'
+import { addMinutes, hhmm } from '../../rng.js'
 
 function pronouns(p: 'he' | 'she') {
   return p === 'he'

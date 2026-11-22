@@ -11,7 +11,7 @@
  */
 
 import { Redis } from '@upstash/redis'
-import type { CounterLimit, ReserveResult, Store } from './store'
+import type { CounterLimit, ReserveResult, Store } from './store.js'
 
 /**
  * Check-all-then-increment-all across N counters.

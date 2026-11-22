@@ -1,4 +1,4 @@
-import type { Template } from './shared'
+import type { Template } from './shared.js'
 
 /**
  * Embezzlement, Phase 2. Templates are authored but not yet adapted to V2's

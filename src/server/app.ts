@@ -6,14 +6,14 @@
 
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
 import path from 'node:path'
-import { gameRouter } from './routes/game'
-import { ApiError } from './errors'
-import { describeError, logError } from './log'
-import type { TurnTimeouts } from '../engine/timeouts'
-import { createRateLimiter, type RateLimiter } from './ratelimit'
-import { assertSeedConfig } from './seed'
-import { createStore, type Store } from './store'
-import type { ModelForKey } from './byok'
+import { gameRouter } from './routes/game.js'
+import { ApiError } from './errors.js'
+import { describeError, logError } from './log.js'
+import type { TurnTimeouts } from '../engine/timeouts.js'
+import { createRateLimiter, type RateLimiter } from './ratelimit.js'
+import { assertSeedConfig } from './seed.js'
+import { createStore, type Store } from './store.js'
+import type { ModelForKey } from './byok.js'
 
 const PUBLIC_DIR = path.join(import.meta.dirname, '../../public')
 

@@ -20,8 +20,8 @@
 
 import type { Request } from 'express'
 import type { LanguageModel } from 'ai'
-import { modelForApiKey } from '../engine/adjudicate'
-import { ApiError } from './errors'
+import { modelForApiKey } from '../engine/adjudicate.js'
+import { ApiError } from './errors.js'
 
 /** Header the browser puts the key in. Express lower-cases header names. */
 export const API_KEY_HEADER = 'x-anthropic-key'

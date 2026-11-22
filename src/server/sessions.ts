@@ -21,10 +21,10 @@
  */
 
 import crypto from 'node:crypto'
-import type { GameSession } from '../engine/types'
-import { conflict, storeUnavailable } from './errors'
-import { describeError, logError } from './log'
-import type { Store } from './store'
+import type { GameSession } from '../engine/types.js'
+import { conflict, storeUnavailable } from './errors.js'
+import { describeError, logError } from './log.js'
+import type { Store } from './store.js'
 
 export type StoredSession = {
   session: GameSession

@@ -7,8 +7,8 @@
  * the two in sync if the underlying session/invigilator shapes change.
  */
 
-import type { GameSession } from '../engine/types'
-import type { BreakdownResponse, TranscriptEntry, TurningPoint } from './types'
+import type { GameSession } from '../engine/types.js'
+import type { BreakdownResponse, TranscriptEntry, TurningPoint } from './types.js'
 
 /** Finds the interrogation turn with the largest absolute Case Strength swing. */
 function findTurningPoint(session: GameSession): TurningPoint | null {

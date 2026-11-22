@@ -5,6 +5,24 @@ superseded or deferred. `CLAUDE.md` stays the settled/current-state summary —
 the reasoning, dead ends, and things ruled out live here so they aren't
 relitigated from scratch next session.
 
+## 2026-11-22 — Explicit `.js` extensions on relative imports (Vercel runtime)
+
+**Decided:** Every relative import in `src/` now ends in `.js` (e.g.
+`from './server/app.js'`), and `tsconfig.json` uses `"module"` /
+`"moduleResolution": "NodeNext"` so `tsc` rejects an extensionless one.
+
+**Why:** The first working Vercel build crashed at runtime with
+`ERR_MODULE_NOT_FOUND: Cannot find module '/var/task/src/server/app'`. Vercel
+compiles each `.ts` to `.js` but keeps import specifiers as written, and with
+`"type": "module"` Node's ESM loader never guesses extensions. `tsx` (used by
+every local script) does guess, which is why nothing local ever failed. The
+same deploy also needed `src/index.ts` to `import express` itself, because
+the Express preset scans that file's source for it.
+
+**How to apply:** write new relative imports with `.js` even though the file
+on disk is `.ts`; `npm run typecheck` fails otherwise. Checked by compiling
+`src/` with `tsc` and importing `src/index.js` with plain `node`.
+
 ## 2026-11-11 — Plain-voice copy pass, no em dashes in player-facing text
 
 **Decided:** All text the player sees (start screen, in-game labels, ending

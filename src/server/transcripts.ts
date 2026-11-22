@@ -25,8 +25,8 @@
  *    are recorded for improving the game.
  */
 
-import type { Store } from './store'
-import { describeError, logError, redactSecrets } from './log'
+import type { Store } from './store.js'
+import { describeError, logError, redactSecrets } from './log.js'
 
 /** How long a transcript survives after its last entry. */
 export const TRANSCRIPT_TTL_SECONDS = 14 * 24 * 60 * 60

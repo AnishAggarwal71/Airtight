@@ -23,10 +23,10 @@ import type {
   DetectiveEvidence,
   SuspectResponse,
   TokenUsage,
-} from './types'
+} from './types.js'
 export type { SuspectResponse }
-import { serializeLedger } from './ledger'
-import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts'
+import { serializeLedger } from './ledger.js'
+import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts.js'
 import dotenv from 'dotenv'
 
 // Self-load env — see comment in V1 adjudicate.ts. Static imports evaluate

@@ -15,7 +15,7 @@
 import type {
   InvigilatorSuspectResponse,
   InvigilatorWitnessResponse,
-} from '../engine/types'
+} from '../engine/types.js'
 
 export type VerdictType = 'contradiction' | 'slip' | 'tell' | 'weak_answer' | 'no_change'
 

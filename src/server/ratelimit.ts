@@ -25,8 +25,8 @@
 
 import type { NextFunction, Request, Response } from 'express'
 import net from 'node:net'
-import { ApiError } from './errors'
-import { describeError, logError } from './log'
+import { ApiError } from './errors.js'
+import { describeError, logError } from './log.js'
 
 export type Bucket = 'create' | 'turn' | 'read'
 

@@ -5,7 +5,7 @@
  */
 
 import type { NextFunction, Request, Response } from 'express'
-import { isAbortError } from '../engine/timeouts'
+import { isAbortError } from '../engine/timeouts.js'
 
 export class ApiError extends Error {
   status: number

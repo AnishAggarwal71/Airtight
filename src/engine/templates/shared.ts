@@ -1,11 +1,11 @@
-import type { Rng } from '../rng'
+import type { Rng } from '../rng.js'
 import type {
   CrimeType,
   DetectiveBriefing,
   EvidenceType,
   SuspectPersona,
   TimelineBeat,
-} from '../types'
+} from '../types.js'
 
 /**
  * Shared contract and helpers for crime templates.

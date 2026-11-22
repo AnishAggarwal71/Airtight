@@ -10,9 +10,9 @@
 
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { getModel } from './adjudicate'
-import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts'
-import { serializeLedger } from './ledger'
+import { getModel } from './adjudicate.js'
+import { capSignal, resolveTimeouts, type TurnCallOptions } from './timeouts.js'
+import { serializeLedger } from './ledger.js'
 import type {
   CaseFile,
   Claim,
@@ -21,7 +21,7 @@ import type {
   InvigilatorWitnessResponse,
   SuspectResponse,
   TokenUsage,
-} from './types'
+} from './types.js'
 
 // ─── Suspect evaluation schema ─────────────────────────────────────────────
 

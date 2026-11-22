@@ -26,19 +26,19 @@ import {
   appendTranscriptTurnFailed,
   appendTranscriptTurnStarted,
   createTranscriptLog,
-} from './transcript'
-import { randomSeed } from '../engine/rng'
-import { toPublicCase } from '../engine/generate'
-import { SCORING_CONFIG } from '../engine/score'
+} from './transcript.js'
+import { randomSeed } from '../engine/rng.js'
+import { toPublicCase } from '../engine/generate.js'
+import { SCORING_CONFIG } from '../engine/score.js'
 import {
   createSession,
   parsePlayerInput,
   playInterrogationTurn,
   playWitnessTurn,
   isWitnessAvailable,
-} from '../engine/session'
-import type { CrimeType, GameSession, Ending, SuspectResponse } from '../engine/types'
-import { CRIME_LABELS } from '../engine/types'
+} from '../engine/session.js'
+import type { CrimeType, GameSession, Ending, SuspectResponse } from '../engine/types.js'
+import { CRIME_LABELS } from '../engine/types.js'
 
 // ─── ANSI helpers ───────────────────────────────────────────────────────────
 

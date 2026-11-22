@@ -176,7 +176,7 @@ class LazyUpstashStore implements Store {
   ) {}
 
   private load(): Promise<Store> {
-    this.inner ??= import('./upstash-store').then((m) => m.createUpstashStore(this.url, this.token))
+    this.inner ??= import('./upstash-store.js').then((m) => m.createUpstashStore(this.url, this.token))
     return this.inner
   }
 

@@ -20,10 +20,10 @@
  * swallowed — the unreduced reservation over-counts, which errs on the safe side.
  */
 
-import type { TokenUsage } from '../engine/types'
-import { budgetExceeded, storeUnavailable } from './errors'
-import { describeError, logError } from './log'
-import type { Store } from './store'
+import type { TokenUsage } from '../engine/types.js'
+import { budgetExceeded, storeUnavailable } from './errors.js'
+import { describeError, logError } from './log.js'
+import type { Store } from './store.js'
 
 // Anthropic Haiku 4.5 pricing per CLAUDE.md: $1.00/1M input tokens,
 // $5.00/1M output tokens. Cache writes are billed at the input rate (cache
