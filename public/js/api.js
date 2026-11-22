@@ -37,9 +37,13 @@ async function request(method, path, body) {
   return data
 }
 
-// The server picks the case; the client never sends or receives a seed.
+// The server picks the case; the client never receives a seed. Dev-only replay:
+// opening the page as /?seed=<seed> sends that seed on create. The server
+// ignores it unless ALLOW_CLIENT_SEED=1 (and never on Vercel production), so
+// this is inert for real players.
 export function createGame() {
-  return request('POST', '/api/game', {})
+  const seed = new URLSearchParams(window.location.search).get('seed')
+  return request('POST', '/api/game', seed ? { seed } : {})
 }
 
 export function getGame(sessionId) {
