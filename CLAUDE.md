@@ -28,6 +28,10 @@ Layer 2 run.
 Reasoning, dead ends and detailed results live in `docs/`. Check there before
 relitigating something.
 
+- [`docs/technical-breakdown.md`](docs/technical-breakdown.md): how the
+  system works end to end (generation, turn flow, scoring, API pipeline,
+  storage keys, production controls, deployment, tests). Update it when any
+  of those change.
 - [`docs/decisions.md`](docs/decisions.md): decision log, newest first, with a
   "Ruled out and superseded" section at the bottom.
 - [`docs/eval-v3-results.md`](docs/eval-v3-results.md): latest eval numbers,

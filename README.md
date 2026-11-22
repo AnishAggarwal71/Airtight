@@ -55,8 +55,9 @@ explainable rather than a model's opinion of itself.
 - **Reproducible.** The same seed always produces the same case, so any game
   can be replayed while debugging.
 
-More detail: [`docs/portfolio.md`](docs/portfolio.md) (project brief) and
-[`docs/decisions.md`](docs/decisions.md) (why things are the way they are).
+More detail: [`docs/technical-breakdown.md`](docs/technical-breakdown.md)
+(how it all works), [`docs/portfolio.md`](docs/portfolio.md) (project brief)
+and [`docs/decisions.md`](docs/decisions.md) (why things are the way they are).
 
 ## Run it locally
 
@@ -152,7 +153,7 @@ src/index.ts       Vercel entry point
 src/cli/           play, verify, inspect, eval
 src/eval/          eval cases and runners
 public/            browser UI (vanilla JS)
-docs/              decisions, eval results, brief, hardening notes
+docs/              technical breakdown, decisions, eval results, brief, hardening
 ```
 
 ## Status and scope

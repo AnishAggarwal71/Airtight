@@ -1,109 +1,129 @@
 # Hardening explained in plain language
 
 One section per step: **What** we did, **Why**, and **How**. Kept short on
-purpose. Each new step adds a section here in the same commit. The detailed
-engineering notes live in `decisions.md`; this file is the simple version.
+purpose. The engineering reasoning is in [`decisions.md`](decisions.md)
+(2026-10-23 and 2026-11-22); the full technical picture is in
+[`technical-breakdown.md`](technical-breakdown.md). Add a section here in the
+same commit as any new hardening step.
 
-**The big picture.** The game used to run on one computer that stayed on.
-On Vercel it runs as many tiny short-lived copies of the server that share
-nothing. That breaks anything stored in the server's memory, and it means
-strangers on the internet can poke the game. The 10 steps make it safe and
-cheap to leave public. The game itself (rules, prompts, balance) is untouched.
+**The big picture.** The game started out running on one computer that stayed
+on. On Vercel it runs as many small, short-lived copies of the server that
+share nothing, and strangers on the internet can reach it. That breaks
+anything kept in the server's memory and makes the API key a target. The
+steps below make the game safe and cheap to leave public. The game itself
+(rules, prompts, balance) didn't change.
+
+**Status (2026-11-22):** all steps are done and the game is live at
+https://airtight-rust.vercel.app. Each step has an automated check in
+`npm run verify` (19 checks in total).
 
 **Words used below**
-- **Redis (Upstash):** a small shared notebook in the cloud that every server copy can read and write. It lives on Upstash's servers, not on the player's computer.
-- **Atomic:** happens as one indivisible action, so two requests can't both slip in at the same moment.
-- **Lua script:** a tiny program that Redis runs as one atomic action.
+- **Redis (Upstash):** a small shared notebook in the cloud that every server copy can read and write.
+- **Atomic:** happens as one indivisible action, so two requests can't both slip through at the same moment.
+- **Lua script:** a tiny program Redis runs as one atomic action.
 - **TTL:** time to live. Redis forgets the entry after that long.
-- **Seed:** the secret number the whole case is generated from. Know the seed, know the answer.
+- **Seed:** the secret value the whole case is generated from. Know the seed, know the answer.
 
 ---
 
-## Step 0: Vercel wiring
+## Step 0: Running on Vercel
 
-- **What:** Made the app deployable on Vercel.
-- **Why:** Vercel runs functions, not an always-on server.
-- **How:** `src/index.ts` exports the Express app (and imports `express` itself, which Vercel's Express preset requires). `vercel.json` bundles `public/**` into the function, because requests for the page reach Express rather than a CDN. Relative imports end in `.js` so Node can load the compiled files.
-- **The 60-second setting:** `vercel.json` tells Vercel the function may run up to 60 seconds (`maxDuration: 60`). It had been deleted by accident during the first deploy, which would have left Vercel's own default in charge. Steps 4 and 7 rely on the 60 seconds: a turn gives up at 50 seconds and a lock expires at 70, so the function must not be killed earlier than that. It is restored; the audit (C8) checks the deployed function really got it.
+- **What:** The Express server runs as a single Vercel Function, with the web page bundled inside it.
+- **Why:** Vercel runs functions on demand, not an always-on server.
+- **How:** `src/index.ts` hands Vercel the Express app. Going live took three fixes that never showed up locally, because the local tool (`tsx`) quietly papers over them:
+  1. **Vercel has to see `express` in the entry file.** Its Express setting reads `src/index.ts` and won't follow the import into `server/app.ts`, so the entry file imports `express` itself. The project's Framework Preset must be **Express**: with "Other", Vercel serves only the web page and the API doesn't exist.
+  2. **Imports name the real file.** Vercel turns each `.ts` file into `.js` but leaves the imports untouched, and Node won't guess a missing `.js`. So every import is written `'./server/app.js'`, and the TypeScript setting (`NodeNext`) now refuses any import without it.
+  3. **The page ships inside the function.** Opening the site reaches Express, which reads `public/index.html` from disk. Vercel only includes files the code imports, so `vercel.json` lists `public/**` explicitly (`includeFiles`).
+- **The 60-second setting:** `vercel.json` lets the function run up to 60 seconds (`maxDuration: 60`). Steps 4 and 7 depend on it: a turn gives up at 50 seconds and a lock expires at 70, so the function must not be cut off before 60.
+- **Safety at startup:** on Vercel the app refuses to start without `SESSION_SECRET` (32+ characters) or Redis credentials, so a half-configured deploy fails immediately instead of misbehaving.
 
-## Step 1: Stop leaking the seed
+## Step 1: Keep the seed secret
 
-- **What:** The seed is never sent to the browser. The server picks it.
-- **Why:** The seed rebuilds the whole hidden case. Anyone who read it in the browser's network tab could solve the game instantly.
-- **How:** Removed `seed` from the data sent to the player and removed the seed box from the UI. The server makes a random seed (mixed with a secret, `SESSION_SECRET`). A developer-only switch, `ALLOW_CLIENT_SEED`, lets us pin a seed locally, and it is ignored in production.
+- **What:** The seed never reaches the browser. The server picks it.
+- **Why:** The seed rebuilds the whole hidden case. Anyone who saw it in the browser's network tab could solve the game instantly.
+- **How:** `seed` was removed from everything sent to the player, and the seed box was removed from the UI. The server makes a random seed (mixed with `SESSION_SECRET`). For local testing, `ALLOW_CLIENT_SEED=1` lets a developer pin one (`http://localhost:3000/?seed=...`); it is ignored in production.
 
-## Step 2: Sessions live in Redis
+## Step 2: Games are saved in Redis
 
-- **What:** A game's state is saved in Redis instead of the server's memory, for 1 hour.
-- **Why:** Each request may land on a different server copy. In-memory games would vanish between turns. It also lets a player reload the page and keep playing.
-- **How:** A small `Store` layer (`store.ts`). On Vercel it talks to Upstash Redis; on your laptop it uses plain memory. Each request loads the game, plays the turn, and saves it back.
+- **What:** A game's state lives in Redis, not the server's memory, for 1 hour after the last turn.
+- **Why:** Each request may land on a different server copy, so a game kept in memory would vanish between turns. It also means a player can reload the page and carry on.
+- **How:** A small `Store` layer (`store.ts`) talks to Upstash Redis on Vercel and to plain memory on a laptop. Each request loads the game, plays the turn, and saves it back. The whole game is saved (not just the seed), so a code update can't change a case someone is in the middle of.
 
 ## Step 3: Spend cap
 
-- **What:** Hard limits on model cost: $0.01 reserved per turn, $0.08 per game, $2 per day across everyone.
-- **Why:** The Anthropic key pays for every turn. Without a cap, a script could run up an unlimited bill.
-- **How:** Before each turn we *reserve* $0.01 in Redis. If that would pass a limit, the player gets "resting for today" (429) and no model call happens. After the turn we correct the reservation to the real cost. The check is a Lua script, so ten simultaneous requests can't all squeeze through. If Redis is down we refuse the turn rather than spend blind.
+- **What:** Hard limits on model cost: $0.08 per game and $2 per day across all players (adjustable with `MAX_DAILY_SPEND_USD`).
+- **Why:** Every turn is paid for with the project's Anthropic key. Without a cap, a script could run up an unlimited bill.
+- **How:** Before each turn the server *reserves* $0.01 in Redis. If that would pass a limit, the player is told "The bureau has closed for the day" (HTTP 429) and no model call happens. After the turn the reservation is corrected to the real cost. The check is a Lua script, so ten simultaneous requests can't all squeeze through. If Redis is down, the turn is refused rather than paid for blind.
 
-## Step 4: Turn-limit race
+## Step 4: One request per game at a time
 
-- **What:** Only one request per game can run at a time.
-- **Why:** If someone fired 20 requests at once, each would see "turns remaining: 6", each would spend money, and the game would get more than 6 turns or lose updates.
-- **How:** Two guards.
-  1. A lock in Redis (`lock:<game id>`). A second request while one is running gets 409 immediately, before spending anything. The lock is released before the answer is sent back, so your next click never collides.
-  2. A version number on the saved game. If an old copy tries to save over a newer one, it is rejected. This is the backup if a lock ever times out.
+- **What:** Only one turn per game can run at once.
+- **Why:** If someone fired 20 requests together, each would see "turns remaining: 6", each would cost money, and the game could get extra turns or lose updates.
+- **How:** Two guards:
+  1. A lock in Redis (`lock:<game id>`). A second request while one is running gets 409 straight away, before anything is spent. The lock is released just before the answer is sent, so your next click never bumps into it.
+  2. A version number on the saved game. An out-of-date copy trying to save over a newer one is refused. This is the backup if a lock ever expires early.
 
-## Step 5: Failed-turn rollback
+## Step 5: A failed turn costs nothing
 
-- **What:** If the model call fails, the game is exactly as it was before you pressed send. You keep the turn and you keep any evidence item you tried to present.
-- **Why:** The game marks evidence as "used" and counts the turn *before* it asks the model. The old code only undid the turn count by hand. If the model errored on `PRESENT e1:`, evidence e1 stayed marked as used, so a flaky API quietly cost the player their evidence.
-- **How:** We deleted the hand-written undo. Each request works on its own private copy of the game and saves it only after the suspect's reply succeeds. A failed request simply never saves, so everything is discarded in one go. If only the judge (invigilator) fails, the turn still counts with no score change, same as before.
+- **What:** If the model call fails, the game is exactly as it was before you pressed send. You keep the turn and any evidence you tried to present.
+- **Why:** The game marks evidence as "used" and counts the turn *before* asking the model. The old code only undid the turn count by hand, so a flaky API on `PRESENT e1:` silently cost the player e1.
+- **How:** The hand-written undo was deleted. Each request works on its own private copy of the game and saves it only after the suspect's reply arrives. A failed request never saves, so everything is discarded in one go. If only the judge fails, the turn still counts with no score change.
 
-## Step 6: Per-IP rate limits
+## Step 6: Per-visitor rate limits
 
-- **What:** Each visitor (by IP address) gets a ration of requests: 10 new games per hour, 40 questions per 10 minutes (suspect and witness share that ration), and 120 page loads/reloads per minute. Over the ration you get a polite "you're going a little fast, wait N seconds" (HTTP 429).
-- **Why:** The spend cap protects the money, but one script could still use up the whole day's budget in minutes and lock out every real player. Rate limits stop one person doing that.
-- **How:** A new `ratelimit.ts` counts requests per IP in Redis (the `@upstash/ratelimit` library, "sliding window", so there is no reset-at-the-top-of-the-hour loophole). It runs FIRST on every route, so a throttled request costs nothing: no lock, no spend, no model call. Which IP? On Vercel we trust Vercel's own `x-vercel-forwarded-for` header, which a visitor cannot fake. On your laptop we use the connection's real address and ignore forwarding headers, because there anyone can fake them. IPv6 visitors are grouped by their /64 block, since one home gets billions of addresses. If the limiter's Redis is down we let the request through (the spend cap and turn limits still protect us).
+- **What:** Each visitor (by IP address) gets a ration: 10 new games per hour, 40 questions per 10 minutes (suspect and witness share it), and 120 page reads per minute. Over the limit you see "You're going a little fast. Please wait about N seconds" (HTTP 429).
+- **Why:** The spend cap protects the money, but one script could still burn the whole day's budget in minutes and lock out every real player.
+- **How:** `ratelimit.ts` counts requests per IP in Redis using a sliding window (no reset-on-the-hour loophole). It runs **first** on every route, so a throttled request costs nothing. On Vercel the visitor's address comes from Vercel's own header, which visitors can't fake; locally it's the real connection address. IPv6 visitors are grouped by /64 block, since one home gets billions of addresses. If the limiter's Redis is down, requests are let through, because the spend cap and turn limits still protect the money.
 
 ## Step 7: Timeouts
 
-- **What:** A model call that goes quiet is cut off. The suspect or witness gets 25 seconds to answer, the judge (invigilator) gets 15 seconds per try, and the whole turn gets 50 seconds in total. If the suspect times out you see "The suspect took too long to answer. Your turn was not used, so please try again."
-- **Why:** Without a clock, one stuck call would hold your game's lock and a server slot until the platform killed the function (60 seconds), and you would just see a spinner. Now it ends quickly, cleanly, and costs you nothing.
-- **How:** The server starts one 50-second stopwatch when a turn begins and hands it to every model call; each call also gets its own shorter stopwatch. The first to ring cancels the call. A suspect timeout counts as a failed turn (same as Step 5: nothing is saved, no turn or evidence is lost). A judge timeout falls back to the existing "turn counts, no score change" behaviour, and once the 50 seconds are up the judge is not retried. The 50 seconds is deliberately below the 60-second function limit and the 70-second lock, so a lock can never run out while a turn is still going. No prompts or scoring changed.
+- **What:** A model call that goes quiet is cut off: 25 seconds for the suspect or witness, 15 seconds per attempt for the judge, 50 seconds for the whole turn. A suspect timeout shows "The suspect took too long to answer. Your turn was not used, so please try again."
+- **Why:** Without a clock, one stuck call would hold the game's lock until the platform killed the function, and the player would just see a spinner.
+- **How:** One 50-second stopwatch starts with each turn and is handed to every model call, and each call has its own shorter one. Whichever runs out first cancels the call. A suspect timeout is a failed turn (Step 5: nothing saved). A judge timeout falls back to "turn counts, no score change", and once the 50 seconds are up the judge isn't retried. 50 seconds sits under the 60-second function limit and the 70-second lock, so a lock can't expire while a turn is still going.
 
-## Step 8: Friendly errors, private logs
+## Step 8: Polite errors, private logs
 
-- **What:** When the AI service fails, the player now sees one fixed, polite sentence ("The suspect could not answer right now... please try again"), never the provider's own error text. The real reason goes to the server log. Broken or oversized requests get a clear 400 or 413 instead of a vague 500. Judge (invigilator) failures, which used to pass silently, are now logged too.
-- **Why:** Provider error messages can contain request details, account information or even pieces of the API key. Anything shown to a player is public, and server logs are readable by more people than the secrets are. We also could not see when the judge was quietly failing and giving zero points.
-- **How:** A new `log.ts` writes every log as one line of JSON (easy to search) and first wipes out anything that looks like a secret: the actual values of our secret settings, `sk-ant-` keys, "Bearer" tokens and passwords inside URLs. The route attaches the original error to the friendly one privately, so the log gets the real cause with the game id and turn number, while the player gets only the sentence. No prompts or scoring changed.
+- **What:** When the AI service fails, the player sees one fixed sentence ("The suspect could not answer right now. Your turn was not used, so please try again in a moment."), never the provider's own error text. The real reason goes to the server log. Broken or oversized requests get a clear 400 or 413. Judge failures, which used to pass silently, are now logged.
+- **Why:** Provider error messages can contain request details, account information or even parts of a key. Anything shown to a player is public, and logs are read by more people than should see secrets.
+- **How:** `log.ts` writes each log entry as one line of JSON and first wipes anything that looks like a secret: our secret settings' actual values, `sk-ant-` keys, "Bearer" tokens and passwords inside URLs. The original error rides along privately with the friendly one, so the log gets the real cause plus the game and turn, and the player gets only the sentence.
 
 ## Step 9: Transcripts in Redis
 
-- **What:** Every web game's conversation is now recorded in Redis for 14 days instead of written to a file. The start screen tells players: "your questions and the suspect's answers are recorded for 14 days". Setting `TRANSCRIPTS=off` turns recording off.
-- **Why:** Vercel has no disk that survives, so file logs would vanish. We still want playtest conversations to learn from. Recording what strangers type needs honesty (the notice) and care (no secrets stored, automatic deletion).
-- **How:** Each game gets one Redis list called `tx:<game id>`. Every event (game started, question asked, answer and score, failed turn, ending) is added to the end as one line of JSON. Before saving, every piece of text is scrubbed of anything that looks like a key or password. The list is capped at 200 entries and Redis deletes it 14 days after the last entry. If saving a transcript fails, the player's turn still works; we just log that the write failed. To read one, open the Upstash console and run `LRANGE tx:<game id> 0 -1`. The command-line game still writes its own files as before.
+- **What:** Each web game's conversation is recorded in Redis for 14 days. The start screen says so: "your questions and the suspect's answers are saved for 14 days". Setting `TRANSCRIPTS=off` turns recording off (then remove the notice from `public/index.html`).
+- **Why:** Vercel has no disk that survives, so file logs would vanish, and real conversations are how the game gets better. Recording what strangers type needs honesty (the notice) and care (no secrets stored, automatic deletion).
+- **How:** Each game gets one Redis list, `tx:<game id>`. Every event (game started, question, answer and score, failed turn, ending) is added as one line of JSON, with every piece of text scrubbed of anything key-shaped first. The list keeps at most 200 entries and is deleted 14 days after the last one. If writing fails, the turn still works and the failure is logged. To read one, open the Upstash console and run `LRANGE tx:<game id> 0 -1`. The terminal version of the game still writes local files to `playtest-logs/`.
 
 ## Step 10: Repo hygiene
 
-- **What:** Git now refuses to track any `.env` file (except the blank template `.env.example`), the `.vercel/` folder, and the `playtest-logs/` folder. The 35 old playtest logs were taken out of git (still on your disk). The Node version setting got an upper limit.
-- **Why:** The code is about to be public. A stray `.env` with the Anthropic key is the classic way people leak keys, and before this only `.env.local` was covered. Playtest logs hold things real people typed. The Node limit stops Vercel from quietly switching to a newer Node version one day.
-- **How:** Edited `.gitignore` and ran `git rm --cached` on the logs (that removes them from git but leaves the files). We scanned the tracked files for anything shaped like a key: only the placeholder in `.env.example` showed up. One caveat: the old logs are still inside git's past commits. They contain no keys, but if you want them gone from a public repo's history, that needs a separate history rewrite.
+- **What:** Git refuses to track any `.env` file (except the blank `.env.example`), the `.vercel/` folder and `playtest-logs/`. Old playtest logs were taken out of git. The Node version has an upper limit.
+- **Why:** The repo is public. A stray `.env` holding the API key is the classic leak, and playtest logs hold what real people typed. The Node limit stops Vercel switching Node versions without anyone noticing.
+- **How:** Edited `.gitignore` and removed the logs from git tracking (the files stay on disk). A scan of tracked files found nothing key-shaped except the placeholder in `.env.example`. Caveat: the old logs and a work email are still in git's history; removing them would need a history rewrite.
 
-## BYOK: bring your own key
+## Bring your own key (BYOK)
 
-- **What:** On the start screen there is an optional "Use my own Anthropic key" box. A player who pastes their own key plays on their own Anthropic account: the game no longer uses the shared $2/day budget, and keeps working even when that budget has run out.
-- **Why:** The shared key is a small gift that runs out. Someone who already has a key should be able to keep playing without waiting for tomorrow, and without us paying.
-- **How:** The key stays in the player's browser tab (it is forgotten when the tab closes) and is sent along with each request. Our server uses it for that one request to talk to Anthropic and then forgets it. It is not saved in Redis, not in the transcript, not in logs, not in any reply. Only a "this game uses the player's own key" flag is saved, so the player must send the key again every turn. Each request builds its own connection to Anthropic with that key, instead of changing the shared one, because many players share one server copy at the same moment. These still apply to BYOK games: the $0.08 per-game cap, one-request-at-a-time lock, and per-IP rate limits. If Anthropic refuses the key, the player sees "Anthropic rejected the API key you provided", not Anthropic's own message, and the turn is not used or charged. Honest caveat: the key does pass through our server, so players should use a key they can revoke, with a low spend limit.
+- **What:** An optional "Use my own Anthropic key" box on the start screen. A player who pastes their key plays on their own account, and keeps playing even after the shared daily budget runs out.
+- **Why:** The shared budget is small. Someone who already has a key shouldn't have to wait for tomorrow, or cost the project money.
+- **How:** The key stays in the player's browser tab (forgotten when the tab closes) and is sent with each request. The server uses it for that one request and keeps nothing: not in Redis, the transcript, logs or any reply. Only a "this game uses the player's own key" flag is saved, so the key must be sent again every turn. Each request builds its own connection to Anthropic rather than changing the shared one, because many players share one server copy at the same moment. The $0.08 per-game cap, the lock and the rate limits still apply. If Anthropic refuses the key, the player sees "Anthropic rejected the API key you provided..." and the turn isn't used or charged. Caveat: the key does pass through the server, so players should use a key they can revoke, with a low spend limit.
 
-## What we have NOT seen run yet (and how the audit finds out)
+---
 
-Everything above was tested on the build laptop with a pretend ("fake") model and a pretend ("in-memory")
-Redis. That proves our logic, not the real services. These are the pieces that only run for real once the
-game is live, each paired with the audit check that will show whether it works:
+## What's confirmed live, and what isn't yet
 
-- **The Redis scripts** (spend cap, lock, version check, transcripts). The real Upstash Redis runs them, not our fake. If one has a typo or a wrong assumption, the symptom is a 503 on every turn or a stuck game. Audit C3, C4, C7, C14, D1-D5 exercise each one.
-- **The rate limiter** (`@upstash/ratelimit`). We assume Vercel tells us the real visitor address in a header it controls, and that the library counts as we expect. If the address is wrong, the limit either trips for everyone at once or never trips. Audit C11 and D4 test from one and two networks.
-- **What Anthropic says to a wrong key.** Our "your key was refused" message depends on the error having an HTTP status of 401 or 403. We believe the Anthropic library supplies that, but have not seen a real one. If it does not, a wrong key shows the generic "suspect could not answer" message instead. A key with no credit is a related case: Anthropic reports it as a 400, which we deliberately do not call "rejected", so the player sees the generic message. Audit D6 records exactly what each case returns.
-- **The function limit and the build.** Whether Vercel accepted the 60-second setting and bundled the lazily-loaded Redis libraries. Audit C8 and D8.
-- **The local 502.** On the Windows test machine, one real turn against the local server failed with a "bad gateway" (the server's polite wrapper for "the AI service failed"). The cause is not known: it could be a missing or wrong key, a key with no credit, or the machine's network. The audit (B4) runs a three-step check that tells these apart without touching code.
+Everything above was first built and tested on a laptop with a pretend model
+and pretend (in-memory) Redis. That proves the logic, not the real services.
 
-None of this changes the game. If an item fails, the fix is a small code change we make after seeing the exact error, not a redesign.
+**Confirmed on the live site (2026-11-22):** the function builds and starts
+(Step 0), the boot checks pass with real env vars, and the start page, styles
+and API routes are served.
+
+**Not yet confirmed live**, each with the audit check in
+`.claude/audit-checklist.md` that proves it:
+
+- **The Redis scripts** (spend cap, lock, version check, transcripts) running on real Upstash. A mistake there would show up as a 503 on every turn or a stuck game. Audit C3, C4, C7, C14, D1-D5.
+- **The rate limiter** reading the right visitor address and counting as expected. Audit C11, D4.
+- **What Anthropic returns for a wrong key.** The "your key was refused" message depends on a 401 or 403. A key with no credit comes back as a 400, which deliberately shows the generic message instead. Audit D6.
+- **The 60-second limit** actually applied to the deployed function. Audit C8.
+- **A full live game** played through to an ending. Audit E1-E5.
+
+None of these change the game. If one fails, the fix is a small code change
+made after seeing the exact error, not a redesign.
