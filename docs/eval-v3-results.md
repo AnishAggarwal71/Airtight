@@ -1,9 +1,40 @@
-# V3 Eval Results — Invigilator Prompt Tuning
+# V3 Eval Results
 
-Post-tuning measurements for the V3 two-agent architecture. All runs use
-Claude Haiku 4.5 via `@ai-sdk/anthropic`. Baseline was collected on the
-pre-fix code; post-fix runs include the A.1 prompt precision edits and the
-`maxTurnDelta: 25` cap.
+All runs use Claude Haiku 4.5 via `@ai-sdk/anthropic`. Raw reports for the
+latest runs are in `eval-results/`; older reports were removed 2026-11-22 and
+remain in git history.
+
+## Latest run — 2026-10-25 (current templates and rules)
+
+These are the first numbers on the current game: after the 2026-10-15
+witness and ending rule changes and the 2026-10-19 template rework.
+
+| | Result | Target |
+|---|---|---|
+| Layer 1 precision | **0.692** | >= 0.65 |
+| Layer 1 recall | **0.90** | >= 0.80 |
+| Layer 1 passed | **13/18** | |
+| Layer 2 games | 5 (all completed) | |
+| `CHARGED_STRONG` | **2/5 (40%)** | 50-70% |
+| `CHARGED_WEAK` | 3/5 | |
+| Case Strength mean / median | **74 / 77** (range 51-87) | 70-85 |
+| Max per-turn delta | 25 | <= 25 |
+| Tokens per game | ~40.5K in, ~4.1K out (~$0.06) | |
+
+Signals per game: 1.2 contradictions, 0 guilty-knowledge leaks, 0.6
+demeanor shifts, 1.6 witness contradictions.
+
+**Reading it:** Layer 1 improved on every metric. Layer 2 sits slightly
+below the strong-charge target, but on 5 games one game is 20 points, so
+this is not evidence of a balance problem. A 50-game run
+(`npm run eval -- --layer2-only 50`) is needed before changing any weight.
+
+## Tuning history — 2026-10-20 (before the template rework)
+
+The sections below are the original tuning measurements. They predate the
+current templates and witness rules and are kept to show what each fix did.
+Baseline was collected on the pre-fix code; post-fix runs include the A.1
+prompt precision edits and the `maxTurnDelta: 25` cap.
 
 ## Layer 1 — Invigilator Accuracy (18 hand-crafted cases)
 

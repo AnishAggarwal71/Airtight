@@ -1,124 +1,161 @@
 # AIRTIGHT
 
-**An LLM-driven interrogation game where you are the detective.**
+**An interrogation game where you're the detective and the suspect is an AI.**
 
-Build a case against an AI suspect before they talk their way free. Each case is generated deterministically from a seed; a guilty AI suspect sustains a cover story under questioning, a separate AI witness can corroborate or contradict that story, and an independent AI judge — not the suspect itself — decides what actually damages the case.
+**Play it: https://airtight-rust.vercel.app**
 
-> **Status: V3 two-agent architecture implemented, type-checked, and passing `npm run verify`.** Live human playtests have been run against Claude Haiku 4.5 (transcripts under `playtest-logs/`), and the eval harness has been run and tuned: Layer 1 invigilator accuracy sits at precision 0.667 / recall 0.80 (10 of 18 hand-crafted cases passed), and Layer 2 automated gameplay (10 games) produced a 6/10 `CHARGED_STRONG` rate with a mean Case Strength of 77 *(these Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run)*. Full results in [`docs/eval-v3-results.md`](docs/eval-v3-results.md); raw reports in `eval-results/`.
+You get a case file, a handful of evidence, six questions and one witness. The
+suspect is guilty, knows exactly what happened, and has a cover story ready.
+Your job is to catch them out before the questions run out.
 
-## Why it exists
+Behind the scenes, one model plays the suspect and a second, independent model
+judges every answer against the hidden truth. A small, deterministic scoring
+engine turns those judgements into the Case Strength meter, so the score is
+explainable rather than a model's opinion of itself.
 
-AIRTIGHT is a portfolio project about building dependable LLM systems, not merely wrapping a chat completion in a UI. It explores a constrained multi-agent game loop where one model performs a role, a second model judges that performance from a bird's-eye view, deterministic TypeScript owns state and scoring, hidden ground truth stays private, compact claim ledgers replace growing transcripts, and behaviour is replayable from a seed.
+## How a game works
 
-See [the portfolio brief](docs/portfolio.md) for the project narrative, architecture, design decisions, current scope, and evaluation plan.
+1. **The case.** Each case is generated from a seed: victim, suspect, a
+   hidden true timeline, the suspect's cover story, and 4-5 pieces of
+   evidence. You see the briefing and all the evidence up front. You never see
+   the truth, the cover story, or each item's weak spot.
+2. **Questioning.** You get six questions. Ask anything, or formally present
+   evidence. The suspect answers in character and has no idea what evidence
+   you hold, so it has to improvise when you play one.
+3. **Judging.** After each answer, a separate judge with the full case
+   (truth, evidence weak spots, everything the suspect has claimed so far)
+   reports what happened: contradictions with earlier claims, slips that only
+   the killer would know, how well the evidence was handled (0-3), and shifts
+   in demeanor. It never rates how convincing the answer sounded.
+4. **Case Strength.** One meter, starting at 15. The engine turns the judge's
+   findings into points, at most 25 per turn.
+5. **The witness.** Unlocks once Case Strength passes 50. Two extra questions,
+   once per game, at any point.
+6. **Endings.** Reach 80 at any point for a strong charge. Otherwise, when the
+   questions run out: 50-79 is a shaky charge, under 50 the suspect walks.
+7. **The breakdown.** After the game you see the truth, every claim the
+   suspect made, which ones broke, and the judge's reasoning per turn. It costs
+   no extra model calls.
 
-## How it works
+## Why it's built this way
 
-1. **Setup.** Each case is generated from a seed: a guilty suspect, a hidden true timeline, a cover story, and a claim ledger. The player only ever sees the public case — the briefing and evidence — never the hidden timeline or the suspect's strategy.
-2. **The loop.** The player gets six questions for the suspect and can present evidence. The suspect (a persona agent) answers in character, improvising without knowing what evidence the detective holds. A separate invigilator agent then checks that answer against the hidden state — contradictions with the claim ledger, guilty-knowledge leaks, how the evidence was handled, demeanor shifts. It does not judge how persuasive the answer sounded.
-3. **Case Strength.** One meter, starting at 15, that only rises — it never drops. Each turn's gain is capped at 25 points, on both suspect turns and witness turns.
-4. **The witness.** Becomes callable once Case Strength climbs above 50. Can be called exactly once, for two extra questions that don't come out of the suspect's six.
-5. **Endings.** Case Strength reaching 80 at any point ends the game immediately as a strong charge. If the questions run out first, 50–79 is a qualified charge; below 50, the suspect walks — that's the detective failing to build the case, not proof the suspect was innocent.
-6. **Why it's built this way.** Models are too agreeable to reliably judge how convincing their own performance was, so the invigilator never rates persuasiveness — only consistency against hidden ground truth — and a pure scoring engine, not a prompt, turns those checks into the number.
+- **The actor and the judge are separate calls.** In an earlier version the
+  suspect reported its own slips. It never did, and the score never moved.
+  Splitting acting from judging fixed that.
+- **The model finds things; code does the maths.** The judge returns named
+  signals, not scores. All weights live in `SCORING_CONFIG`
+  (`src/engine/score.ts`), so difficulty is a config change.
+- **A claim ledger, not the transcript.** Each answer's factual claims are
+  stored as short records with IDs (`c1`, `c2`...). The judge cites those IDs,
+  and a cited ID that doesn't exist is dropped, so it can't invent a
+  contradiction.
+- **The answer key never leaves the server.** The seed regenerates the whole
+  hidden case, so the browser never receives it, and the player only ever
+  gets the public view of a case (`toPublicCase()`).
+- **Reproducible.** The same seed always produces the same case, so any game
+  can be replayed while debugging.
 
-See `docs/decisions.md` for the full writeup of why the architecture split the acting and judging roles apart.
+More detail: [`docs/portfolio.md`](docs/portfolio.md) (project brief) and
+[`docs/decisions.md`](docs/decisions.md) (why things are the way they are).
 
-## Run it
+## Run it locally
+
+Needs Node 20.11 or newer (below 25).
 
 ```bash
 npm install
-npm run verify
+npm run verify                    # 19 checks, no API key or model calls
 
-# Inspect deterministic cases (no API key required)
-npm run case homicide
-npm run case:public homicide
-npm run case test-seed-1 homicide
+# Look at generated cases (no key needed)
+npm run case homicide             # full case, including the hidden truth
+npm run case:public homicide      # exactly what the player sees
+npm run case test-seed-1 homicide # pin a seed
+```
 
-# Play against a model
-Copy-Item .env.example .env.local
-npm run play
+To play, copy `.env.example` to `.env.local` and add an `ANTHROPIC_API_KEY`.
+
+```bash
+npm run dev                       # web game at http://localhost:3000
+npm run play                      # terminal version
 npm run play -- test-seed-1 homicide
 ```
 
-Add `ANTHROPIC_API_KEY` to `.env.local`. The game uses Claude Haiku 4.5 (`claude-haiku-4-5`) for both the persona and invigilator agents. Keys are local only and must never be committed.
+Terminal commands: `PRESENT e3: your question` presents evidence (or
+`PRESENT e1, e3: ...` for several), `/evidence`, `/status`, `/witness`,
+`/quit`.
 
-Server spend cap (web deployment): each turn reserves $0.01 of model cost against a per-session limit ($0.08, about one full game) and a server-wide daily limit. The daily limit defaults to $2 and is set with the optional `MAX_DAILY_SPEND_USD` env var; when it is used up, new games are refused until the next UTC day.
+Locally, sessions live in memory and no Redis is needed. Set
+`ALLOW_CLIENT_SEED=1` and open `http://localhost:3000/?seed=<seed>` to replay
+a specific case in the browser.
 
-During play:
+## Deploy your own (Vercel)
 
-```text
-PRESENT e3: Why does the phone record place you there?
-PRESENT e1,e3: Explain both of these records.
-/evidence     # reprint available evidence
-/status       # reprint Case Strength
-/quit         # leave early and see the breakdown
-```
+1. Import the repo into Vercel. **Framework Preset: Express.** Leave the build
+   command, output directory and install command empty.
+2. **Storage → Upstash Redis**, connected to the project. That adds
+   `KV_REST_API_URL` and `KV_REST_API_TOKEN` (`UPSTASH_REDIS_REST_URL` and
+   `_TOKEN` also work). The app refuses to start on Vercel without Redis.
+3. Environment variables (Production):
 
-Questions are capped at 300 characters. Homicide cases can optionally use a city/region and country as fictional scene context. The CLI saves a JSONL transcript per playthrough under `playtest-logs/`. The deployed web game records each game to Redis (`tx:<session id>`, redacted, deleted after 14 days) and says so on the start screen; set `TRANSCRIPTS=off` to record nothing (and delete the notice in `public/index.html`).
+   | Name | |
+   |---|---|
+   | `ANTHROPIC_API_KEY` | required |
+   | `SESSION_SECRET` | required on Vercel, 32+ random characters: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+   | `MAX_DAILY_SPEND_USD` | optional, default `2` |
+   | `TRANSCRIPTS` | optional; `off` stops recording games (then delete the notice in `public/index.html`) |
 
-**Bring your own key.** The deployed web game has an optional "Use my own Anthropic key" panel on the start screen. A key entered there is kept only in the browser tab (`sessionStorage`), sent to the server in the `X-Anthropic-Key` header on each request, and passed on to Anthropic for that request; the server never stores or logs it. Games played this way do not use the shared daily budget (the $0.08 per-game cap still applies). Use a revocable key with a low spend limit.
+   Never set `ALLOW_CLIENT_SEED` in production (it is ignored there anyway).
+4. Deploy. Env var changes need a new deployment to take effect.
 
-Evaluation harness (also requires the API key):
+## Cost and limits
+
+A game makes 16 model calls (two per turn) on Claude Haiku 4.5 and costs about
+$0.05-0.06. The server caps spend at $0.08 per game and `MAX_DAILY_SPEND_USD`
+per day (about 40 games at the default $2), and rate-limits per IP. Each
+answer is capped at 25 points and each question at 300 characters.
+
+Players can use **their own Anthropic key** from the start screen. It's kept in
+that browser tab only, passed to Anthropic per request, and never stored or
+logged. Those games skip the daily cap (the per-game cap still applies).
+
+**Data:** web games are recorded in Redis for 14 days (`tx:<session id>`,
+secrets redacted) and the start screen says so. Nothing is stored
+permanently. CLI games write JSONL to `playtest-logs/` (gitignored).
+
+## Evaluation
 
 ```bash
-npm run eval                     # Layer 1: 18 hand-crafted invigilator accuracy cases
-npm run eval -- --games 10       # Layer 1 + 10 automated full-game runs
+npm run eval                      # Layer 1: 18 hand-written judge accuracy cases
+npm run eval -- --games 10        # plus 10 automated full games
+npm run eval -- --layer2-only 50  # 50 games, no Layer 1
 ```
 
-Results are written to `eval-results/` as timestamped JSON.
-
-## Current implementation
-
-| Area | What is here now |
-|---|---|
-| Cases | Deterministic seeded generation. **Homicide only** is active for V3 — 10 distinct scenario templates. Embezzlement is a Phase 2 placeholder. |
-| Persona Agent | Structured suspect/witness actor: dialogue, normalized claims, demeanor. Does not see what evidence the detective has or any evidence's vulnerability — it improvises in character. |
-| Invigilator Agent | A separate LLM-as-judge call with full case context (truth, vulnerabilities, persona, claim ledger) that returns structured signals: contradictions (tagged to claim IDs), guilty-knowledge leaks, evidence-handling quality (0–3), demeanor shifts. |
-| Scoring | Pure TypeScript with all tuning weights in `SCORING_CONFIG`; the engine reads invigilator signals and does the arithmetic — the model never scores itself. |
-| State | A compact claim ledger (suspect `c` prefix, witness `wc` prefix), evidence presentation state, Case Strength history, ending state, and token usage. |
-| Safety boundary | `toPublicCase()` exposes the detective's evidence while withholding the truth timeline, evidence vulnerabilities, suspect persona/strategy, and the fatal fact. |
-| Verification | Determinism, leak safety, template integrity, coverage, and output variance checks via `npm run verify` (17 checks, zero model calls). |
-| Eval harness | Layer 1: 18 hand-crafted invigilator-accuracy cases (precision 0.667, recall 0.80, 10/18 passed). Layer 2: automated full-game runner with a scripted detective (6/10 `CHARGED_STRONG`, mean Case Strength 77 over 10 games) — *Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run.* See [`docs/eval-v3-results.md`](docs/eval-v3-results.md). |
+Latest run (2026-10-25, Haiku 4.5): judge precision **0.692**, recall
+**0.90** (13/18 cases). Five automated games averaged Case Strength 74, with
+2 strong and 3 shaky charges. A 50-game run is the next measurement. Details
+in [`docs/eval-v3-results.md`](docs/eval-v3-results.md); raw reports in
+`eval-results/`.
 
 ## Project map
 
 ```text
-src/engine/
-  generate.ts       seeded case generation and public/private boundary
-  adjudicate.ts     Persona Agent (suspect mode): prompt + structured-response call; exports MODEL
-  witness.ts        Persona Agent (witness mode): prompt + structured-response call
-  invigilator.ts    Invigilator Agent: LLM-as-judge, structured signals, retry logic
-  ledger.ts         compact suspect and witness claim ledgers
-  score.ts          pure scoring configuration and ending checks
-  session.ts        game-loop orchestration (persona -> ledger -> invigilator -> score)
-  templates/        homicide (active, 10 scenarios), embezzlement (placeholder)
-src/eval/
-  cases.ts          18 hand-crafted invigilator accuracy cases
-  detective.ts       Layer 1 (invigilator accuracy) and Layer 2 (automated gameplay) runners
-src/cli/
-  play.ts           interactive terminal experience and post-game breakdown
-  eval.ts           eval harness CLI
-  verify.ts         generator and leak-safety verification
-  inspect.ts        full or public-case inspection
-  transcript.ts     JSONL playtest logging
-docs/
-  portfolio.md      portfolio-ready project brief
-  decisions.md      architectural decision log
-  playtest-notes.md findings from manual testing
+src/engine/        the game: case generation, persona agent, judge, scoring
+  generate.ts      seed -> case, and the public/private split
+  adjudicate.ts    suspect persona (exports MODEL)
+  witness.ts       witness persona
+  invigilator.ts   the judge
+  score.ts         SCORING_CONFIG and endings
+  session.ts       one turn: persona -> ledger -> judge -> score
+  templates/       10 homicide scenarios
+src/server/        Express API: sessions, spend cap, locks, rate limits, logs
+src/index.ts       Vercel entry point
+src/cli/           play, verify, inspect, eval
+src/eval/          eval cases and runners
+public/            browser UI (vanilla JS)
+docs/              decisions, eval results, brief, hardening notes
 ```
 
-## Important design choices
+## Status and scope
 
-**The suspect acts; the invigilator judges; the engine scores.** The suspect generates dialogue and claims. A separate judge with full case context evaluates them. Case Strength arithmetic, thresholds, and outcomes live in code so the game can be tuned and explained — and so the suspect is never asked to grade its own performance.
-
-**The transcript is not the memory.** The system passes a small, normalized claim ledger between turns instead of repeatedly sending the full conversation. That controls context growth and gives both the witness and the invigilator precise claims to confirm, contradict, or evaluate.
-
-**Ground truth stays private.** The player can inspect all available evidence, but not the suspect's cover story, the evidence's exploitable weaknesses, or the actual timeline. Those are revealed only in the zero-call post-game breakdown.
-
-**Every case is reproducible.** A seed and crime type always produce the same case, which makes bugs replayable and evaluation possible without a database.
-
-## Next
-
-Live playtesting and the eval harness run are done against the CLI — see the status line above and [`docs/eval-v3-results.md`](docs/eval-v3-results.md) for the full numbers (Layer 2 numbers predate the 2026-10-15 witness/clamp rule changes and are pending a re-run). The mid-game witness call and the Case Strength 50 witness-unlock gate described above are now implemented in the engine. A web UI exists (Express API + browser client) and has been manually playtested end-to-end against all three endings, but is **not yet deployed** — the plan is to deploy from the user's own hosting rather than this machine. More templates and innocent-suspect mode remain future scope.
-
-For the detailed portfolio framing, read [docs/portfolio.md](docs/portfolio.md).
+Live and playable. Phase 1 is homicide only, and the suspect is always guilty.
+More templates and an innocent-suspect mode are future scope.

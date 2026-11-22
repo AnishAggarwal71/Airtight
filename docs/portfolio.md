@@ -105,12 +105,9 @@ The system carries compact claims forward rather than replaying the complete tra
 
 ## Current scope
 
-V3 is implemented as a terminal game and passes deterministic generation, leak-safety, template-integrity, coverage, and variance checks (`npm run verify`, 9 checks, zero model calls). Scope was narrowed to **murder only** for V3 focus: 10 homicide templates are active. Embezzlement is a Phase 2 placeholder. Sessions are saved as JSONL
-transcripts under `playtest-logs/` for manual review, and currently kept
-(not gitignored) on the build machine intentionally — see `docs/decisions.md`
-(2026-10-19) for the retention policy.
+V3 is live as a web game at https://airtight-rust.vercel.app (Express on Vercel, state in Upstash Redis) and also runs as a terminal game. `npm run verify` runs 19 checks with zero model calls: deterministic generation, leak safety, template integrity, coverage and variance, plus the production-hardening checks (seed never leaves the server, sessions, spend cap, turn race, rollback, rate limits, timeouts, log hygiene, transcripts, bring-your-own-key). Scope is **murder only**: 10 homicide templates. Embezzlement is a Phase 2 placeholder. Web games are recorded to Redis for 14 days; CLI games write JSONL to `playtest-logs/` (gitignored).
 
-The next priority is a live-model playthrough and an eval run, not more features: invigilator accuracy against real suspect dialogue and prompt latency need evidence from real sessions. Actual token cost has real-world evidence now: confirmed ~$0.05/run (2026-10-19) — see `docs/decisions.md` for the analysis, including why prompt caching doesn't apply at this model/prompt size (Haiku 4.5's cache minimum is 4,096 tokens; this project's largest system prompt measures ~1,658).
+The latest eval (2026-10-25) puts the invigilator at precision 0.692 / recall 0.90 on 18 hand-crafted cases; a 50-game gameplay run is the next measurement. Actual token cost has real-world evidence now: confirmed ~$0.05/run (2026-10-19) — see `docs/decisions.md` for the analysis, including why prompt caching doesn't apply at this model/prompt size (Haiku 4.5's cache minimum is 4,096 tokens; this project's largest system prompt measures ~1,658).
 
 ## Key technical risk — resolved by architecture, now needs calibration
 

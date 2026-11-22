@@ -23,7 +23,7 @@ cheap to leave public. The game itself (rules, prompts, balance) is untouched.
 
 - **What:** Made the app deployable on Vercel.
 - **Why:** Vercel runs functions, not an always-on server.
-- **How:** `src/index.ts` exports the Express app; the static front-end is served by Vercel's CDN.
+- **How:** `src/index.ts` exports the Express app (and imports `express` itself, which Vercel's Express preset requires). `vercel.json` bundles `public/**` into the function, because requests for the page reach Express rather than a CDN. Relative imports end in `.js` so Node can load the compiled files.
 - **The 60-second setting:** `vercel.json` tells Vercel the function may run up to 60 seconds (`maxDuration: 60`). It had been deleted by accident during the first deploy, which would have left Vercel's own default in charge. Steps 4 and 7 rely on the 60 seconds: a turn gives up at 50 seconds and a lock expires at 70, so the function must not be killed earlier than that. It is restored; the audit (C8) checks the deployed function really got it.
 
 ## Step 1: Stop leaking the seed

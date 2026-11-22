@@ -19,7 +19,7 @@ map below shows which. Later steps add their own sections to this file as they l
 
 | Step | What it protects | Checks |
 |------|------------------|--------|
-| 0 Vercel wiring | app deploys as one function, static files from the CDN | P3, C0, C8 |
+| 0 Vercel wiring | app deploys as one Express function with `public/` bundled in | P3, C0, C8 |
 | 1 Seed never sent | the hidden case cannot be read from the browser | B1, B2, C6, E3 |
 | 2 Sessions in Redis | state survives across serverless instances | C2, C3 |
 | 3 Spend cap | the shared key cannot be drained | C7, D |
@@ -34,9 +34,10 @@ map below shows which. Later steps add their own sections to this file as they l
 
 ## P. Pre-flight (do first; the owner does P1-P3, the agent confirms)
 
-The previous audit (bottom of this file) was blocked because the live API
-returned 404 and production had only `ANTHROPIC_API_KEY`. Do not start section C
-until P3 passes.
+The site is live (2026-11-22). If the live API returns a bare Vercel 404 or
+every page is a 500, check the Framework Preset (must be Express) and the env
+vars before anything else; see `docs/decisions.md` 2026-11-22. Do not start
+section C until P3 passes.
 
 **P1. Environment variables on Vercel (Production).** Names only; never print values.
 
@@ -599,19 +600,3 @@ Give each item PASS / FAIL / BLOCKED. Paste exact output on FAIL.
 **Surprises (anything odd that no check asked about):**
 
 **Environment:** date, PowerShell version (`$PSVersionTable.PSVersion`), `node --version`, deployed commit (Vercel dashboard), branch tested.
-
-## Previous audit — 2026-10-24 (Asia/Colombo), superseded
-
-Run before the deployment had its API function or Redis. Kept for comparison.
-
-| Item | Result | Notes |
-|------|--------|-------|
-| A1 typecheck | PASS | exit code 0 |
-| A2 verify | PASS | 13 `ok` checks at that time (now 19) |
-| A3 deps | PASS | `@upstash/redis` present |
-| B1-B3 | PASS | no seed; client seed ignored; breakdown 409 |
-| B4 | FAIL | local turn returned `502 Bad Gateway` (generic upstream-model failure). Cause not identified; see the B4 note above. |
-| C1 | FAIL | production had only `ANTHROPIC_API_KEY` |
-| C2 | FAIL | live `/api/game` returned 404; the alias resolved to a Ready deployment whose build list showed only `.` at 0ms (API function not built) |
-| C3-C9 | BLOCKED | blocked by C2 |
-| C8 | BLOCKED | `vercel inspect` reports build duration, not a function limit |
