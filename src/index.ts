@@ -1,8 +1,9 @@
 /**
  * Vercel entry point — exports the Express app as the default export, which
  * is the shape Vercel's Express support looks for (`src/index.ts`). Vercel
- * wraps the whole app as ONE function; `public/` is served by the CDN
- * directly, so `express.static` inside createApp() is inert there.
+ * wraps the whole app as ONE function. Requests for "/" reach that function,
+ * which reads public/index.html from disk, so vercel.json bundles `public/**`
+ * into it via `includeFiles` (without that the function 500s with ENOENT).
  *
  * Inputs:  env vars supplied by Vercel (ANTHROPIC_API_KEY etc.) — no dotenv
  *          here; Vercel injects them and src/engine/adjudicate.ts self-loads

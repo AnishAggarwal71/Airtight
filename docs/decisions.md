@@ -23,6 +23,12 @@ the Express preset scans that file's source for it.
 on disk is `.ts`; `npm run typecheck` fails otherwise. Checked by compiling
 `src/` with `tsc` and importing `src/index.js` with plain `node`.
 
+**Follow-up (same day):** with imports fixed, `GET /` returned 500 with
+`ENOENT ... stat '/var/task/public/index.html'`. The request for "/" reaches
+the Express function, and Vercel only bundles files the code imports, so
+`public/` was missing from it. `vercel.json` now sets
+`"includeFiles": "public/**"` on `src/index.ts`.
+
 ## 2026-11-11 — Plain-voice copy pass, no em dashes in player-facing text
 
 **Decided:** All text the player sees (start screen, in-game labels, ending
