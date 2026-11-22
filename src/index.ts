@@ -13,6 +13,12 @@
  * run src/server/index.ts, which binds a port. `vercel dev` uses this one.
  */
 
+// Vercel's Express preset only accepts an entry file that imports `express`
+// itself (it scans this file's source and does not follow the import into
+// server/app.ts). This import exists for that check; without it the build
+// fails with "No entrypoint found which imports express".
+import express from 'express'
 import { createApp } from './server/app'
 
-export default createApp()
+const app: ReturnType<typeof express> = createApp()
+export default app
